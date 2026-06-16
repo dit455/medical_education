@@ -9,6 +9,8 @@ export default function App() {
   const [activeRoute, setActiveRoute] = useState("dashboard");
   const [data, setData] = useState(SEED_DATA);
 
+  // Super Admin is a hardcoded demo login. Department logins are real accounts
+  // (created by Super Admin) - after authenticating they still pick BOME or BOEN.
   function handleLogin(loginType) {
     if (loginType === "super-admin") {
       setSession({ screen: "app", role: "Super Admin", loginType });

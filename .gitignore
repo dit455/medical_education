@@ -3,5 +3,8 @@ dist/
 .vite/
 .env
 .env.*
+!.env.example
 *.log
 Medical Education DPR V 1 (1).pdf
+backend/venv/
+backend/__pycache__/

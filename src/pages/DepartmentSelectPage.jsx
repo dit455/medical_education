@@ -3,6 +3,8 @@ import SiteHeader from "../components/SiteHeader.jsx";
 import SiteFooter from "../components/SiteFooter.jsx";
 import { BOARD_ROLES } from "../data.js";
 
+// Shown after a department login - the account isn't tied to one board, so
+// the user picks BOME or BOEN each time they log in.
 export default function DepartmentSelectPage({ onBack, onSelect }) {
   return (
     <div className="page-with-header">

@@ -5,6 +5,7 @@ import Sidebar from "./Sidebar.jsx";
 import Topbar from "./Topbar.jsx";
 import Dashboard from "./Dashboard.jsx";
 import CrudPage from "./CrudPage.jsx";
+import DepartmentAdminsPage from "./DepartmentAdminsPage.jsx";
 import { ROUTES } from "../routes.js";
 import { ENTITY_COLUMNS } from "../data.js";
 
@@ -21,6 +22,8 @@ export default function AppShell({ role, data, activeRoute, setActiveRoute, upda
           <Topbar role={role} onLogout={onLogout} />
           {currentRoute.type === "dashboard" ? (
             <Dashboard data={data} role={role} routes={routesForRole} setActiveRoute={setActiveRoute} updateEntity={updateEntity} />
+          ) : currentRoute.type === "department-admins" ? (
+            <DepartmentAdminsPage />
           ) : (
             <CrudPage
               route={currentRoute}

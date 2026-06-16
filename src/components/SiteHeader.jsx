@@ -16,7 +16,7 @@ export default function SiteHeader({ showSearch = true }) {
               MOTHER THERESA POST GRADUATE AND RESEARCH INSTITUTE OF HEALTH
               SCIENCES (MTPG & RIHS)
             </span>
-            <em>Government of Puducherry Institution</em>
+            <em>Government of Puducherry</em>
           </div>
           <img
             className="identity-logo-img identity-logo-right"

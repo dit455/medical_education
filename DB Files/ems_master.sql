@@ -185,3 +185,16 @@ CREATE TABLE tbl_course_subject_map (
         UNIQUE (course_id, subject_id, year_id, sem_id)
 );
 
+DROP TABLE IF EXISTS users;
+
+CREATE TABLE users (
+  id int NOT NULL AUTO_INCREMENT,
+  username varchar(50) NOT NULL,
+  password varchar(255) DEFAULT NULL,
+  department varchar(100) DEFAULT NULL,
+  created_by varchar(100) DEFAULT NULL,
+  role varchar(50) NOT NULL DEFAULT 'user',
+  permissions_json text,
+  PRIMARY KEY (id),
+  UNIQUE KEY username (username)
+);

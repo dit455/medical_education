@@ -19,10 +19,16 @@ export function humanizeKey(key) {
 }
 
 // Builds a blank row object from a field-definition list, defaulting select fields
-// to their first option and text fields to "".
+// to their first option and text fields to "". Options may be plain strings or
+// { value, label } objects (DB-backed dropdowns) - default to the plain value either way.
 export function emptyRowFromFields(fields) {
   return fields.reduce((row, [key, , options]) => {
-    row[key] = options ? options[0] : "";
+    if (!options) {
+      row[key] = "";
+    } else {
+      const first = options[0];
+      row[key] = typeof first === "object" && first !== null ? first.value : first;
+    }
     return row;
   }, {});
 }

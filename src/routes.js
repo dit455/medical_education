@@ -17,6 +17,7 @@ import {
   BookOpen,
   BadgeCheck,
   SlidersHorizontal,
+  KeyRound,
 } from "lucide-react";
 import {
   BOARD_ROLES,
@@ -46,6 +47,15 @@ export const ROUTES = [
     entity: "users",
     fields: ENTITY_FIELDS.user,
     title: "User Creation",
+  },
+  {
+    key: "department-admins",
+    label: "Department Admins",
+    icon: KeyRound,
+    roles: ["Super Admin"],
+    group: "Super Admin",
+    type: "department-admins",
+    title: "Department Admins",
   },
   {
     key: "roles",

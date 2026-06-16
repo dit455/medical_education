@@ -913,6 +913,16 @@ h3 {
   border-radius: 8px;
   background: var(--section);
   padding: 8px 10px;
+  font: inherit;
+  text-align: left;
+}
+
+button.hierarchy-item {
+  cursor: pointer;
+}
+
+button.hierarchy-item:hover {
+  border-color: var(--brand);
 }
 
 .hierarchy-item span {

@@ -4,13 +4,15 @@ import SiteHeader from "../components/SiteHeader.jsx";
 import SiteFooter from "../components/SiteFooter.jsx";
 import { LOGIN_CREDENTIALS } from "../data.js";
 import { randomCaptcha } from "../utils.js";
+import * as api from "../api.js";
 
 export default function LoginPage({ onLogin }) {
   const [loginType, setLoginType] = useState("super-admin");
   const [form, setForm] = useState({ username: "", password: "", captcha: "" });
   const [captcha, setCaptcha] = useState(randomCaptcha());
   const [error, setError] = useState("");
-  const credentials = LOGIN_CREDENTIALS[loginType];
+  const [submitting, setSubmitting] = useState(false);
+  const credentials = LOGIN_CREDENTIALS[loginType] || null;
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -23,22 +25,43 @@ export default function LoginPage({ onLogin }) {
     if (clearError) setError("");
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     if (!form.username.trim() || !form.password.trim()) {
       setError("Enter username and password.");
       return;
     }
-    if (form.username.trim() !== credentials.username || form.password !== credentials.password) {
-      setError("Invalid demo credentials.");
+
+    // Super Admin stays a hardcoded demo login; Department logs in against
+    // real accounts (created by Super Admin) in the `users` DB table.
+    if (loginType === "super-admin") {
+      if (form.username.trim() !== credentials.username || form.password !== credentials.password) {
+        setError("Invalid demo credentials.");
+        return;
+      }
+      if (form.captcha.trim().toUpperCase() !== captcha) {
+        refreshCaptcha(false);
+        setError("Captcha does not match.");
+        return;
+      }
+      onLogin("super-admin");
       return;
     }
-    if (form.captcha.trim().toUpperCase() !== captcha) {
-      refreshCaptcha(false);
-      setError("Captcha does not match.");
-      return;
+
+    setSubmitting(true);
+    try {
+      await api.login(form.username.trim(), form.password);
+      if (form.captcha.trim().toUpperCase() !== captcha) {
+        refreshCaptcha(false);
+        setError("Captcha does not match.");
+        return;
+      }
+      onLogin("department");
+    } catch (err) {
+      setError(err.message || "Invalid username or password.");
+    } finally {
+      setSubmitting(false);
     }
-    onLogin(loginType);
   }
 
   return (
@@ -74,7 +97,7 @@ export default function LoginPage({ onLogin }) {
                 <input
                   value={form.username}
                   onChange={(e) => setField("username", e.target.value)}
-                  placeholder={credentials.username}
+                  placeholder={credentials ? credentials.username : "Username"}
                 />
               </label>
               <label>
@@ -112,9 +135,9 @@ export default function LoginPage({ onLogin }) {
                 />
               </label>
               {error && <div className="login-error">{error}</div>}
-              <button className="primary-btn login-submit" type="submit">
+              <button className="primary-btn login-submit" type="submit" disabled={submitting}>
                 <LockKeyhole size={18} />
-                Login
+                {submitting ? "Logging in..." : "Login"}
               </button>
             </form>
             <DemoCredentialsHint activeType={loginType} />

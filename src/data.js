@@ -16,16 +16,13 @@ export const ALL_ROLES = [
   "Reports User",
 ];
 
+// Department logins are real accounts (created by Super Admin, stored in the
+// `users` DB table) - only the Super Admin demo login stays hardcoded.
 export const LOGIN_CREDENTIALS = {
   "super-admin": {
     label: "Super Admin",
     username: "superadmin",
     password: "Admin@123",
-  },
-  department: {
-    label: "Department",
-    username: "department",
-    password: "Dept@123",
   },
 };
 
@@ -181,14 +178,11 @@ export const ENTITY_FIELDS = {
   ],
   institution: [
     ["name", "Institution"],
-    ["code", "Code"],
     ["region", "Region"],
     ["status", "Status", ["Active", "Inactive"]],
   ],
   course: [
     ["name", "Course"],
-    ["code", "Code"],
-    ["duration", "Duration"],
     ["status", "Status", ["Active", "Inactive"]],
   ],
   boardSubject: [
@@ -251,8 +245,8 @@ export const ENTITY_COLUMNS = {
     "status",
   ],
   reports: ["name", "module", "frequency", "owner", "status"],
-  institutions: ["name", "code", "region", "status"],
-  courses: ["name", "code", "duration", "status"],
+  institutions: ["name", "region", "status"],
+  courses: ["name", "status"],
   boardSubjects: ["subject", "year", "semester", "priority", "status"],
 };
 
@@ -467,112 +461,6 @@ export const SEED_DATA = {
       type: "Term",
       code: "T1",
       effectiveFrom: "2025-09-01",
-      status: "Active",
-    },
-  ],
-  institutions: [
-    {
-      id: 1,
-      board: "BOME",
-      name: "Mother Theresa Institute",
-      code: "MTI",
-      region: "Puducherry",
-      status: "Active",
-    },
-    {
-      id: 2,
-      board: "BOME",
-      name: "Medical Training College",
-      code: "MTC",
-      region: "Karaikal",
-      status: "Active",
-    },
-    {
-      id: 3,
-      board: "BOEN",
-      name: "Nursing College",
-      code: "NCG",
-      region: "Puducherry",
-      status: "Active",
-    },
-    {
-      id: 4,
-      board: "BOEN",
-      name: "Nursing Sciences Institute",
-      code: "NSI",
-      region: "Mahe",
-      status: "Inactive",
-    },
-  ],
-  courses: [
-    {
-      id: 1,
-      institutionId: 1,
-      name: "Diploma in General Nursing",
-      code: "DGN",
-      duration: "3 Years",
-      status: "Active",
-    },
-    {
-      id: 2,
-      institutionId: 1,
-      name: "Diploma in Medical Lab Technology",
-      code: "DMLT",
-      duration: "2 Years",
-      status: "Active",
-    },
-    {
-      id: 3,
-      institutionId: 2,
-      name: "Diploma in Radiography",
-      code: "DRG",
-      duration: "2 Years",
-      status: "Active",
-    },
-    {
-      id: 4,
-      institutionId: 3,
-      name: "Diploma in Nursing Assistant",
-      code: "DNA",
-      duration: "2 Years",
-      status: "Active",
-    },
-  ],
-  boardSubjects: [
-    {
-      id: 1,
-      courseId: 1,
-      subject: "Anatomy",
-      year: "1",
-      semester: "1",
-      priority: "1",
-      status: "Active",
-    },
-    {
-      id: 2,
-      courseId: 1,
-      subject: "Physiology",
-      year: "1",
-      semester: "1",
-      priority: "2",
-      status: "Active",
-    },
-    {
-      id: 3,
-      courseId: 2,
-      subject: "Pathology",
-      year: "1",
-      semester: "2",
-      priority: "1",
-      status: "Active",
-    },
-    {
-      id: 4,
-      courseId: 4,
-      subject: "Fundamentals of Nursing",
-      year: "1",
-      semester: "1",
-      priority: "1",
       status: "Active",
     },
   ],

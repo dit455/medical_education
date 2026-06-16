@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   GraduationCap,
   Users,
@@ -18,7 +18,8 @@ import StatusBadge from "../components/StatusBadge.jsx";
 import DataTable from "../components/DataTable.jsx";
 import RecordModal from "../components/RecordModal.jsx";
 import { BOARD_ROLES, ENTITY_FIELDS, ENTITY_COLUMNS } from "../data.js";
-import { isStatusVisibleForRole, withDefaultStatus, emptyRowFromFields } from "../utils.js";
+import { isStatusVisibleForRole, emptyRowFromFields } from "../utils.js";
+import * as api from "../api.js";
 
 export default function Dashboard({ data, role, routes, setActiveRoute, updateEntity }) {
   if (BOARD_ROLES.includes(role)) {
@@ -100,104 +101,272 @@ export default function Dashboard({ data, role, routes, setActiveRoute, updateEn
 }
 
 // Dashboard shown to board roles (BOME/BOEN): institution -> course -> subject hierarchy
-// management plus quick stats and quick actions.
-function BoardDashboard({ role, data, updateEntity, setActiveRoute }) {
-  const institutions = data.institutions.filter((institution) => institution.board === role);
+// management plus quick stats and quick actions. Institutions/courses/subjects are
+// DB-backed via the Flask API (everything else on this page stays on mock data).
+function BoardDashboard({ role, data, setActiveRoute }) {
+  const [institutions, setInstitutions] = useState([]);
+  const [coursesForInstitution, setCoursesForInstitution] = useState([]);
+  const [subjectsForCourse, setSubjectsForCourse] = useState([]);
+  const [regions, setRegions] = useState([]);
+  const [years, setYears] = useState([]);
+  const [examSems, setExamSems] = useState([]);
+
   const [selectedInstitutionId, setSelectedInstitutionId] = useState(null);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   const [addModal, setAddModal] = useState(null);
 
-  const institutionIds = useMemo(() => new Set(institutions.map((i) => i.id)), [institutions]);
-  const courses = data.courses.filter((course) => institutionIds.has(course.institutionId));
-  const courseIds = useMemo(() => new Set(courses.map((c) => c.id)), [courses]);
-  const boardSubjects = data.boardSubjects.filter((subject) => courseIds.has(subject.courseId));
   const pendingApprovals = data.workflows.filter(
     (workflow) => workflow.board === role && ["Submitted", "Verified"].includes(workflow.status),
   ).length;
 
-  const selectedInstitution = institutions.find((i) => i.id === selectedInstitutionId) || null;
-  const selectedInstitutionIdResolved = selectedInstitution?.id || null;
-  const coursesForInstitution = selectedInstitutionIdResolved
-    ? data.courses.filter((course) => course.institutionId === selectedInstitutionIdResolved)
-    : [];
-  const selectedCourse = coursesForInstitution.find((c) => c.id === selectedCourseId) || null;
-  const selectedCourseIdResolved = selectedCourse?.id || null;
-  const subjectsForCourse = selectedCourseIdResolved
-    ? data.boardSubjects.filter((subject) => subject.courseId === selectedCourseIdResolved)
-    : [];
-  const selectedSubject = subjectsForCourse.find((s) => s.id === selectedSubjectId) || null;
+  const refreshInstitutions = useCallback(() => {
+    api.getInstitutions(role).then(setInstitutions).catch(() => setInstitutions([]));
+  }, [role]);
 
-  function saveRow(entity, values, defaults = {}) {
-    const rows = data[entity] || [];
-    const normalized = withDefaultStatus({ ...defaults, ...values });
-    if (normalized.id) {
-      updateEntity(
-        entity,
-        rows.map((row) => (row.id === normalized.id ? normalized : row)),
-      );
+  const refreshCourses = useCallback((institutionId) => {
+    if (!institutionId) {
+      setCoursesForInstitution([]);
       return;
     }
-    const nextId = rows.reduce((max, row) => Math.max(max, row.id || 0), 0) + 1;
-    const newRow = { ...normalized, id: nextId };
-    updateEntity(entity, [...rows, newRow]);
-    if (entity === "institutions") {
-      setSelectedInstitutionId(newRow.id);
+    api.getCourses(institutionId).then(setCoursesForInstitution).catch(() => setCoursesForInstitution([]));
+  }, []);
+
+  const refreshSubjects = useCallback((courseId) => {
+    if (!courseId) {
+      setSubjectsForCourse([]);
+      return;
+    }
+    api.getSubjects(courseId).then(setSubjectsForCourse).catch(() => setSubjectsForCourse([]));
+  }, []);
+
+  useEffect(() => {
+    refreshInstitutions();
+    setSelectedInstitutionId(null);
+    setSelectedCourseId(null);
+    setSelectedSubjectId(null);
+  }, [role, refreshInstitutions]);
+
+  useEffect(() => {
+    api.getRegions().then(setRegions).catch(() => setRegions([]));
+    api.getYears().then(setYears).catch(() => setYears([]));
+    api.getExamSems().then(setExamSems).catch(() => setExamSems([]));
+  }, []);
+
+  useEffect(() => {
+    refreshCourses(selectedInstitutionId);
+  }, [selectedInstitutionId, refreshCourses]);
+
+  useEffect(() => {
+    refreshSubjects(selectedCourseId);
+  }, [selectedCourseId, refreshSubjects]);
+
+  const selectedInstitution = institutions.find((i) => i.id === selectedInstitutionId) || null;
+  const selectedInstitutionIdResolved = selectedInstitution?.id || null;
+  const selectedCourse = coursesForInstitution.find((c) => c.id === selectedCourseId) || null;
+  const selectedCourseIdResolved = selectedCourse?.id || null;
+  const selectedSubject = subjectsForCourse.find((s) => s.id === selectedSubjectId) || null;
+
+  const regionOptions = useMemo(
+    () => regions.map((r) => ({ value: String(r.id), label: r.name })),
+    [regions],
+  );
+  const yearOptions = useMemo(
+    () => years.map((y) => ({ value: String(y.id), label: y.name })),
+    [years],
+  );
+  const semOptions = useMemo(
+    () => examSems.map((s) => ({ value: String(s.id), label: s.name })),
+    [examSems],
+  );
+
+  const institutionFields = useMemo(
+    () =>
+      ENTITY_FIELDS.institution.map(([key, label, options]) =>
+        key === "region" ? [key, label, regionOptions] : [key, label, options],
+      ),
+    [regionOptions],
+  );
+  const subjectFields = useMemo(
+    () =>
+      ENTITY_FIELDS.boardSubject.map(([key, label, options]) => {
+        if (key === "year") return [key, label, yearOptions];
+        if (key === "semester") return [key, label, semOptions];
+        return [key, label, options];
+      }),
+    [yearOptions, semOptions],
+  );
+
+  // `values.region` is either the region id (string, if the dropdown was
+  // touched) or the original region_desc (if the modal was opened on an
+  // existing row and the field was left untouched) - resolve either form.
+  function resolveRegionId(regionValue) {
+    if (!regionValue) return null;
+    const byId = regions.find((r) => String(r.id) === String(regionValue));
+    if (byId) return byId.id;
+    const byName = regions.find((r) => r.name === regionValue);
+    return byName ? byName.id : null;
+  }
+
+  function resolveYearId(yearValue) {
+    if (!yearValue) return null;
+    const byId = years.find((y) => String(y.id) === String(yearValue));
+    if (byId) return byId.id;
+    const byName = years.find((y) => y.name === yearValue);
+    return byName ? byName.id : null;
+  }
+
+  function resolveSemId(semValue) {
+    if (!semValue) return null;
+    const byId = examSems.find((s) => String(s.id) === String(semValue));
+    if (byId) return byId.id;
+    const byName = examSems.find((s) => s.name === semValue);
+    return byName ? byName.id : null;
+  }
+
+  async function saveInstitution(values) {
+    const payload = {
+      name: values.name,
+      region_id: resolveRegionId(values.region),
+      status: values.status || "Active",
+      board: role,
+    };
+    if (values.id) {
+      await api.updateInstitution(values.id, payload);
+    } else {
+      const created = await api.createInstitution(payload);
+      setSelectedInstitutionId(created.id);
       setSelectedCourseId(null);
       setSelectedSubjectId(null);
     }
-    if (entity === "courses") {
-      setSelectedCourseId(newRow.id);
-      setSelectedSubjectId(null);
-    }
-    if (entity === "boardSubjects") setSelectedSubjectId(newRow.id);
+    refreshInstitutions();
   }
 
-  function deleteRow(entity, row) {
-    updateEntity(entity, (data[entity] || []).filter((r) => r.id !== row.id));
-    if (entity === "institutions" && selectedInstitutionIdResolved === row.id) {
+  async function deleteInstitutionRow(row) {
+    await api.deleteInstitution(row.id);
+    if (selectedInstitutionIdResolved === row.id) {
       setSelectedInstitutionId(null);
       setSelectedCourseId(null);
       setSelectedSubjectId(null);
     }
-    if (entity === "courses" && selectedCourseIdResolved === row.id) {
+    refreshInstitutions();
+  }
+
+  async function toggleInstitutionRow(row) {
+    const nextStatus = row.status === "Inactive" ? "Active" : "Inactive";
+    await api.updateInstitution(row.id, {
+      name: row.name,
+      region_id: resolveRegionId(row.region),
+      status: nextStatus,
+    });
+    refreshInstitutions();
+  }
+
+  async function saveCourse(values) {
+    const payload = { name: values.name, status: values.status || "Active" };
+    if (values.id) {
+      await api.updateCourse(values.id, payload);
+    } else {
+      const created = await api.createCourse(selectedInstitutionIdResolved, payload);
+      setSelectedCourseId(created.id);
+      setSelectedSubjectId(null);
+    }
+    refreshCourses(selectedInstitutionIdResolved);
+  }
+
+  async function deleteCourseRow(row) {
+    await api.deleteCourse(row.id);
+    if (selectedCourseIdResolved === row.id) {
       setSelectedCourseId(null);
       setSelectedSubjectId(null);
     }
-    if (entity === "boardSubjects" && selectedSubjectId === row.id) setSelectedSubjectId(null);
+    refreshCourses(selectedInstitutionIdResolved);
   }
 
-  function toggleRow(entity, row) {
-    const rows = data[entity] || [];
+  async function toggleCourseRow(row) {
     const nextStatus = row.status === "Inactive" ? "Active" : "Inactive";
-    updateEntity(
-      entity,
-      rows.map((r) => (r.id === row.id ? { ...r, status: nextStatus } : r)),
-    );
+    await api.updateCourse(row.id, { name: row.name, status: nextStatus });
+    refreshCourses(selectedInstitutionIdResolved);
   }
+
+  async function saveSubject(values) {
+    const payload = {
+      subject: values.subject,
+      year_id: resolveYearId(values.year),
+      sem_id: resolveSemId(values.semester),
+      priority: values.priority || null,
+      status: values.status || "Active",
+    };
+    if (values.id) {
+      await api.updateSubject(values.id, payload);
+    } else {
+      const created = await api.createSubject(selectedCourseIdResolved, payload);
+      setSelectedSubjectId(created.id);
+    }
+    refreshSubjects(selectedCourseIdResolved);
+  }
+
+  async function deleteSubjectRow(row) {
+    await api.deleteSubject(row.id);
+    if (selectedSubjectId === row.id) setSelectedSubjectId(null);
+    refreshSubjects(selectedCourseIdResolved);
+  }
+
+  async function toggleSubjectRow(row) {
+    const nextStatus = row.status === "Inactive" ? "Active" : "Inactive";
+    await api.updateSubject(row.id, {
+      subject: row.subject,
+      year_id: resolveYearId(row.year),
+      sem_id: resolveSemId(row.semester),
+      priority: row.priority,
+      status: nextStatus,
+    });
+    refreshSubjects(selectedCourseIdResolved);
+  }
+
+  // Field/option lists are looked up by type at render time (not snapshotted
+  // into addModal) so a slow-to-load region/year/semester fetch still shows
+  // up if it resolves after the modal was opened.
+  const addModalConfig = {
+    institution: { title: "Institution", fields: institutionFields },
+    course: { title: "Course", fields: ENTITY_FIELDS.course },
+    subject: { title: "Subject", fields: subjectFields },
+  };
 
   function openAddModal(type) {
-    const config = {
-      institution: { title: "Institution", fields: ENTITY_FIELDS.institution },
-      course: { title: "Course", fields: ENTITY_FIELDS.course },
-      subject: { title: "Subject", fields: ENTITY_FIELDS.boardSubject },
-    }[type];
-    setAddModal({ type, title: config.title, fields: config.fields, row: emptyRowFromFields(config.fields) });
+    const fields = addModalConfig[type].fields;
+    setAddModal({ type, row: emptyRowFromFields(fields) });
   }
 
-  function handleAddModalSave(values) {
-    if (addModal.type === "institution") saveRow("institutions", values, { board: role });
-    if (addModal.type === "course") saveRow("courses", values, { institutionId: selectedInstitutionIdResolved });
-    if (addModal.type === "subject") saveRow("boardSubjects", values, { courseId: selectedCourseIdResolved });
+  async function handleAddModalSave(values) {
+    if (addModal.type === "institution") await saveInstitution(values);
+    if (addModal.type === "course") await saveCourse(values);
+    if (addModal.type === "subject") await saveSubject(values);
     setAddModal(null);
   }
 
   const metrics = [
     { label: "Institutions", value: institutions.length, icon: Building2 },
-    { label: "Courses", value: courses.length, icon: Layers },
-    { label: "Subjects", value: boardSubjects.length, icon: BookOpen },
-    { label: "Pending Approvals", value: pendingApprovals, icon: ClipboardCheck },
+    { label: "Courses", value: coursesForInstitution.length, icon: Layers },
+    { label: "Subjects", value: subjectsForCourse.length, icon: BookOpen },
+    // { label: "Pending Approvals", value: pendingApprovals, icon: ClipboardCheck },
   ];
+
+  // Drill-down flow: institutions -> courses (for the picked institution) ->
+  // subjects (for the picked course). Only the relevant step is shown at a
+  // time, with the hierarchy strip doubling as breadcrumb navigation back up.
+  const view = selectedCourseIdResolved ? "subjects" : selectedInstitutionIdResolved ? "courses" : "institutions";
+
+  function goToInstitutions() {
+    setSelectedInstitutionId(null);
+    setSelectedCourseId(null);
+    setSelectedSubjectId(null);
+  }
+
+  function goToCourses() {
+    setSelectedCourseId(null);
+    setSelectedSubjectId(null);
+  }
 
   return (
     <section className="board-dashboard">
@@ -208,28 +377,24 @@ function BoardDashboard({ role, data, updateEntity, setActiveRoute }) {
             <h2>{role} Portal</h2>
           </div>
           <div className="board-quick-actions" aria-label="Quick actions">
-            <button className="secondary-btn compact-action" onClick={() => openAddModal("institution")}>
-              <Building2 size={16} />
-              Add Institution
-            </button>
-            <button
-              className="secondary-btn compact-action"
-              disabled={!selectedInstitutionIdResolved}
-              title={selectedInstitutionIdResolved ? "Add course" : "Select institution first"}
-              onClick={() => openAddModal("course")}
-            >
-              <Layers size={16} />
-              Add Course
-            </button>
-            <button
-              className="secondary-btn compact-action"
-              disabled={!selectedCourseIdResolved}
-              title={selectedCourseIdResolved ? "Add subject" : "Select course first"}
-              onClick={() => openAddModal("subject")}
-            >
-              <BookOpen size={16} />
-              Add Subject
-            </button>
+            {view === "institutions" && (
+              <button className="secondary-btn compact-action" onClick={() => openAddModal("institution")}>
+                <Building2 size={16} />
+                Add Institution
+              </button>
+            )}
+            {view === "courses" && (
+              <button className="secondary-btn compact-action" onClick={() => openAddModal("course")}>
+                <Layers size={16} />
+                Add Course
+              </button>
+            )}
+            {view === "subjects" && (
+              <button className="secondary-btn compact-action" onClick={() => openAddModal("subject")}>
+                <BookOpen size={16} />
+                Add Subject
+              </button>
+            )}
             <button className="primary-btn compact-action" onClick={() => setActiveRoute("reports")}>
               <FileText size={16} />
               View MIS
@@ -248,104 +413,111 @@ function BoardDashboard({ role, data, updateEntity, setActiveRoute }) {
             );
           })}
         </div>
-        <div className="hierarchy-strip" aria-label="Selected hierarchy">
+        <div className="hierarchy-strip" aria-label="Navigation">
           <HierarchyItem
             label="Institution"
-            value={selectedInstitution?.name || "Select institution"}
-            active={!!selectedInstitution}
+            value={selectedInstitution?.name || "All Institutions"}
+            active={view === "institutions"}
+            onClick={goToInstitutions}
           />
-          <ChevronRight size={16} />
-          <HierarchyItem
-            label="Course"
-            value={selectedCourse?.name || "Select course"}
-            active={!!selectedCourse}
-          />
-          <ChevronRight size={16} />
-          <HierarchyItem
-            label="Subject"
-            value={selectedSubject?.subject || "Select subject"}
-            active={!!selectedSubject}
-          />
+          {selectedInstitution && (
+            <>
+              <ChevronRight size={16} />
+              <HierarchyItem
+                label="Course"
+                value={selectedCourse?.name || "All Courses"}
+                active={view === "courses"}
+                onClick={goToCourses}
+              />
+            </>
+          )}
+          {selectedCourse && (
+            <>
+              <ChevronRight size={16} />
+              <HierarchyItem label="Subject" value="Subjects" active={view === "subjects"} />
+            </>
+          )}
         </div>
       </section>
-      <div className="board-flow-grid">
+      {view === "institutions" && (
         <DataTable
           title="Institutions"
           rows={institutions}
           columns={ENTITY_COLUMNS.institutions}
-          fields={ENTITY_FIELDS.institution}
+          fields={institutionFields}
           selectedId={selectedInstitutionIdResolved}
           onSelect={(row) => {
             setSelectedInstitutionId(row.id);
             setSelectedCourseId(null);
             setSelectedSubjectId(null);
           }}
-          onSave={(row) => saveRow("institutions", row, { board: role })}
-          onDelete={(row) => deleteRow("institutions", row)}
-          onToggle={(row) => toggleRow("institutions", row)}
+          onSave={(row) => saveInstitution(row)}
+          onDelete={(row) => deleteInstitutionRow(row)}
+          onToggle={(row) => toggleInstitutionRow(row)}
           emptyHint="No institutions"
           emptyActionLabel="Add Institution"
           onEmptyAction={() => openAddModal("institution")}
           statusFilterOptions={["Active", "Inactive"]}
         />
+      )}
+      {view === "courses" && (
         <DataTable
-          key={selectedInstitutionIdResolved || "no-institution"}
-          title="Courses"
+          key={selectedInstitutionIdResolved}
+          title={`Courses - ${selectedInstitution?.name || ""}`}
           rows={coursesForInstitution}
           columns={ENTITY_COLUMNS.courses}
           fields={ENTITY_FIELDS.course}
           selectedId={selectedCourseIdResolved}
-          disabled={!selectedInstitutionIdResolved}
-          disabledHint="Select institution first"
-          emptyHint={selectedInstitutionIdResolved ? "No courses mapped" : "Select institution first"}
-          emptyActionLabel={selectedInstitutionIdResolved ? "Add Course" : ""}
+          emptyHint="No courses mapped"
+          emptyActionLabel="Add Course"
           onEmptyAction={() => openAddModal("course")}
           onSelect={(row) => {
             setSelectedCourseId(row.id);
             setSelectedSubjectId(null);
           }}
-          onSave={(row) => saveRow("courses", row, { institutionId: selectedInstitutionIdResolved })}
-          onDelete={(row) => deleteRow("courses", row)}
-          onToggle={(row) => toggleRow("courses", row)}
+          onSave={(row) => saveCourse(row)}
+          onDelete={(row) => deleteCourseRow(row)}
+          onToggle={(row) => toggleCourseRow(row)}
           statusFilterOptions={["Active", "Inactive"]}
         />
-      </div>
-      <div className="subject-workspace">
-        <DataTable
-          key={selectedCourseIdResolved || "no-course"}
-          title="Subjects"
-          rows={subjectsForCourse}
-          columns={ENTITY_COLUMNS.boardSubjects}
-          fields={ENTITY_FIELDS.boardSubject}
-          selectedId={selectedSubject?.id || null}
-          disabled={!selectedCourseIdResolved}
-          disabledHint="Select course first"
-          emptyHint={selectedCourseIdResolved ? "No subjects mapped" : "Select course first"}
-          emptyActionLabel={selectedCourseIdResolved ? "Add Subject" : ""}
-          onEmptyAction={() => openAddModal("subject")}
-          wide
-          onSelect={(row) => setSelectedSubjectId(row.id)}
-          onSave={(row) => saveRow("boardSubjects", row, { courseId: selectedCourseIdResolved })}
-          onDelete={(row) => deleteRow("boardSubjects", row)}
-          onToggle={(row) => toggleRow("boardSubjects", row)}
-          statusFilterOptions={["Active", "Inactive"]}
-        />
-        <SubjectPreviewPanel
-          course={selectedCourse}
-          subject={selectedSubject}
-          subjectCount={subjectsForCourse.length}
-          disabled={!selectedCourseIdResolved}
-          onAdd={(row) => saveRow("boardSubjects", row, { courseId: selectedCourseIdResolved })}
-          onEdit={(row) => saveRow("boardSubjects", row, { courseId: selectedCourseIdResolved })}
-          onDelete={(row) => deleteRow("boardSubjects", row)}
-        />
-      </div>
+      )}
+      {view === "subjects" && (
+        <div className="subject-workspace">
+          <DataTable
+            key={selectedCourseIdResolved}
+            title={`Subjects - ${selectedCourse?.name || ""}`}
+            rows={subjectsForCourse}
+            columns={ENTITY_COLUMNS.boardSubjects}
+            fields={subjectFields}
+            selectedId={selectedSubject?.id || null}
+            emptyHint="No subjects mapped"
+            emptyActionLabel="Add Subject"
+            onEmptyAction={() => openAddModal("subject")}
+            wide
+            onSelect={(row) => setSelectedSubjectId(row.id)}
+            onSave={(row) => saveSubject(row)}
+            onDelete={(row) => deleteSubjectRow(row)}
+            onToggle={(row) => toggleSubjectRow(row)}
+            statusFilterOptions={["Active", "Inactive"]}
+          />
+          <SubjectPreviewPanel
+            course={selectedCourse}
+            subject={selectedSubject}
+            subjectCount={subjectsForCourse.length}
+            disabled={false}
+            subjectFields={subjectFields}
+            onAdd={(row) => saveSubject(row)}
+            onEdit={(row) => saveSubject(row)}
+            onDelete={(row) => deleteSubjectRow(row)}
+          />
+        </div>
+      )}
       {addModal && (
         <RecordModal
           mode="add"
           row={addModal.row}
-          fields={addModal.fields}
-          title={addModal.title}
+          fields={addModalConfig[addModal.type].fields}
+          title={addModalConfig[addModal.type].title}
           onClose={() => setAddModal(null)}
           onSave={handleAddModalSave}
         />
@@ -354,23 +526,32 @@ function BoardDashboard({ role, data, updateEntity, setActiveRoute }) {
   );
 }
 
-function HierarchyItem({ label, value, active }) {
+// Doubles as breadcrumb navigation when `onClick` is given (jumps back up the
+// institution -> course -> subject drill-down).
+function HierarchyItem({ label, value, active, onClick }) {
+  const className = active ? "hierarchy-item active" : "hierarchy-item";
+  if (!onClick) {
+    return (
+      <div className={className}>
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </div>
+    );
+  }
   return (
-    <div className={active ? "hierarchy-item active" : "hierarchy-item"}>
+    <button type="button" className={className} onClick={onClick}>
       <span>{label}</span>
       <strong>{value}</strong>
-    </div>
+    </button>
   );
 }
 
 // Read-only preview of the selected course/subject with quick add/edit/delete for the subject.
-function SubjectPreviewPanel({ course, subject, subjectCount, disabled, onAdd, onEdit, onDelete }) {
+function SubjectPreviewPanel({ course, subject, subjectCount, disabled, subjectFields, onAdd, onEdit, onDelete }) {
   const [modalState, setModalState] = useState(null);
   const courseDetails = course
     ? [
         ["Course", course.name],
-        ["Code", course.code],
-        ["Duration", course.duration],
         ["Subjects", subjectCount],
       ]
     : [];
@@ -396,7 +577,7 @@ function SubjectPreviewPanel({ course, subject, subjectCount, disabled, onAdd, o
         <button
           className="primary-btn compact-btn"
           disabled={disabled}
-          onClick={() => setModalState({ mode: "add", row: emptyRowFromFields(ENTITY_FIELDS.boardSubject) })}
+          onClick={() => setModalState({ mode: "add", row: emptyRowFromFields(subjectFields) })}
         >
           <Plus size={16} />
           Add
@@ -464,7 +645,7 @@ function SubjectPreviewPanel({ course, subject, subjectCount, disabled, onAdd, o
         <RecordModal
           mode={modalState.mode}
           row={modalState.row}
-          fields={ENTITY_FIELDS.boardSubject}
+          fields={subjectFields}
           title="Subject Details"
           onClose={() => setModalState(null)}
           onSave={handleSave}
