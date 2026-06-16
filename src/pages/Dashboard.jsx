@@ -349,7 +349,7 @@ function BoardDashboard({ role, data, setActiveRoute }) {
     { label: "Institutions", value: institutions.length, icon: Building2 },
     { label: "Courses", value: coursesForInstitution.length, icon: Layers },
     { label: "Subjects", value: subjectsForCourse.length, icon: BookOpen },
-    // { label: "Pending Approvals", value: pendingApprovals, icon: ClipboardCheck },
+    { label: "Pending Approvals", value: pendingApprovals, icon: ClipboardCheck },
   ];
 
   // Drill-down flow: institutions -> courses (for the picked institution) ->
