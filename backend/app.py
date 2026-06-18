@@ -91,6 +91,35 @@ def get_exam_sems():
         conn.close()
 
 
+@app.route("/api/courses", methods=["GET"])
+def get_courses():
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT course_id, course_desc FROM tbl_course_master WHERE status_ = 1"
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return jsonify([{"id": r[0], "name": r[1]} for r in rows])
+    finally:
+        conn.close()
+
+@app.route("/api/subjects", methods=["GET"])
+def get_all_subjects():
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT subject_id, subject_desc FROM tbl_subject_master WHERE status_ = 1"
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return jsonify([{"id": r[0], "name": r[1]} for r in rows])
+    finally:
+        conn.close()
+
+
 # --------------------------------------------------------------------------
 # Institutions
 # --------------------------------------------------------------------------

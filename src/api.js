@@ -37,6 +37,14 @@ export function getExamSems() {
   return request("/exam-sems");
 }
 
+export function getListCourses() {
+  return request("/courses");
+}
+
+export function getListSubjects() {
+  return request("/subjects");
+}
+
 export function getInstitutions(board) {
   return request(`/institutions?board=${encodeURIComponent(board)}`);
 }
