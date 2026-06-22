@@ -692,14 +692,14 @@ function SubjectPreviewPanel({ course, subject, subjectCount, disabled, subjectF
     <section className="subject-preview-panel">
       <div className="mini-table-heading">
         <h3>Subject Preview</h3>
-        <button
+        {/* <button
           className="primary-btn compact-btn"
           disabled={disabled}
           onClick={() => setModalState({ mode: "add", row: emptyRowFromFields(subjectFields) })}
         >
           <Plus size={16} />
           Add
-        </button>
+        </button> */}
       </div>
       {course ? (
         <>
