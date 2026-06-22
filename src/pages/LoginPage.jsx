@@ -1,18 +1,16 @@
 import { useState } from "react";
-import { RefreshCw, LockKeyhole, ShieldCheck, Layers, UserCheck } from "lucide-react";
+import { ArrowLeft, RefreshCw, LockKeyhole } from "lucide-react";
 import SiteHeader from "../components/SiteHeader.jsx";
 import SiteFooter from "../components/SiteFooter.jsx";
-import { LOGIN_CREDENTIALS } from "../data.js";
 import { randomCaptcha } from "../utils.js";
 import * as api from "../api.js";
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin, onBackHome }) {
   const [loginType, setLoginType] = useState("super-admin");
   const [form, setForm] = useState({ username: "", password: "", captcha: "" });
   const [captcha, setCaptcha] = useState(randomCaptcha());
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const credentials = LOGIN_CREDENTIALS[loginType] || null;
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -25,38 +23,26 @@ export default function LoginPage({ onLogin }) {
     if (clearError) setError("");
   }
 
+  // Both tabs authenticate against the real `users` DB table - Super Admin
+  // is just a seeded row there (see backend/routes/auth.py ensure_super_admin),
+  // not a hardcoded frontend credential. The tab only picks the placeholder
+  // hint; the account's actual role from the DB decides what happens next.
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.username.trim() || !form.password.trim()) {
       setError("Enter username and password.");
       return;
     }
-
-    // Super Admin stays a hardcoded demo login; Department logs in against
-    // real accounts (created by Super Admin) in the `users` DB table.
-    if (loginType === "super-admin") {
-      if (form.username.trim() !== credentials.username || form.password !== credentials.password) {
-        setError("Invalid demo credentials.");
-        return;
-      }
-      if (form.captcha.trim().toUpperCase() !== captcha) {
-        refreshCaptcha(false);
-        setError("Captcha does not match.");
-        return;
-      }
-      onLogin("super-admin");
+    if (form.captcha.trim().toUpperCase() !== captcha) {
+      refreshCaptcha(false);
+      setError("Captcha does not match.");
       return;
     }
 
     setSubmitting(true);
     try {
-      await api.login(form.username.trim(), form.password);
-      if (form.captcha.trim().toUpperCase() !== captcha) {
-        refreshCaptcha(false);
-        setError("Captcha does not match.");
-        return;
-      }
-      onLogin("department");
+      const user = await api.login(form.username.trim(), form.password);
+      onLogin(user);
     } catch (err) {
       setError(err.message || "Invalid username or password.");
     } finally {
@@ -71,9 +57,14 @@ export default function LoginPage({ onLogin }) {
         <div className="login-layout">
           <section className="login-card">
             <div className="login-card-heading">
-              <p className="eyebrow">Secure Login</p>
+              {onBackHome && (
+                <button className="login-back-btn" type="button" onClick={onBackHome}>
+                  <ArrowLeft size={15} />
+                  Back to home
+                </button>
+              )}
               <h2>EMS Login</h2>
-              <span>{loginType === "super-admin" ? "Super Admin access" : "Department access"}</span>
+              <span>Secure role-based access</span>
             </div>
             <div className="login-tabs" role="tablist" aria-label="Login role">
               <button
@@ -97,7 +88,8 @@ export default function LoginPage({ onLogin }) {
                 <input
                   value={form.username}
                   onChange={(e) => setField("username", e.target.value)}
-                  placeholder={credentials ? credentials.username : "Username"}
+                  placeholder="Username"
+                  autoComplete="username"
                 />
               </label>
               <label>
@@ -107,6 +99,7 @@ export default function LoginPage({ onLogin }) {
                   value={form.password}
                   onChange={(e) => setField("password", e.target.value)}
                   placeholder="Password"
+                  autoComplete="current-password"
                 />
               </label>
               <div className="captcha-block">
@@ -132,6 +125,7 @@ export default function LoginPage({ onLogin }) {
                   value={form.captcha}
                   onChange={(e) => setField("captcha", e.target.value)}
                   placeholder="Enter captcha"
+                  autoComplete="off"
                 />
               </label>
               {error && <div className="login-error">{error}</div>}
@@ -140,56 +134,10 @@ export default function LoginPage({ onLogin }) {
                 {submitting ? "Logging in..." : "Login"}
               </button>
             </form>
-            <DemoCredentialsHint activeType={loginType} />
           </section>
-          <LoginInfoPanel />
         </div>
       </main>
       <SiteFooter />
     </div>
-  );
-}
-
-// Hint panel under the login form showing the demo username/password for each login type.
-function DemoCredentialsHint({ activeType }) {
-  return (
-    <div className="demo-credentials" aria-label="Demo credentials">
-      {Object.entries(LOGIN_CREDENTIALS).map(([key, credentials]) => (
-        <div className={key === activeType ? "demo-card active" : "demo-card"} key={key}>
-          <span>{credentials.label}</span>
-          <code>{credentials.username}</code>
-          <code>{credentials.password}</code>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Info aside on the login page describing the system at a glance.
-function LoginInfoPanel() {
-  const items = [
-    { icon: ShieldCheck, label: "Secure EMS Portal" },
-    { icon: Layers, label: "Student, Examination, Marks, MIS" },
-    { icon: UserCheck, label: "Role-based access" },
-    { icon: LockKeyhole, label: "OTP / Captcha protected login" },
-  ];
-  return (
-    <aside className="login-info-panel" aria-label="EMS system information">
-      <div className="info-panel-heading">
-        <p className="eyebrow">Internal System</p>
-        <h2>EMS Access</h2>
-      </div>
-      <div className="info-chip-grid">
-        {items.map((item) => {
-          const Icon = item.icon;
-          return (
-            <div className="info-chip" key={item.label}>
-              <Icon size={18} />
-              <span>{item.label}</span>
-            </div>
-          );
-        })}
-      </div>
-    </aside>
   );
 }

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import SiteHeader from "../components/SiteHeader.jsx";
 import SiteFooter from "../components/SiteFooter.jsx";
 import Sidebar from "./Sidebar.jsx";
@@ -11,6 +11,7 @@ import { ENTITY_COLUMNS } from "../data.js";
 
 export default function AppShell({
   role,
+  username,
   data,
   activeRoute,
   setActiveRoute,
@@ -18,18 +19,50 @@ export default function AppShell({
   onLogout,
   onBoardSwitch,
 }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [dashboardView, setDashboardView] = useState("overview");
+  const [dashboardViewCommand, setDashboardViewCommand] = useState(null);
   const routesForRole = useMemo(() => ROUTES.filter((route) => route.roles.includes(role)), [role]);
   const currentRoute = routesForRole.find((route) => route.key === activeRoute) || routesForRole[0];
 
+  function handleNavigate(routeKey, view) {
+    setActiveRoute(routeKey);
+    if (view) {
+      setDashboardView(view);
+      setDashboardViewCommand({ view, id: Date.now() });
+    }
+    setSidebarOpen(false);
+  }
+
   return (
     <div className="page-with-header">
-      <SiteHeader />
+      <SiteHeader compact role={role} username={username} onLogout={onLogout} onBoardSwitch={onBoardSwitch} />
       <div className="app-shell">
-        <Sidebar routes={routesForRole} activeRoute={currentRoute.key} setActiveRoute={setActiveRoute} />
+        <Sidebar
+          role={role}
+          routes={routesForRole}
+          activeRoute={currentRoute.key}
+          activeDashboardView={dashboardView}
+          onNavigate={handleNavigate}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
         <main className="main-panel">
-          <Topbar role={role} onLogout={onLogout} onBoardSwitch={onBoardSwitch} />
+          <Topbar
+            route={currentRoute}
+            onMenuClick={() => setSidebarOpen(true)}
+          />
           {currentRoute.type === "dashboard" ? (
-            <Dashboard data={data} role={role} routes={routesForRole} setActiveRoute={setActiveRoute} updateEntity={updateEntity} />
+            <Dashboard
+              data={data}
+              role={role}
+              routes={routesForRole}
+              setActiveRoute={setActiveRoute}
+              updateEntity={updateEntity}
+              dashboardView={dashboardView}
+              dashboardViewCommand={dashboardViewCommand}
+              onDashboardViewChange={setDashboardView}
+            />
           ) : currentRoute.type === "department-admins" ? (
             <DepartmentAdminsPage />
           ) : (

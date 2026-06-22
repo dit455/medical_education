@@ -12,7 +12,7 @@ from flask_cors import CORS
 
 load_dotenv()
 
-from routes.auth import auth_bp
+from routes.auth import auth_bp, ensure_super_admin
 from routes.courses import courses_bp
 from routes.institutions import institutions_bp
 from routes.lookups import lookups_bp
@@ -34,6 +34,8 @@ app.register_blueprint(institutions_bp)
 app.register_blueprint(courses_bp)
 app.register_blueprint(subjects_bp)
 app.register_blueprint(auth_bp)
+
+ensure_super_admin()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

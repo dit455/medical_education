@@ -8,73 +8,61 @@ import {
   Layers,
   BookOpen,
   ClipboardCheck,
-  ArrowLeft,
-  ChevronRight,
   Plus,
   Pencil,
   Trash2,
-  FileText,
+  Activity,
+  X,
 } from "lucide-react";
 import StatusBadge from "../components/StatusBadge.jsx";
 import DataTable from "../components/DataTable.jsx";
 import RecordModal from "../components/RecordModal.jsx";
 import CourseSelectModal from "../components/CourseSelectModal.jsx";
+import KpiCard from "../components/KpiCard.jsx";
+import Breadcrumb from "../components/Breadcrumb.jsx";
 import { BOARD_ROLES, ENTITY_FIELDS, ENTITY_COLUMNS } from "../data.js";
 import { isStatusVisibleForRole, emptyRowFromFields } from "../utils.js";
 import * as api from "../api.js";
 
-export default function Dashboard({ data, role, routes, setActiveRoute, updateEntity }) {
+export default function Dashboard({
+  data,
+  role,
+  routes,
+  setActiveRoute,
+  dashboardView,
+  dashboardViewCommand,
+  onDashboardViewChange,
+}) {
   if (BOARD_ROLES.includes(role)) {
     return (
-      <BoardDashboard role={role} data={data} updateEntity={updateEntity} setActiveRoute={setActiveRoute} />
+      <BoardDashboard
+        role={role}
+        data={data}
+        setActiveRoute={setActiveRoute}
+        dashboardView={dashboardView}
+        dashboardViewCommand={dashboardViewCommand}
+        onDashboardViewChange={onDashboardViewChange}
+      />
     );
   }
 
   const stats = [
-    { label: "Students", value: data.students.length, icon: GraduationCap },
-    { label: "Users", value: data.users.length, icon: Users },
-    { label: "Schedules", value: data.schedules.length, icon: CalendarCheck },
-    { label: "Marks", value: data.studentMarks.length, icon: BadgeCheck },
+    { label: "Students", value: data.students.length, meta: "Student records", icon: GraduationCap },
+    { label: "Users", value: data.users.length, meta: "Active access", icon: Users },
+    { label: "Schedules", value: data.schedules.length, meta: "Exam planning", icon: CalendarCheck },
+    { label: "Marks", value: data.studentMarks.length, meta: "Marks entries", icon: BadgeCheck },
   ];
   const visibleWorkflows = data.workflows.filter((workflow) => isStatusVisibleForRole(workflow.status, role));
 
   return (
-    <section className="content-stack">
-      <div className="stats-grid">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <article className="stat-card" key={stat.label}>
-              <Icon size={20} />
-              <span>{stat.label}</span>
-              <strong>{stat.value}</strong>
-            </article>
-          );
-        })}
+    <section className="content-stack dashboard-overview">
+      <div className="kpi-grid">
+        {stats.map((stat) => (
+          <KpiCard key={stat.label} {...stat} />
+        ))}
       </div>
-      <div className="quick-grid">
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Queues</p>
-              <h2>Workflow Tasks</h2>
-            </div>
-            <span className="count-pill">{visibleWorkflows.length}</span>
-          </div>
-          <div className="queue-list">
-            {visibleWorkflows.map((workflow) => (
-              <div className="queue-row" key={workflow.id}>
-                <div>
-                  <strong>{workflow.task}</strong>
-                  <span>
-                    {workflow.module} / {workflow.board}
-                  </span>
-                </div>
-                <StatusBadge status={workflow.status} />
-              </div>
-            ))}
-          </div>
-        </section>
+      <div className="dashboard-support-grid two-column">
+        <RecentActivities workflows={visibleWorkflows} />
         <section className="panel">
           <div className="panel-heading">
             <div>
@@ -102,10 +90,8 @@ export default function Dashboard({ data, role, routes, setActiveRoute, updateEn
   );
 }
 
-// Dashboard shown to board roles (BOME/BOEN): institution -> course -> subject hierarchy
-// management plus quick stats and quick actions. Institutions/courses/subjects are
-// DB-backed via the Flask API (everything else on this page stays on mock data).
-function BoardDashboard({ role, data, setActiveRoute }) {
+function BoardDashboard({ role, data, setActiveRoute, dashboardView, dashboardViewCommand, onDashboardViewChange }) {
+  const [view, setView] = useState(dashboardView || "overview");
   const [institutions, setInstitutions] = useState([]);
   const [coursesForInstitution, setCoursesForInstitution] = useState([]);
   const [subjectsForCourse, setSubjectsForCourse] = useState([]);
@@ -119,10 +105,11 @@ function BoardDashboard({ role, data, setActiveRoute }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   const [addModal, setAddModal] = useState(null);
+  const [isSubjectDetailsOpen, setIsSubjectDetailsOpen] = useState(false);
 
   const pendingApprovals = data.workflows.filter(
     (workflow) => workflow.board === role && ["Submitted", "Verified"].includes(workflow.status),
-  ).length;
+  );
 
   const refreshInstitutions = useCallback(() => {
     api.getInstitutions(role).then(setInstitutions).catch(() => setInstitutions([]));
@@ -152,11 +139,11 @@ function BoardDashboard({ role, data, setActiveRoute }) {
   }, [role, refreshInstitutions]);
 
   useEffect(() => {
-  api.getRegions().then(setRegions).catch(() => setRegions([]));
-  api.getYears().then(setYears).catch(() => setYears([]));
-  api.getExamSems().then(setExamSems).catch(() => setExamSems([]));
-  api.getListCourses().then(setCourses).catch(() => setCourses([]));
-  api.getListSubjects().then(setSubjects).catch(() => setSubjects([]));  // ← add
+    api.getRegions().then(setRegions).catch(() => setRegions([]));
+    api.getYears().then(setYears).catch(() => setYears([]));
+    api.getExamSems().then(setExamSems).catch(() => setExamSems([]));
+    api.getListCourses().then(setCourses).catch(() => setCourses([]));
+    api.getListSubjects().then(setSubjects).catch(() => setSubjects([]));
   }, []);
 
   useEffect(() => {
@@ -173,6 +160,30 @@ function BoardDashboard({ role, data, setActiveRoute }) {
   const selectedCourseIdResolved = selectedCourse?.id || null;
   const selectedSubject = subjectsForCourse.find((s) => s.id === selectedSubjectId) || null;
 
+  useEffect(() => {
+    onDashboardViewChange?.(view);
+  }, [view, onDashboardViewChange]);
+
+  useEffect(() => {
+    if (!dashboardViewCommand) return;
+    setView(dashboardViewCommand.view);
+    if (dashboardViewCommand.view === "overview" || dashboardViewCommand.view === "institutions") {
+      setSelectedInstitutionId(null);
+      setSelectedCourseId(null);
+      setSelectedSubjectId(null);
+      setIsSubjectDetailsOpen(false);
+    }
+    if (dashboardViewCommand.view === "courses") {
+      setSelectedCourseId(null);
+      setSelectedSubjectId(null);
+      setIsSubjectDetailsOpen(false);
+    }
+    if (dashboardViewCommand.view === "subjects") {
+      setSelectedSubjectId(null);
+      setIsSubjectDetailsOpen(false);
+    }
+  }, [dashboardViewCommand]);
+
   const regionOptions = useMemo(
     () => regions.map((r) => ({ value: String(r.id), label: r.name })),
     [regions],
@@ -186,9 +197,13 @@ function BoardDashboard({ role, data, setActiveRoute }) {
     [examSems],
   );
 
+  const courseOptions = useMemo(
+    () => courses.map((c) => ({ value: String(c.id), label: c.name })),
+    [courses],
+  );
   const subjectOptions = useMemo(
-  () => subjects.map((s) => ({ value: String(s.id), label: s.name })),
-  [subjects],
+    () => subjects.map((s) => ({ value: String(s.id), label: s.name })),
+    [subjects],
   );
 
   const institutionFields = useMemo(
@@ -198,30 +213,16 @@ function BoardDashboard({ role, data, setActiveRoute }) {
       ),
     [regionOptions],
   );
-  // "subject" stays plain text - used by the table's own "+ Add" button so
-  // typing a name creates it directly in the subject master table.
   const subjectFields = useMemo(
-  () =>
-    ENTITY_FIELDS.boardSubject.map(([key, label, options]) => {
-      if (key === "year") return [key, label, yearOptions];
-      if (key === "semester") return [key, label, semOptions];
-      return [key, label, options];
-    }),
-  [yearOptions, semOptions],
+    () =>
+      ENTITY_FIELDS.boardSubject.map(([key, label, options]) => {
+        if (key === "year") return [key, label, yearOptions];
+        if (key === "semester") return [key, label, semOptions];
+        return [key, label, options];
+      }),
+    [yearOptions, semOptions],
   );
 
-  const courseOptions = useMemo(
-    () => courses.map((c) => ({ value: String(c.id), label: c.name })),
-    [courses],
-  );
-
-  // Plain text "name" field - used by the table's own "+ Add" button so typing
-  // a new name creates it directly in the course master table.
-  const courseFields = ENTITY_FIELDS.course;
-
-  // `values.region` is either the region id (string, if the dropdown was
-  // touched) or the original region_desc (if the modal was opened on an
-  // existing row and the field was left untouched) - resolve either form.
   function resolveRegionId(regionValue) {
     if (!regionValue) return null;
     const byId = regions.find((r) => String(r.id) === String(regionValue));
@@ -245,30 +246,6 @@ function BoardDashboard({ role, data, setActiveRoute }) {
     const byName = examSems.find((s) => s.name === semValue);
     return byName ? byName.id : null;
   }
-
-  function resolveCourseId(courseValue) {
-    if (!courseValue) return null;
-    const byId = courses.find((c) => String(c.id) === String(courseValue));
-    if (byId) return byId.id;
-    const byName = courses.find((c) => c.name === courseValue);
-    return byName ? byName.id : null;
-  }
-
-  function resolveSubjectDesc(subjectValue) {
-  if (!subjectValue) return subjectValue;
-  // if it's an ID, find the name
-  const byId = subjects.find((s) => String(s.id) === String(subjectValue));
-  if (byId) return byId.name;
-  // already a plain name (wasn't changed in the modal)
-  return subjectValue;
- }
-
- function resolveCourseDesc(courseValue) {
-  if (!courseValue) return courseValue;
-  const byId = courses.find((c) => String(c.id) === String(courseValue));
-  if (byId) return byId.name;
-  return courseValue;
-}
 
   async function saveInstitution(values) {
     const payload = {
@@ -309,7 +286,7 @@ function BoardDashboard({ role, data, setActiveRoute }) {
   }
 
   async function saveCourse(values) {
-    const payload = { name: resolveCourseDesc(values.name), status: values.status || "Active" };
+    const payload = { name: values.name, status: values.status || "Active" };
     if (values.id) {
       await api.updateCourse(values.id, payload);
     } else {
@@ -331,13 +308,13 @@ function BoardDashboard({ role, data, setActiveRoute }) {
 
   async function toggleCourseRow(row) {
     const nextStatus = row.status === "Inactive" ? "Active" : "Inactive";
-    await api.updateCourse(row.id, { name: resolveCourseDesc(row.name), status: nextStatus });
+    await api.updateCourse(row.id, { name: row.name, status: nextStatus });
     refreshCourses(selectedInstitutionIdResolved);
   }
 
   async function saveSubject(values) {
     const payload = {
-      subject: resolveSubjectDesc(values.subject),
+      subject: values.subject,
       year_id: resolveYearId(values.year),
       sem_id: resolveSemId(values.semester),
       priority: values.priority || null,
@@ -361,7 +338,7 @@ function BoardDashboard({ role, data, setActiveRoute }) {
   async function toggleSubjectRow(row) {
     const nextStatus = row.status === "Inactive" ? "Active" : "Inactive";
     await api.updateSubject(row.id, {
-      subject: resolveSubjectDesc(row.subject),
+      subject: row.subject,
       year_id: resolveYearId(row.year),
       sem_id: resolveSemId(row.semester),
       priority: row.priority,
@@ -370,9 +347,6 @@ function BoardDashboard({ role, data, setActiveRoute }) {
     refreshSubjects(selectedCourseIdResolved);
   }
 
-  // Field/option lists are looked up by type at render time (not snapshotted
-  // into addModal) so a slow-to-load region/year/semester fetch still shows
-  // up if it resolves after the modal was opened.
   const addModalConfig = {
     institution: { title: "Institution", fields: institutionFields },
   };
@@ -419,195 +393,187 @@ function BoardDashboard({ role, data, setActiveRoute }) {
     setSubjectSelectOpen(false);
   }
 
-  const metrics = [
-    { label: "Institutions", value: institutions.length, icon: Building2 },
-    { label: "Courses", value: coursesForInstitution.length, icon: Layers },
-    { label: "Subjects", value: subjectsForCourse.length, icon: BookOpen },
-    { label: "Pending Approvals", value: pendingApprovals, icon: ClipboardCheck },
-  ];
-
-  // Drill-down flow: institutions -> courses (for the picked institution) ->
-  // subjects (for the picked course). Only the relevant step is shown at a
-  // time, with the hierarchy strip doubling as breadcrumb navigation back up.
-  const view = selectedCourseIdResolved ? "subjects" : selectedInstitutionIdResolved ? "courses" : "institutions";
-
   function goToInstitutions() {
     setSelectedInstitutionId(null);
     setSelectedCourseId(null);
     setSelectedSubjectId(null);
+    setIsSubjectDetailsOpen(false);
+    setView("institutions");
   }
 
   function goToCourses() {
     setSelectedCourseId(null);
     setSelectedSubjectId(null);
+    setIsSubjectDetailsOpen(false);
+    setView(selectedInstitutionIdResolved ? "courses" : "institutions");
   }
 
-  function goBackOneLevel() {
-    if (view === "subjects") {
-      goToCourses();
-      return;
-    }
-    if (view === "courses") {
-      goToInstitutions();
-    }
+  function openSubjectDetails(row) {
+    setSelectedSubjectId(row.id);
+    setIsSubjectDetailsOpen(true);
   }
+
+  const metrics = [
+    {
+      label: "Institutions",
+      value: institutions.length,
+      meta: "Board master",
+      icon: Building2,
+    },
+    {
+      label: "Courses",
+      value: coursesForInstitution.length,
+      meta: selectedInstitution ? "Selected institution" : "Select institution",
+      icon: Layers,
+    },
+    {
+      label: "Subjects",
+      value: subjectsForCourse.length,
+      meta: selectedCourse ? "Selected course" : "Select course",
+      icon: BookOpen,
+    },
+    {
+      label: "Pending Approvals",
+      value: pendingApprovals.length,
+      meta: `${role} queue`,
+      icon: ClipboardCheck,
+    },
+  ];
+
+  const breadcrumbs = [
+    { label: "Dashboard", onClick: view !== "overview" ? () => setView("overview") : null },
+    view === "institutions" && { label: "Institutions" },
+    view === "courses" && !selectedInstitution && { label: "Courses" },
+    view === "subjects" && !selectedCourse && { label: "Subjects" },
+    selectedInstitution && { label: "Institutions", onClick: goToInstitutions },
+    selectedInstitution && { label: selectedInstitution.name, onClick: selectedCourse ? goToCourses : null },
+    selectedInstitution && view !== "institutions" && { label: "Courses", onClick: selectedCourse ? goToCourses : null },
+    selectedCourse && { label: selectedCourse.name },
+    selectedCourse && view === "subjects" && { label: "Subjects" },
+  ].filter(Boolean);
+
+  const tableConfig = {
+    institutions: {
+      title: "Institution Master",
+      rows: institutions,
+      columns: ENTITY_COLUMNS.institutions,
+      fields: institutionFields,
+      selectedId: selectedInstitutionIdResolved,
+      emptyHint: "No institutions",
+      emptyActionLabel: "Add Institution",
+      onEmptyAction: () => openAddModal("institution"),
+      onSelect: (row) => {
+        setSelectedInstitutionId(row.id);
+        setSelectedCourseId(null);
+        setSelectedSubjectId(null);
+        setView("courses");
+      },
+      onSave: saveInstitution,
+      onDelete: deleteInstitutionRow,
+      onToggle: toggleInstitutionRow,
+    },
+    courses: {
+      title: `Course Master${selectedInstitution ? ` - ${selectedInstitution.name}` : ""}`,
+      rows: selectedInstitutionIdResolved ? coursesForInstitution : [],
+      columns: ENTITY_COLUMNS.courses,
+      fields: ENTITY_FIELDS.course,
+      selectedId: selectedCourseIdResolved,
+      disabled: !selectedInstitutionIdResolved,
+      disabledHint: "Select an institution from Institution Master",
+      emptyHint: selectedInstitutionIdResolved ? "No courses mapped" : "Select an institution from Institution Master",
+      emptyActionLabel: "Add Course",
+      onEmptyAction: () => openAddModal("course"),
+      addLabel: "Add New Course",
+      secondaryAddLabel: "Add Existing Course",
+      onSecondaryAdd: () => setCourseSelectOpen(true),
+      onSelect: (row) => {
+        setSelectedCourseId(row.id);
+        setSelectedSubjectId(null);
+        setView("subjects");
+      },
+      onSave: saveCourse,
+      onDelete: deleteCourseRow,
+      onToggle: toggleCourseRow,
+    },
+    subjects: {
+      title: `Subject Master${selectedCourse ? ` - ${selectedCourse.name}` : ""}`,
+      rows: selectedCourseIdResolved ? subjectsForCourse : [],
+      columns: ENTITY_COLUMNS.boardSubjects,
+      fields: subjectFields,
+      selectedId: selectedSubject?.id || null,
+      disabled: !selectedCourseIdResolved,
+      disabledHint: "Select a course from Course Master",
+      emptyHint: selectedCourseIdResolved ? "No subjects mapped" : "Select a course from Course Master",
+      emptyActionLabel: "Add Subject",
+      onEmptyAction: () => openAddModal("subject"),
+      addLabel: "Add New Subject",
+      secondaryAddLabel: "Add Existing Subject",
+      onSecondaryAdd: () => setSubjectSelectOpen(true),
+      onSelect: openSubjectDetails,
+      onView: openSubjectDetails,
+      onSave: saveSubject,
+      onDelete: deleteSubjectRow,
+      onToggle: toggleSubjectRow,
+    },
+  }[view];
 
   return (
     <section className="board-dashboard">
-      <section className="board-summary-card">
-        <div className="board-summary-head">
-          <div>
-            <p className="eyebrow">Dashboard</p>
-            <h2>{role} Portal</h2>
-          </div>
-          <div className="board-quick-actions" aria-label="Quick actions">
-            {view !== "institutions" && (
-              <button className="secondary-btn compact-action" onClick={goBackOneLevel}>
-                <ArrowLeft size={16} />
-                {view === "subjects" ? "Back to Courses" : "Back to Institutions"}
-              </button>
-            )}
-            {view === "institutions" && (
-              <button className="secondary-btn compact-action" onClick={() => openAddModal("institution")}>
-                <Building2 size={16} />
-                Add Institution
-              </button>
-            )}
-            {/* {view === "courses" && (
-              <button className="secondary-btn compact-action" onClick={() => openAddModal("course")}>
-                <Layers size={16} />
-                Add Course
-              </button>
-            )} */}
-            {/* {view === "subjects" && (
-              <button className="secondary-btn compact-action" onClick={() => openAddModal("subject")}>
-                <BookOpen size={16} />
-                Add Subject
-              </button>
-            )} */}
-            <button className="primary-btn compact-action" onClick={() => setActiveRoute("reports")}>
-              <FileText size={16} />
-              View MIS
-            </button>
-          </div>
+      <div className="dashboard-command-row">
+        <div>
+          <Breadcrumb items={breadcrumbs} />
+          <h2>Academic Command Center</h2>
         </div>
-        <div className="board-metric-grid" aria-label="Board summary">
-          {metrics.map((metric) => {
-            const Icon = metric.icon;
-            return (
-              <article className="board-metric-card" key={metric.label}>
-                <Icon size={18} />
-                <span>{metric.label}</span>
-                <strong>{metric.value}</strong>
-              </article>
-            );
-          })}
-        </div>
-        <div className="hierarchy-strip" aria-label="Navigation">
-          <HierarchyItem
-            label="Institution"
-            value={selectedInstitution?.name || "All Institutions"}
-            active={view === "institutions"}
-            onClick={goToInstitutions}
-          />
-          {selectedInstitution && (
-            <>
-              <ChevronRight size={16} />
-              <HierarchyItem
-                label="Course"
-                value={selectedCourse?.name || "All Courses"}
-                active={view === "courses"}
-                onClick={goToCourses}
-              />
-            </>
-          )}
-          {selectedCourse && (
-            <>
-              <ChevronRight size={16} />
-              <HierarchyItem label="Subject" value="Subjects" active={view === "subjects"} />
-            </>
-          )}
-        </div>
-      </section>
-      {view === "institutions" && (
-        <DataTable
-          title="Institutions"
-          rows={institutions}
-          columns={ENTITY_COLUMNS.institutions}
-          fields={institutionFields}
-          selectedId={selectedInstitutionIdResolved}
-          onSelect={(row) => {
-            setSelectedInstitutionId(row.id);
-            setSelectedCourseId(null);
-            setSelectedSubjectId(null);
-          }}
-          onSave={(row) => saveInstitution(row)}
-          onDelete={(row) => deleteInstitutionRow(row)}
-          onToggle={(row) => toggleInstitutionRow(row)}
-          emptyHint="No institutions"
-          emptyActionLabel="Add Institution"
-          onEmptyAction={() => openAddModal("institution")}
-          statusFilterOptions={["Active", "Inactive"]}
-        />
-      )}
-      {view === "courses" && (
-        <DataTable
-          key={selectedInstitutionIdResolved}
-          title={`Courses - ${selectedInstitution?.name || ""}`}
-          rows={coursesForInstitution}
-          columns={ENTITY_COLUMNS.courses}
-          fields={courseFields}
-          addLabel="Add New Course"
-          secondaryAddLabel="Add Existing Course"
-          onSecondaryAdd={() => setCourseSelectOpen(true)}
-          selectedId={selectedCourseIdResolved}
-          emptyHint="No courses mapped"
-          emptyActionLabel="Add Course"
-          onEmptyAction={() => openAddModal("course")}
-          onSelect={(row) => {
-            setSelectedCourseId(row.id);
-            setSelectedSubjectId(null);
-          }}
-          onSave={(row) => saveCourse(row)}
-          onDelete={(row) => deleteCourseRow(row)}
-          onToggle={(row) => toggleCourseRow(row)}
-          statusFilterOptions={["Active", "Inactive"]}
-        />
-      )}
-      {view === "subjects" && (
-        <div className="subject-workspace">
+        <StatusBadge status={role} />
+      </div>
+
+      <div className="kpi-grid" aria-label="Board KPIs">
+        {metrics.map((metric) => (
+          <KpiCard key={metric.label} {...metric} />
+        ))}
+      </div>
+
+      {view !== "overview" && (
+        <div className="master-workspace">
           <DataTable
-            key={selectedCourseIdResolved}
-            title={`Subjects - ${selectedCourse?.name || ""}`}
-            rows={subjectsForCourse}
-            columns={ENTITY_COLUMNS.boardSubjects}
-            fields={subjectFields}
-            addLabel="Add New Subject"
-            secondaryAddLabel="Add Existing Subject"
-            onSecondaryAdd={() => setSubjectSelectOpen(true)}
-            selectedId={selectedSubject?.id || null}
-            emptyHint="No subjects mapped"
-            emptyActionLabel="Add Subject"
-            onEmptyAction={() => openAddModal("subject")}
-            wide
-            onSelect={(row) => setSelectedSubjectId(row.id)}
-            onSave={(row) => saveSubject(row)}
-            onDelete={(row) => deleteSubjectRow(row)}
-            onToggle={(row) => toggleSubjectRow(row)}
+            key={`${view}-${selectedInstitutionIdResolved || "all"}-${selectedCourseIdResolved || "all"}`}
+            title={tableConfig.title}
+            rows={tableConfig.rows}
+            columns={tableConfig.columns}
+            fields={tableConfig.fields}
+            selectedId={tableConfig.selectedId}
+            disabled={tableConfig.disabled}
+            disabledHint={tableConfig.disabledHint}
+            emptyHint={tableConfig.emptyHint}
+            emptyActionLabel={tableConfig.emptyActionLabel}
+            onEmptyAction={tableConfig.onEmptyAction}
+            addLabel={tableConfig.addLabel}
+            secondaryAddLabel={tableConfig.secondaryAddLabel}
+            onSecondaryAdd={tableConfig.onSecondaryAdd}
+            onSelect={tableConfig.onSelect}
+            onView={tableConfig.onView}
+            onSave={tableConfig.onSave}
+            onDelete={tableConfig.onDelete}
+            onToggle={tableConfig.onToggle}
             statusFilterOptions={["Active", "Inactive"]}
-          />
-          <SubjectPreviewPanel
-            course={selectedCourse}
-            subject={selectedSubject}
-            subjectCount={subjectsForCourse.length}
-            disabled={false}
-            subjectFields={subjectFields}
-            onAdd={(row) => saveSubject(row)}
-            onEdit={(row) => saveSubject(row)}
-            onDelete={(row) => deleteSubjectRow(row)}
+            wide={view === "subjects"}
           />
         </div>
       )}
+
+      {view === "subjects" && isSubjectDetailsOpen && (
+        <SubjectDetailsModal
+          course={selectedCourse}
+          subject={selectedSubject}
+          subjectCount={subjectsForCourse.length}
+          subjectFields={subjectFields}
+          onClose={() => setIsSubjectDetailsOpen(false)}
+          onAdd={(row) => saveSubject(row)}
+          onEdit={(row) => saveSubject(row)}
+          onDelete={(row) => deleteSubjectRow(row)}
+        />
+      )}
+
       {addModal && (
         <RecordModal
           mode="add"
@@ -644,43 +610,41 @@ function BoardDashboard({ role, data, setActiveRoute }) {
   );
 }
 
-// Doubles as breadcrumb navigation when `onClick` is given (jumps back up the
-// institution -> course -> subject drill-down).
-function HierarchyItem({ label, value, active, onClick }) {
-  const className = active ? "hierarchy-item active" : "hierarchy-item";
-  if (!onClick) {
-    return (
-      <div className={className}>
-        <span>{label}</span>
-        <strong>{value}</strong>
-      </div>
-    );
-  }
+function RecentActivities({ workflows }) {
+  const rows = workflows.slice(0, 4);
   return (
-    <button type="button" className={className} onClick={onClick}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </button>
+    <section className="panel activity-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Recent Activities</p>
+          <h2>Updates</h2>
+        </div>
+        <Activity size={18} />
+      </div>
+      <div className="activity-list">
+        {rows.length ? (
+          rows.map((workflow) => (
+            <div className="activity-row" key={workflow.id}>
+              <span aria-hidden="true" />
+              <div>
+                <strong>{workflow.task}</strong>
+                <small>
+                  {workflow.module} / {workflow.college}
+                </small>
+              </div>
+              <StatusBadge status={workflow.status} />
+            </div>
+          ))
+        ) : (
+          <div className="preview-empty small">No recent updates</div>
+        )}
+      </div>
+    </section>
   );
 }
 
-// Read-only preview of the selected course/subject with quick add/edit/delete for the subject.
-function SubjectPreviewPanel({ course, subject, subjectCount, disabled, subjectFields, onAdd, onEdit, onDelete }) {
+function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onClose, onAdd, onEdit, onDelete }) {
   const [modalState, setModalState] = useState(null);
-  const courseDetails = course
-    ? [
-        ["Course", course.name],
-        ["Subjects", subjectCount],
-      ]
-    : [];
-  const subjectDetails = subject
-    ? [
-        ["Subject", subject.subject],
-        ["Year", subject.year],
-        ["Semester", subject.semester],
-        ["Priority", subject.priority],
-      ]
-    : [];
 
   function handleSave(row) {
     if (modalState?.mode === "add") onAdd(row);
@@ -688,77 +652,109 @@ function SubjectPreviewPanel({ course, subject, subjectCount, disabled, subjectF
     setModalState(null);
   }
 
+  async function handleDelete() {
+    if (!subject) return;
+    await onDelete(subject);
+    onClose();
+  }
+
+  const sections = [
+    course && {
+      title: "Course Detail",
+      rows: [
+        ["Course", course.name],
+        ["Subjects", subjectCount],
+      ],
+    },
+    subject && {
+      title: "Subject Information",
+      rows: [
+        ["Subject", subject.subject],
+        ["Year", subject.year],
+        ["Semester", subject.semester],
+        ["Priority", subject.priority],
+      ],
+    },
+  ];
+
+  const actions = [
+    {
+      label: "Add",
+      icon: Plus,
+      disabled: !course,
+      onClick: () => setModalState({ mode: "add", row: emptyRowFromFields(subjectFields) }),
+    },
+    subject && {
+      label: "Edit",
+      icon: Pencil,
+      onClick: () => setModalState({ mode: "edit", row: subject }),
+    },
+    subject && {
+      label: "Delete",
+      icon: Trash2,
+      tone: "danger",
+      onClick: handleDelete,
+    },
+  ].filter(Boolean);
+
   return (
-    <section className="subject-preview-panel">
-      <div className="mini-table-heading">
-        <h3>Subject Preview</h3>
-        <button
-          className="primary-btn compact-btn"
-          disabled={disabled}
-          onClick={() => setModalState({ mode: "add", row: emptyRowFromFields(subjectFields) })}
-        >
-          <Plus size={16} />
-          Add
-        </button>
-      </div>
-      {course ? (
-        <>
-          <div className="preview-table-wrap">
-            <table className="preview-table">
-              <thead>
-                <tr>
-                  <th>Course Detail</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {courseDetails.map(([label, value]) => (
-                  <tr key={label}>
-                    <td data-label="Course Detail">{label}</td>
-                    <td data-label="Value">{value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+    <>
+      <div className="modal-backdrop" role="presentation">
+        <section className="modal subject-details-modal" role="dialog" aria-modal="true" aria-label="Subject Information">
+          <div className="modal-heading">
+            <div>
+              <p className="eyebrow">Details</p>
+              <h3>Subject Information</h3>
+            </div>
+            <div className="subject-modal-head-actions">
+              <StatusBadge status={subject?.status || course?.status || "Active"} />
+              <button className="icon-btn" onClick={onClose} aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
           </div>
-          {subject ? (
-            <>
-              <div className="preview-table-wrap">
-                <table className="preview-table">
-                  <thead>
-                    <tr>
-                      <th>Subject Detail</th>
-                      <th>Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {subjectDetails.map(([label, value]) => (
-                      <tr key={label}>
-                        <td data-label="Subject Detail">{label}</td>
-                        <td data-label="Value">{value}</td>
-                      </tr>
+
+          {sections.length ? (
+            <div className="preview-section-stack subject-modal-content">
+              {sections.map((section) => (
+                <section className="preview-section" key={section.title}>
+                  <h4>{section.title}</h4>
+                  <dl>
+                    {section.rows.map(([label, value]) => (
+                      <div key={label}>
+                        <dt>{label}</dt>
+                        <dd>{value || "-"}</dd>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="preview-actions">
-                <button className="secondary-btn" onClick={() => setModalState({ mode: "edit", row: subject })}>
-                  <Pencil size={16} />
-                  Edit
-                </button>
-                <button className="secondary-btn danger-text" onClick={() => onDelete(subject)}>
-                  <Trash2 size={16} />
-                  Delete
-                </button>
-              </div>
-            </>
+                  </dl>
+                </section>
+              ))}
+            </div>
           ) : (
-            <div className="preview-empty small">Select subject</div>
+            <div className="preview-empty">{course ? "Select a subject" : "Select a course"}</div>
           )}
-        </>
-      ) : (
-        <div className="preview-empty">{disabled ? "Select course first" : "Select subject"}</div>
-      )}
+
+          {actions.length > 0 && (
+            <div className="modal-actions subject-modal-actions">
+              {actions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.label}
+                    type="button"
+                    className={action.tone === "danger" ? "secondary-btn danger-text" : "secondary-btn"}
+                    onClick={action.onClick}
+                    disabled={action.disabled}
+                  >
+                    <Icon size={16} />
+                    {action.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
       {modalState && (
         <RecordModal
           mode={modalState.mode}
@@ -769,6 +765,6 @@ function SubjectPreviewPanel({ course, subject, subjectCount, disabled, subjectF
           onSave={handleSave}
         />
       )}
-    </section>
+    </>
   );
 }
