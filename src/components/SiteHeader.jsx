@@ -16,7 +16,7 @@ export default function SiteHeader({ showSearch = true, compact = false, role, u
               />
             </div>
             <div>
-              <strong>Examination Marks Software (EMS)</strong>
+              <strong>Examination Marks System (EMS)</strong>
               <span>BOME &amp; BOEN / Directorate of IT, Government of Puducherry</span>
             </div>
           </div>
@@ -51,7 +51,7 @@ export default function SiteHeader({ showSearch = true, compact = false, role, u
           </div>
           <div className="identity-title">
             <b>BOME &amp; BOEN</b>
-            <strong>Examination Marks Software (EMS)</strong>
+            <strong>Examination Marks System (EMS)</strong>
             <span>
               Board of Medical Education &amp; Board of Examination in Nursing
             </span>
