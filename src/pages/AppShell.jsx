@@ -56,6 +56,7 @@ export default function AppShell({
             <Dashboard
               data={data}
               role={role}
+              username={username}
               routes={routesForRole}
               setActiveRoute={setActiveRoute}
               updateEntity={updateEntity}
@@ -64,7 +65,7 @@ export default function AppShell({
               onDashboardViewChange={setDashboardView}
             />
           ) : currentRoute.type === "department-admins" ? (
-            <DepartmentAdminsPage />
+            <DepartmentAdminsPage username={username} />
           ) : (
             <CrudPage
               route={currentRoute}

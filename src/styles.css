@@ -1349,6 +1349,34 @@ button.hierarchy-item:hover {
   color: var(--white);
 }
 
+.primary-btn.danger-btn {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--white);
+}
+
+.primary-btn.danger-btn:hover {
+  background: #B42323;
+  border-color: #B42323;
+}
+
+.confirm-dialog {
+  width: min(420px, 100%);
+}
+
+.confirm-dialog-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  color: #B42323;
+}
+
+.confirm-dialog-body p {
+  color: var(--ink);
+  margin: 0;
+}
+
 .data-table-heading .primary-btn.compact-btn,
 .mini-table-heading .primary-btn.compact-btn,
 .table-empty .compact-action,

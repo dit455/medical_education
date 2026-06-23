@@ -18,6 +18,7 @@ import StatusBadge from "../components/StatusBadge.jsx";
 import DataTable from "../components/DataTable.jsx";
 import RecordModal from "../components/RecordModal.jsx";
 import CourseSelectModal from "../components/CourseSelectModal.jsx";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import KpiCard from "../components/KpiCard.jsx";
 import Breadcrumb from "../components/Breadcrumb.jsx";
 import { BOARD_ROLES, ENTITY_FIELDS, ENTITY_COLUMNS } from "../data.js";
@@ -27,6 +28,7 @@ import * as api from "../api.js";
 export default function Dashboard({
   data,
   role,
+  username,
   routes,
   setActiveRoute,
   dashboardView,
@@ -37,6 +39,7 @@ export default function Dashboard({
     return (
       <BoardDashboard
         role={role}
+        username={username}
         data={data}
         setActiveRoute={setActiveRoute}
         dashboardView={dashboardView}
@@ -90,7 +93,7 @@ export default function Dashboard({
   );
 }
 
-function BoardDashboard({ role, data, setActiveRoute, dashboardView, dashboardViewCommand, onDashboardViewChange }) {
+function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, dashboardViewCommand, onDashboardViewChange }) {
   const [view, setView] = useState(dashboardView || "overview");
   const [institutions, setInstitutions] = useState([]);
   const [coursesForInstitution, setCoursesForInstitution] = useState([]);
@@ -253,6 +256,7 @@ function BoardDashboard({ role, data, setActiveRoute, dashboardView, dashboardVi
       region_id: resolveRegionId(values.region),
       status: values.status || "Active",
       board: role,
+      actor: username,
     };
     if (values.id) {
       await api.updateInstitution(values.id, payload);
@@ -281,12 +285,13 @@ function BoardDashboard({ role, data, setActiveRoute, dashboardView, dashboardVi
       name: row.name,
       region_id: resolveRegionId(row.region),
       status: nextStatus,
+      actor: username,
     });
     refreshInstitutions();
   }
 
   async function saveCourse(values) {
-    const payload = { name: values.name, status: values.status || "Active" };
+    const payload = { name: values.name, status: values.status || "Active", actor: username };
     if (values.id) {
       await api.updateCourse(values.id, payload);
     } else {
@@ -298,7 +303,7 @@ function BoardDashboard({ role, data, setActiveRoute, dashboardView, dashboardVi
   }
 
   async function deleteCourseRow(row) {
-    await api.deleteCourse(row.id);
+    await api.deleteCourse(selectedInstitutionIdResolved, row.id);
     if (selectedCourseIdResolved === row.id) {
       setSelectedCourseId(null);
       setSelectedSubjectId(null);
@@ -308,7 +313,7 @@ function BoardDashboard({ role, data, setActiveRoute, dashboardView, dashboardVi
 
   async function toggleCourseRow(row) {
     const nextStatus = row.status === "Inactive" ? "Active" : "Inactive";
-    await api.updateCourse(row.id, { name: row.name, status: nextStatus });
+    await api.updateCourse(row.id, { name: row.name, status: nextStatus, actor: username });
     refreshCourses(selectedInstitutionIdResolved);
   }
 
@@ -319,6 +324,7 @@ function BoardDashboard({ role, data, setActiveRoute, dashboardView, dashboardVi
       sem_id: resolveSemId(values.semester),
       priority: values.priority || null,
       status: values.status || "Active",
+      actor: username,
     };
     if (values.id) {
       await api.updateSubject(values.id, payload);
@@ -343,6 +349,7 @@ function BoardDashboard({ role, data, setActiveRoute, dashboardView, dashboardVi
       sem_id: resolveSemId(row.semester),
       priority: row.priority,
       status: nextStatus,
+      actor: username,
     });
     refreshSubjects(selectedCourseIdResolved);
   }
@@ -645,6 +652,7 @@ function RecentActivities({ workflows }) {
 
 function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onClose, onAdd, onEdit, onDelete }) {
   const [modalState, setModalState] = useState(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function handleSave(row) {
     if (modalState?.mode === "add") onAdd(row);
@@ -655,6 +663,7 @@ function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onC
   async function handleDelete() {
     if (!subject) return;
     await onDelete(subject);
+    setConfirmingDelete(false);
     onClose();
   }
 
@@ -693,7 +702,7 @@ function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onC
       label: "Delete",
       icon: Trash2,
       tone: "danger",
-      onClick: handleDelete,
+      onClick: () => setConfirmingDelete(true),
     },
   ].filter(Boolean);
 
@@ -763,6 +772,14 @@ function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onC
           title="Subject Details"
           onClose={() => setModalState(null)}
           onSave={handleSave}
+        />
+      )}
+      {confirmingDelete && (
+        <ConfirmDialog
+          title="Delete this subject?"
+          message="This action cannot be undone."
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmingDelete(false)}
         />
       )}
     </>

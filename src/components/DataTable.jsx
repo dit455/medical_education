@@ -5,6 +5,7 @@ import { emptyRowFromFields, humanizeKey, canVerify, canApprove } from "../utils
 import StatusBadge from "./StatusBadge.jsx";
 import IconButton from "./IconButton.jsx";
 import RecordModal from "./RecordModal.jsx";
+import ConfirmDialog from "./ConfirmDialog.jsx";
 
 // Generic searchable / filterable / paginated table used everywhere in the app.
 // Opens RecordModal for add/edit/view, and renders per-row action buttons
@@ -38,6 +39,7 @@ export default function DataTable({
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
   const [modalState, setModalState] = useState(null);
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
   const prevRowCount = useRef(rows.length);
 
   const filteredRows = useMemo(
@@ -90,6 +92,11 @@ export default function DataTable({
   function handleRowsPerPageChange(value) {
     setRowsPerPage(value);
     setPage(1);
+  }
+
+  function handleConfirmDelete() {
+    onDelete(deleteCandidate);
+    setDeleteCandidate(null);
   }
 
   function handleExport() {
@@ -265,7 +272,7 @@ export default function DataTable({
                       {onDelete && (
                         <IconButton
                           label="Delete"
-                          onClick={() => onDelete(row)}
+                          onClick={() => setDeleteCandidate(row)}
                           icon={Trash2}
                           tone="danger"
                         />
@@ -310,6 +317,14 @@ export default function DataTable({
           title={title}
           onClose={() => setModalState(null)}
           onSave={handleSave}
+        />
+      )}
+      {deleteCandidate && (
+        <ConfirmDialog
+          title="Delete this record?"
+          message="This action cannot be undone."
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteCandidate(null)}
         />
       )}
     </section>

@@ -16,3 +16,11 @@ def board_column(board):
     if board == "BOEN":
         return "boen_status"
     raise ValueError("board must be 'BOME' or 'BOEN'")
+
+
+def actor_from_body(body):
+    """Username of whoever made this request, for created_by/updated_by
+    columns - the frontend sends the signed-in user's username as `actor`.
+    Falls back to "system" for callers that don't have one (e.g. scripts).
+    """
+    return (body.get("actor") or "").strip() or "system"

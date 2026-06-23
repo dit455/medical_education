@@ -3,7 +3,7 @@
 from flask import Blueprint, jsonify, request
 
 from db import get_connection
-from utils import board_column, label_to_status, status_to_label
+from utils import actor_from_body, board_column, label_to_status, status_to_label
 
 institutions_bp = Blueprint("institutions", __name__)
 
@@ -50,6 +50,7 @@ def create_institution():
     status_label = body.get("status", "Active")
     column = board_column(board)
     status_ = label_to_status(status_label)
+    actor = actor_from_body(body)
 
     conn = get_connection()
     try:
@@ -65,7 +66,7 @@ def create_institution():
                  created_by, created_date, status_)
             VALUES (%s, %s, 1, 0, %s, %s, NOW(), %s)
             """,
-            (new_id, name, region_id, "system", status_),
+            (new_id, name, region_id, actor, status_),
         )
         conn.commit()
 
@@ -91,6 +92,7 @@ def update_institution(institution_id):
     name = body.get("name")
     region_id = body.get("region_id")
     status_ = label_to_status(body.get("status", "Active"))
+    actor = actor_from_body(body)
 
     conn = get_connection()
     try:
@@ -102,7 +104,7 @@ def update_institution(institution_id):
                 updated_by = %s, updated_date = NOW()
             WHERE inst_id = %s
             """,
-            (name, region_id, status_, "system", institution_id),
+            (name, region_id, status_, actor, institution_id),
         )
         conn.commit()
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import RecordModal from "../components/RecordModal.jsx";
 import IconButton from "../components/IconButton.jsx";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import { emptyRowFromFields } from "../utils.js";
 import * as api from "../api.js";
 
@@ -14,9 +15,10 @@ const FIELDS = [
 // Super Admin only: create/list/delete real department-admin accounts
 // (DB-backed, `users` table). The board (BOME/BOEN) isn't fixed on the
 // account - it's chosen at login time, same as the old demo flow.
-export default function DepartmentAdminsPage() {
+export default function DepartmentAdminsPage({ username }) {
   const [admins, setAdmins] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
   const [error, setError] = useState("");
 
   function refresh() {
@@ -27,7 +29,7 @@ export default function DepartmentAdminsPage() {
 
   async function handleSave(values) {
     try {
-      await api.createDepartmentAdmin(values);
+      await api.createDepartmentAdmin({ ...values, actor: username });
       setModalOpen(false);
       setError("");
       refresh();
@@ -38,6 +40,7 @@ export default function DepartmentAdminsPage() {
 
   async function handleDelete(admin) {
     await api.deleteDepartmentAdmin(admin.id);
+    setDeleteCandidate(null);
     refresh();
   }
 
@@ -91,7 +94,7 @@ export default function DepartmentAdminsPage() {
                     <td data-label="Department">{admin.department}</td>
                     <td data-label="Actions">
                       <div className="action-group">
-                        <IconButton label="Delete" onClick={() => handleDelete(admin)} icon={Trash2} tone="danger" />
+                        <IconButton label="Delete" onClick={() => setDeleteCandidate(admin)} icon={Trash2} tone="danger" />
                       </div>
                     </td>
                   </tr>
@@ -109,6 +112,14 @@ export default function DepartmentAdminsPage() {
           title="Department Admin"
           onClose={() => setModalOpen(false)}
           onSave={handleSave}
+        />
+      )}
+      {deleteCandidate && (
+        <ConfirmDialog
+          title="Delete this department admin?"
+          message="This action cannot be undone."
+          onConfirm={() => handleDelete(deleteCandidate)}
+          onCancel={() => setDeleteCandidate(null)}
         />
       )}
     </section>
