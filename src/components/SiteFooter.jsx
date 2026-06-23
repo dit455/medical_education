@@ -2,9 +2,9 @@
 export default function SiteFooter() {
   return (
     <footer className="app-footer">
-      <span>2026 Medical Education Board EMS</span>
+      <span>© 2026 BOME &amp; BOEN — EMS</span>
       <i></i>
-      <span>Government of Puducherry</span>
+      <span>Directorate of IT, Government of Puducherry</span>
     </footer>
   );
 }

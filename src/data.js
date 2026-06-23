@@ -16,16 +16,6 @@ export const ALL_ROLES = [
   "Reports User",
 ];
 
-// Department logins are real accounts (created by Super Admin, stored in the
-// `users` DB table) - only the Super Admin demo login stays hardcoded.
-export const LOGIN_CREDENTIALS = {
-  "super-admin": {
-    label: "Super Admin",
-    username: "superadmin",
-    password: "Admin@123",
-  },
-};
-
 export const STATUS_OPTIONS = [
   "Active",
   "Inactive",

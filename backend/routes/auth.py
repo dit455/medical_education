@@ -1,12 +1,46 @@
 """Login and department-admin user management."""
 
+import os
+
 import mysql.connector
 from flask import Blueprint, jsonify, request
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from db import get_connection
+from utils import actor_from_body
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def ensure_super_admin():
+    """Creates the Super Admin account in the `users` table if it doesn't
+    exist yet. Username/password come from env vars (SUPERADMIN_USERNAME /
+    SUPERADMIN_PASSWORD) so the account lives in the DB instead of being
+    hardcoded in the frontend - call this once at app startup.
+    """
+    username = os.environ.get("SUPERADMIN_USERNAME", "superadmin")
+    password = os.environ.get("SUPERADMIN_PASSWORD", "Admin@123")
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM users WHERE role = %s", ("Super Admin",))
+        if cursor.fetchone() is not None:
+            cursor.close()
+            return
+        cursor.execute(
+            """
+            INSERT INTO users (username, password, created_by, role)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (username, generate_password_hash(password), "system", "Super Admin"),
+        )
+        conn.commit()
+        cursor.close()
+    except mysql.connector.IntegrityError:
+        pass
+    finally:
+        conn.close()
 
 
 def _user_row_to_dict(row):
@@ -59,6 +93,7 @@ def create_department_admin():
     username = (body.get("username") or "").strip()
     password = body.get("password") or ""
     department = body.get("department") or ""
+    actor = actor_from_body(body)
     if not username or not password:
         return jsonify({"error": "Username and password are required"}), 400
 
@@ -70,7 +105,7 @@ def create_department_admin():
             INSERT INTO users (username, password, department, created_by, role)
             VALUES (%s, %s, %s, %s, %s)
             """,
-            (username, generate_password_hash(password), department, "superadmin", "department-admin"),
+            (username, generate_password_hash(password), department, actor, "department-admin"),
         )
         conn.commit()
         new_id = cursor.lastrowid

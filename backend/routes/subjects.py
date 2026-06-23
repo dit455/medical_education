@@ -3,7 +3,7 @@
 from flask import Blueprint, jsonify, request
 
 from db import get_connection
-from utils import label_to_status, status_to_label
+from utils import actor_from_body, label_to_status, status_to_label
 
 subjects_bp = Blueprint("subjects", __name__)
 
@@ -48,11 +48,12 @@ def get_subjects_for_course(course_id):
 @subjects_bp.route("/api/courses/<int:course_id>/subjects", methods=["POST"])
 def create_subject_for_course(course_id):
     body = request.get_json(force=True) or {}
-    subject = body.get("subject")
+    subject = (body.get("subject") or "").strip()
     year_id = body.get("year_id")
     sem_id = body.get("sem_id")
     priority = body.get("priority")
     status_ = label_to_status(body.get("status", "Active"))
+    actor = actor_from_body(body)
 
     conn = get_connection()
     try:
@@ -69,31 +70,60 @@ def create_subject_for_course(course_id):
         column = "bome_status" if bome_status and bome_status > 0 else "boen_status"
         other_column = "boen_status" if column == "bome_status" else "bome_status"
 
-        cursor.execute("SELECT COALESCE(MAX(subject_id), 0) + 1 FROM tbl_subject_master")
-        new_subject_id = cursor.fetchone()[0]
+        # Reuse the existing subject master row if one with this name already
+        # exists (case-insensitive) instead of inserting a duplicate.
         cursor.execute(
-            f"""
-            INSERT INTO tbl_subject_master
-                (subject_id, subject_desc, {column}, {other_column},
-                 created_by, created_date, status_)
-            VALUES (%s, %s, 1, 0, %s, NOW(), %s)
-            """,
-            (new_subject_id, subject, "system", status_),
+            "SELECT subject_id FROM tbl_subject_master WHERE LOWER(subject_desc) = LOWER(%s)",
+            (subject,),
         )
+        existing = cursor.fetchone()
 
-        cursor.execute(
-            "SELECT COALESCE(MAX(course_subject_id), 0) + 1 FROM tbl_course_subject_map"
-        )
-        new_map_id = cursor.fetchone()[0]
+        if existing:
+            subject_id = existing[0]
+            cursor.execute(
+                f"UPDATE tbl_subject_master SET {column} = 1 WHERE subject_id = %s",
+                (subject_id,),
+            )
+        else:
+            cursor.execute("SELECT COALESCE(MAX(subject_id), 0) + 1 FROM tbl_subject_master")
+            subject_id = cursor.fetchone()[0]
+            cursor.execute(
+                f"""
+                INSERT INTO tbl_subject_master
+                    (subject_id, subject_desc, {column}, {other_column},
+                     created_by, created_date, status_)
+                VALUES (%s, %s, 1, 0, %s, NOW(), %s)
+                """,
+                (subject_id, subject, actor, status_),
+            )
+
+        # Don't create a second mapping row if this subject is already
+        # mapped to the same course/year/semester.
         cursor.execute(
             """
-            INSERT INTO tbl_course_subject_map
-                (course_subject_id, course_id, subject_id, year_id, sem_id,
-                 priority_id, created_by, created_date, status_)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+            SELECT course_subject_id FROM tbl_course_subject_map
+            WHERE course_id = %s AND subject_id = %s AND year_id = %s AND sem_id = %s
             """,
-            (new_map_id, course_id, new_subject_id, year_id, sem_id, priority, "system", status_),
+            (course_id, subject_id, year_id, sem_id),
         )
+        existing_map = cursor.fetchone()
+
+        if existing_map:
+            new_map_id = existing_map[0]
+        else:
+            cursor.execute(
+                "SELECT COALESCE(MAX(course_subject_id), 0) + 1 FROM tbl_course_subject_map"
+            )
+            new_map_id = cursor.fetchone()[0]
+            cursor.execute(
+                """
+                INSERT INTO tbl_course_subject_map
+                    (course_subject_id, course_id, subject_id, year_id, sem_id,
+                     priority_id, created_by, created_date, status_)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+                """,
+                (new_map_id, course_id, subject_id, year_id, sem_id, priority, actor, status_),
+            )
         conn.commit()
 
         cursor.execute(
@@ -114,6 +144,7 @@ def update_subject(course_subject_id):
     sem_id = body.get("sem_id")
     priority = body.get("priority")
     status_ = label_to_status(body.get("status", "Active"))
+    actor = actor_from_body(body)
 
     conn = get_connection()
     try:
@@ -134,7 +165,7 @@ def update_subject(course_subject_id):
             SET subject_desc = %s, updated_by = %s, updated_date = NOW()
             WHERE subject_id = %s
             """,
-            (subject, "system", subject_id),
+            (subject, actor, subject_id),
         )
         cursor.execute(
             """
@@ -143,7 +174,7 @@ def update_subject(course_subject_id):
                 updated_by = %s, updated_date = NOW()
             WHERE course_subject_id = %s
             """,
-            (year_id, sem_id, priority, status_, "system", course_subject_id),
+            (year_id, sem_id, priority, status_, actor, course_subject_id),
         )
         conn.commit()
 
@@ -159,24 +190,15 @@ def update_subject(course_subject_id):
 
 @subjects_bp.route("/api/subjects/<int:course_subject_id>", methods=["DELETE"])
 def delete_subject(course_subject_id):
+    # Only removes this course's mapping to the subject - the subject master
+    # row stays untouched since other courses may still be mapped to it.
     conn = get_connection()
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT subject_id FROM tbl_course_subject_map WHERE course_subject_id = %s",
-            (course_subject_id,),
-        )
-        map_row = cursor.fetchone()
-        subject_id = map_row[0] if map_row else None
-
-        cursor.execute(
             "DELETE FROM tbl_course_subject_map WHERE course_subject_id = %s",
             (course_subject_id,),
         )
-        if subject_id is not None:
-            cursor.execute(
-                "DELETE FROM tbl_subject_master WHERE subject_id = %s", (subject_id,)
-            )
         conn.commit()
         cursor.close()
         return jsonify({"ok": True})

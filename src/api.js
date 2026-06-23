@@ -86,8 +86,8 @@ export function updateCourse(courseId, payload) {
   });
 }
 
-export function deleteCourse(courseId) {
-  return request(`/courses/${courseId}`, { method: "DELETE" });
+export function deleteCourse(institutionId, courseId) {
+  return request(`/institutions/${institutionId}/courses/${courseId}`, { method: "DELETE" });
 }
 
 export function getSubjects(courseId) {

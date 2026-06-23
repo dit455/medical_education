@@ -1,10 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Search, Filter, ChevronLeft, ChevronRight, FileText, Pencil, ToggleLeft, CircleCheck, BadgeCheck, Trash2 } from "lucide-react";
+import { Plus, Search, Filter, ChevronLeft, ChevronRight, FileText, Pencil, ToggleLeft, CircleCheck, BadgeCheck, Trash2, Download } from "lucide-react";
 import { FIELD_LABELS, STATUS_OPTIONS } from "../data.js";
 import { emptyRowFromFields, humanizeKey, canVerify, canApprove } from "../utils.js";
 import StatusBadge from "./StatusBadge.jsx";
 import IconButton from "./IconButton.jsx";
 import RecordModal from "./RecordModal.jsx";
+import ConfirmDialog from "./ConfirmDialog.jsx";
 
 // Generic searchable / filterable / paginated table used everywhere in the app.
 // Opens RecordModal for add/edit/view, and renders per-row action buttons
@@ -26,6 +27,7 @@ export default function DataTable({
   secondaryAddLabel = "",
   onSecondaryAdd,
   onSelect,
+  onView,
   onSave,
   onDelete,
   onToggle,
@@ -37,6 +39,7 @@ export default function DataTable({
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
   const [modalState, setModalState] = useState(null);
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
   const prevRowCount = useRef(rows.length);
 
   const filteredRows = useMemo(
@@ -91,6 +94,27 @@ export default function DataTable({
     setPage(1);
   }
 
+  function handleConfirmDelete() {
+    onDelete(deleteCandidate);
+    setDeleteCandidate(null);
+  }
+
+  function handleExport() {
+    const headers = columns.map((column) => FIELD_LABELS[column] || humanizeKey(column));
+    const escapeCsv = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const csv = [
+      headers.map(escapeCsv).join(","),
+      ...filteredRows.map((row) => columns.map((column) => escapeCsv(row[column])).join(",")),
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "ems-records"}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <section className={wide ? "data-table-card wide" : "data-table-card"}>
       <div className="data-table-heading">
@@ -131,31 +155,37 @@ export default function DataTable({
             disabled={disabled}
           />
         </label>
-        <label className="select-box small">
-          <Filter size={15} />
-          <select
-            value={statusFilter}
-            onChange={(e) => handleStatusFilterChange(e.target.value)}
-            disabled={disabled}
-          >
-            <option>All</option>
-            {statusFilterOptions.map((option) => (
-              <option key={option}>{option}</option>
-            ))}
-          </select>
-        </label>
-        <label className="select-box small rows-select">
-          Rows
-          <select
-            value={rowsPerPage}
-            onChange={(e) => handleRowsPerPageChange(Number(e.target.value))}
-            disabled={disabled}
-          >
-            {[5, 10, 20].map((option) => (
-              <option key={option}>{option}</option>
-            ))}
-          </select>
-        </label>
+        <div className="table-toolbar-controls">
+          <label className="select-box small">
+            <Filter size={15} />
+            <select
+              value={statusFilter}
+              onChange={(e) => handleStatusFilterChange(e.target.value)}
+              disabled={disabled}
+            >
+              <option>All</option>
+              {statusFilterOptions.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+          <label className="select-box small rows-select">
+            Rows
+            <select
+              value={rowsPerPage}
+              onChange={(e) => handleRowsPerPageChange(Number(e.target.value))}
+              disabled={disabled}
+            >
+              {[5, 10, 20].map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+          <button className="secondary-btn compact-btn export-btn" type="button" onClick={handleExport} disabled={disabled}>
+            <Download size={15} />
+            Export
+          </button>
+        </div>
       </div>
       <div className="table-wrap data-table-scroll">
         <table>
@@ -174,7 +204,7 @@ export default function DataTable({
                 <td colSpan={columns.length + 2} className="empty-state">
                   <div className="table-empty">
                     <span>{disabled && disabledHint ? disabledHint : emptyHint}</span>
-                    {/* {!disabled && emptyActionLabel && (
+                    {!disabled && emptyActionLabel && (
                       <button
                         className="secondary-btn compact-action"
                         onClick={
@@ -185,7 +215,7 @@ export default function DataTable({
                         <Plus size={15} />
                         {emptyActionLabel}
                       </button>
-                    )} */}
+                    )}
                   </div>
                 </td>
               </tr>
@@ -207,7 +237,7 @@ export default function DataTable({
                       {fields.length > 0 && (
                         <IconButton
                           label="View"
-                          onClick={() => setModalState({ mode: "view", row })}
+                          onClick={() => (onView ? onView(row) : setModalState({ mode: "view", row }))}
                           icon={FileText}
                         />
                       )}
@@ -242,7 +272,7 @@ export default function DataTable({
                       {onDelete && (
                         <IconButton
                           label="Delete"
-                          onClick={() => onDelete(row)}
+                          onClick={() => setDeleteCandidate(row)}
                           icon={Trash2}
                           tone="danger"
                         />
@@ -287,6 +317,14 @@ export default function DataTable({
           title={title}
           onClose={() => setModalState(null)}
           onSave={handleSave}
+        />
+      )}
+      {deleteCandidate && (
+        <ConfirmDialog
+          title="Delete this record?"
+          message="This action cannot be undone."
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteCandidate(null)}
         />
       )}
     </section>
