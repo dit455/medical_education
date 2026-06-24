@@ -47,8 +47,8 @@ CREATE TABLE tbl_category_master (
 );
 
 
-DROP TABLE IF EXISTS tbl_year_id;
-CREATE TABLE tbl_year_id (
+DROP TABLE IF EXISTS tbl_year_master;
+CREATE TABLE tbl_year_master (
     year_id INT PRIMARY KEY CHECK (year_id BETWEEN 0 AND 99),
     year_desc VARCHAR(100),
     created_by VARCHAR(50),
