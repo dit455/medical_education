@@ -6,12 +6,16 @@ import Topbar from "./Topbar.jsx";
 import Dashboard from "./Dashboard.jsx";
 import CrudPage from "./CrudPage.jsx";
 import DepartmentAdminsPage from "./DepartmentAdminsPage.jsx";
+import InstitutionAdminsPage from "./InstitutionAdminsPage.jsx";
+import InstitutionPortal from "./InstitutionPortal.jsx";
+import ApprovalsPage from "./ApprovalsPage.jsx";
 import { ROUTES } from "../routes.js";
 import { ENTITY_COLUMNS } from "../data.js";
 
 export default function AppShell({
   role,
   username,
+  institutionId,
   data,
   activeRoute,
   setActiveRoute,
@@ -24,6 +28,7 @@ export default function AppShell({
   const [dashboardViewCommand, setDashboardViewCommand] = useState(null);
   const routesForRole = useMemo(() => ROUTES.filter((route) => route.roles.includes(role)), [role]);
   const currentRoute = routesForRole.find((route) => route.key === activeRoute) || routesForRole[0];
+  console.log("AppShell: currentRoute", currentRoute, "activeRoute", activeRoute, "routesForRole", routesForRole);
 
   function handleNavigate(routeKey, view) {
     setActiveRoute(routeKey);
@@ -66,6 +71,12 @@ export default function AppShell({
             />
           ) : currentRoute.type === "department-admins" ? (
             <DepartmentAdminsPage username={username} />
+          ) : currentRoute.type === "institution-admins" ? (
+            <InstitutionAdminsPage username={username} />
+          ) : currentRoute.type === "institution-portal" ? (
+            <InstitutionPortal institutionId={institutionId} username={username} />
+          ) : currentRoute.type === "approvals" ? (
+            <ApprovalsPage role={role} username={username} />
           ) : (
             <CrudPage
               route={currentRoute}

@@ -75,7 +75,7 @@ export default function Dashboard({
           </div>
           <div className="module-grid">
             {routes
-              .filter((route) => route.type !== "dashboard")
+              .filter((route) => route.type !== "dashboard" && !route.hidden)
               .slice(0, 8)
               .map((route) => {
                 const Icon = route.icon;

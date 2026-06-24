@@ -18,6 +18,7 @@ import {
   BadgeCheck,
   SlidersHorizontal,
   KeyRound,
+  Building2,
 } from "lucide-react";
 import {
   BOARD_ROLES,
@@ -56,6 +57,15 @@ export const ROUTES = [
     group: "Super Admin",
     type: "department-admins",
     title: "Department Admins",
+  },
+  {
+    key: "institution-admins",
+    label: "Institution Accounts",
+    icon: Building2,
+    roles: ["Super Admin"],
+    group: "Super Admin",
+    type: "institution-admins",
+    title: "Institution Accounts",
   },
   {
     key: "roles",
@@ -240,5 +250,28 @@ export const ROUTES = [
     entity: "reports",
     fields: ENTITY_FIELDS.report,
     title: "MIS Reports",
+  },
+  {
+    key: "institution-portal",
+    label: "Institution Portal",
+    icon: Building2,
+    roles: ["Institution"],
+    group: "Institution",
+    type: "institution-portal",
+    title: "Institution Portal",
+  },
+  {
+    key: "approvals",
+    label: "Institution Approvals",
+    icon: CircleCheck,
+    // Super Admin is allowed here now (permission-wise) but `hidden: true`
+    // keeps it out of every auto-generated nav surface (sidebar fallback
+    // menu, dashboard module grid) so there's no visible way in yet. When
+    // ready: drop `hidden` and add an entry to SUPER_ADMIN_MENU in Sidebar.jsx.
+    roles: [...BOARD_ROLES, "Super Admin"],
+    group: "Board Workflows",
+    type: "approvals",
+    title: "Institution Approvals",
+    hidden: true,
   },
 ];

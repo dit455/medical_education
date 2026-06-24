@@ -81,6 +81,17 @@ export default function LoginPage({ onLogin, onBackHome }) {
               >
                 Department
               </button>
+              {/* Institution login: backend + portal UI are ready (InstitutionPortal.jsx,
+                  ApprovalsPage.jsx, /api/institution-users, /api/pending-changes) - uncomment
+                  this tab when you're ready to let institutions log in.
+              <button
+                type="button"
+                className={loginType === "institution" ? "active" : ""}
+                onClick={() => setLoginType("institution")}
+              >
+                Institution
+              </button>
+              */}
             </div>
             <form className="login-form" onSubmit={handleSubmit}>
               <label>

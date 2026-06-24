@@ -44,6 +44,7 @@ const BOARD_MENU = [
       { label: "Student Verification", icon: UserCheck, routeKey: "student-verification" },
       { label: "Marks Approval", icon: CircleCheck, routeKey: "marks-approval" },
       { label: "Marksheet Approval", icon: FileCheck2, routeKey: "marksheet-approval" },
+      { label: "Institution Approvals", icon: CircleCheck, routeKey: "approvals" },
     ],
   },
   {
@@ -66,6 +67,7 @@ const SUPER_ADMIN_MENU = [
     items: [
       { label: "Users", icon: Users, routeKey: "users" },
       { label: "Department Admins", icon: UserCheck, routeKey: "department-admins" },
+      // { label: "Institution Accounts", icon: Building2, routeKey: "institution-admins" },
       { label: "User Roles", icon: FileCheck2, routeKey: "roles" },
       { label: "User Mapping", icon: Layers, routeKey: "mappings" },
       { label: "Settings", icon: Settings, routeKey: "features" },
@@ -79,11 +81,13 @@ function fallbackMenu(routes) {
   return [
     {
       label: "Modules",
-      items: routes.map((route) => ({
-        label: route.label,
-        icon: route.icon,
-        routeKey: route.key,
-      })),
+      items: routes
+        .filter((route) => !route.hidden)
+        .map((route) => ({
+          label: route.label,
+          icon: route.icon,
+          routeKey: route.key,
+        })),
     },
   ];
 }

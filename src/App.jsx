@@ -5,7 +5,7 @@ import DepartmentSelectPage from "./pages/DepartmentSelectPage.jsx";
 import AppShell from "./pages/AppShell.jsx";
 import { SEED_DATA } from "./data.js";
 
-const DEFAULT_SESSION = { screen: "home", role: null, loginType: null, username: null };
+const DEFAULT_SESSION = { screen: "home", role: null, loginType: null, username: null, institutionId: null };
 const SESSION_STORAGE_KEY = "ems-session";
 const ACTIVE_ROUTE_STORAGE_KEY = "ems-active-route";
 
@@ -21,6 +21,7 @@ function readStoredSession() {
       role: parsed.role || null,
       loginType: parsed.loginType || null,
       username: parsed.username || null,
+      institutionId: parsed.institutionId || null,
     };
   } catch {
     return DEFAULT_SESSION;
@@ -76,7 +77,13 @@ export default function App() {
       setSession({ screen: "department-select", role: null, loginType: "department", username: user.username });
       return;
     }
-    setSession({ screen: "app", role: user.role, loginType: "super-admin", username: user.username });
+    setSession({
+      screen: "app",
+      role: user.role,
+      loginType: "super-admin",
+      username: user.username,
+      institutionId: user.institutionId || null,
+    });
     setActiveRoute("dashboard");
   }
 
@@ -115,6 +122,7 @@ export default function App() {
     <AppShell
       role={session.role}
       username={session.username}
+      institutionId={session.institutionId}
       data={data}
       activeRoute={activeRoute}
       setActiveRoute={setActiveRoute}
