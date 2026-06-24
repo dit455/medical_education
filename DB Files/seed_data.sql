@@ -5,7 +5,7 @@ INSERT INTO tbl_region_master (region_id, region_desc, created_by, created_date,
   (3, 'Mahe', 'system', NOW(), 1),
   (4, 'Yanam', 'system', NOW(), 1);
 
-INSERT INTO tbl_year_id (year_id, year_desc, created_by, created_date, status_) VALUES
+INSERT INTO tbl_year_master (year_id, year_desc, created_by, created_date, status_) VALUES
   (1, 'Year 1', 'system', NOW(), 1),
   (2, 'Year 2', 'system', NOW(), 1),
   (3, 'Year 3', 'system', NOW(), 1),
