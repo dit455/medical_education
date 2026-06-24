@@ -43,6 +43,9 @@ def apply_create_course(cursor, institution_id, name, status_label="Active", act
         (name,),
     )
     existing = cursor.fetchone()
+    
+    cursor.fetchall()
+    
 
     if existing:
         course_id = existing[0]
@@ -143,7 +146,7 @@ def create_course_for_institution(institution_id):
     body = request.get_json(force=True) or {}
     conn = get_connection()
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         try:
             result = apply_create_course(
                 cursor, institution_id, body.get("name"),
