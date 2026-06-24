@@ -22,6 +22,21 @@ def get_regions():
         conn.close()
 
 
+@lookups_bp.route("/api/categories", methods=["GET"])
+def get_categories():
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT cat_id, cat_desc FROM tbl_category_master WHERE status_ = 1"
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return jsonify([{"id": r[0], "name": r[1]} for r in rows])
+    finally:
+        conn.close()
+
+
 @lookups_bp.route("/api/years", methods=["GET"])
 def get_years():
     conn = get_connection()

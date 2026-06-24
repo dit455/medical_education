@@ -99,6 +99,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   const [coursesForInstitution, setCoursesForInstitution] = useState([]);
   const [subjectsForCourse, setSubjectsForCourse] = useState([]);
   const [regions, setRegions] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [years, setYears] = useState([]);
   const [examSems, setExamSems] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -143,6 +144,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
   useEffect(() => {
     api.getRegions().then(setRegions).catch(() => setRegions([]));
+    api.getCategories().then(setCategories).catch(() => setCategories([]));
     api.getYears().then(setYears).catch(() => setYears([]));
     api.getExamSems().then(setExamSems).catch(() => setExamSems([]));
     api.getListCourses().then(setCourses).catch(() => setCourses([]));
@@ -191,6 +193,10 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     () => regions.map((r) => ({ value: String(r.id), label: r.name })),
     [regions],
   );
+  const categoryOptions = useMemo(
+    () => categories.map((c) => ({ value: String(c.id), label: c.name })),
+    [categories],
+  );
   const yearOptions = useMemo(
     () => years.map((y) => ({ value: String(y.id), label: y.name })),
     [years],
@@ -211,10 +217,12 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
   const institutionFields = useMemo(
     () =>
-      ENTITY_FIELDS.institution.map(([key, label, options]) =>
-        key === "region" ? [key, label, regionOptions] : [key, label, options],
-      ),
-    [regionOptions],
+      ENTITY_FIELDS.institution.map(([key, label, options]) => {
+        if (key === "region") return [key, label, regionOptions];
+        if (key === "category") return [key, label, categoryOptions];
+        return [key, label, options];
+      }),
+    [regionOptions, categoryOptions],
   );
   const subjectFields = useMemo(
     () =>
@@ -231,6 +239,14 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     const byId = regions.find((r) => String(r.id) === String(regionValue));
     if (byId) return byId.id;
     const byName = regions.find((r) => r.name === regionValue);
+    return byName ? byName.id : null;
+  }
+
+  function resolveCategoryId(categoryValue) {
+    if (!categoryValue) return null;
+    const byId = categories.find((c) => String(c.id) === String(categoryValue));
+    if (byId) return byId.id;
+    const byName = categories.find((c) => c.name === categoryValue);
     return byName ? byName.id : null;
   }
 
@@ -254,6 +270,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     const payload = {
       name: values.name,
       region_id: resolveRegionId(values.region),
+      category_id: resolveCategoryId(values.category),
       status: values.status || "Active",
       board: role,
       actor: username,
@@ -284,6 +301,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     await api.updateInstitution(row.id, {
       name: row.name,
       region_id: resolveRegionId(row.region),
+      category_id: resolveCategoryId(row.category),
       status: nextStatus,
       actor: username,
     });

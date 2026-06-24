@@ -1,6 +1,3 @@
-USE ems_dev;
-
--- Lookups -------------------------------------------------------------
 
 INSERT INTO tbl_region_master (region_id, region_desc, created_by, created_date, status_) VALUES
   (1, 'Puducherry', 'system', NOW(), 1),

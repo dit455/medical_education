@@ -7,13 +7,21 @@ from utils import actor_from_body, board_column, label_to_status, status_to_labe
 
 institutions_bp = Blueprint("institutions", __name__)
 
+INSTITUTION_SELECT_SQL = """
+    SELECT i.inst_id, i.inst_name, i.status_, r.region_desc, c.cat_desc
+    FROM tbl_inst_master i
+    LEFT JOIN tbl_region_master r ON r.region_id = i.region_id
+    LEFT JOIN tbl_category_master c ON c.cat_id = i.cat_id
+"""
+
 
 def _institution_row_to_dict(row):
-    inst_id, inst_name, status_, region_desc = row
+    inst_id, inst_name, status_, region_desc, cat_desc = row
     return {
         "id": inst_id,
         "name": inst_name,
         "region": region_desc,
+        "category": cat_desc,
         "status": status_to_label(status_),
     }
 
@@ -27,26 +35,12 @@ def get_institutions():
         cursor = conn.cursor()
         if board:
             column = board_column(board)
-            cursor.execute(
-                f"""
-                SELECT i.inst_id, i.inst_name, i.status_, r.region_desc
-                FROM tbl_inst_master i
-                LEFT JOIN tbl_region_master r ON r.region_id = i.region_id
-                WHERE i.{column} > 0
-                """
-            )
+            cursor.execute(INSTITUTION_SELECT_SQL + f" WHERE i.{column} > 0")
         else:
             # No board filter - every institution on either board, for admin
             # screens (e.g. picking an institution when creating an
             # Institution-login account) that aren't board-scoped.
-            cursor.execute(
-                """
-                SELECT i.inst_id, i.inst_name, i.status_, r.region_desc
-                FROM tbl_inst_master i
-                LEFT JOIN tbl_region_master r ON r.region_id = i.region_id
-                WHERE i.bome_status > 0 OR i.boen_status > 0
-                """
-            )
+            cursor.execute(INSTITUTION_SELECT_SQL + " WHERE i.bome_status > 0 OR i.boen_status > 0")
         rows = cursor.fetchall()
         cursor.close()
         return jsonify([_institution_row_to_dict(r) for r in rows])
@@ -59,15 +53,7 @@ def get_institution(institution_id):
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT i.inst_id, i.inst_name, i.status_, r.region_desc
-            FROM tbl_inst_master i
-            LEFT JOIN tbl_region_master r ON r.region_id = i.region_id
-            WHERE i.inst_id = %s
-            """,
-            (institution_id,),
-        )
+        cursor.execute(INSTITUTION_SELECT_SQL + " WHERE i.inst_id = %s", (institution_id,))
         row = cursor.fetchone()
         cursor.close()
         if row is None:
@@ -82,6 +68,7 @@ def create_institution():
     body = request.get_json(force=True) or {}
     name = body.get("name")
     region_id = body.get("region_id")
+    cat_id = body.get("category_id")
     board = body.get("board")
     status_label = body.get("status", "Active")
     column = board_column(board)
@@ -98,23 +85,15 @@ def create_institution():
         cursor.execute(
             f"""
             INSERT INTO tbl_inst_master
-                (inst_id, inst_name, {column}, {other_column}, region_id,
+                (inst_id, inst_name, {column}, {other_column}, region_id, cat_id,
                  created_by, created_date, status_)
-            VALUES (%s, %s, 1, 0, %s, %s, NOW(), %s)
+            VALUES (%s, %s, 1, 0, %s, %s, %s, NOW(), %s)
             """,
-            (new_id, name, region_id, actor, status_),
+            (new_id, name, region_id, cat_id, actor, status_),
         )
         conn.commit()
 
-        cursor.execute(
-            """
-            SELECT i.inst_id, i.inst_name, i.status_, r.region_desc
-            FROM tbl_inst_master i
-            LEFT JOIN tbl_region_master r ON r.region_id = i.region_id
-            WHERE i.inst_id = %s
-            """,
-            (new_id,),
-        )
+        cursor.execute(INSTITUTION_SELECT_SQL + " WHERE i.inst_id = %s", (new_id,))
         row = cursor.fetchone()
         cursor.close()
         return jsonify(_institution_row_to_dict(row)), 201
@@ -127,6 +106,7 @@ def update_institution(institution_id):
     body = request.get_json(force=True) or {}
     name = body.get("name")
     region_id = body.get("region_id")
+    cat_id = body.get("category_id")
     status_ = label_to_status(body.get("status", "Active"))
     actor = actor_from_body(body)
 
@@ -136,23 +116,15 @@ def update_institution(institution_id):
         cursor.execute(
             """
             UPDATE tbl_inst_master
-            SET inst_name = %s, region_id = %s, status_ = %s,
+            SET inst_name = %s, region_id = %s, cat_id = %s, status_ = %s,
                 updated_by = %s, updated_date = NOW()
             WHERE inst_id = %s
             """,
-            (name, region_id, status_, actor, institution_id),
+            (name, region_id, cat_id, status_, actor, institution_id),
         )
         conn.commit()
 
-        cursor.execute(
-            """
-            SELECT i.inst_id, i.inst_name, i.status_, r.region_desc
-            FROM tbl_inst_master i
-            LEFT JOIN tbl_region_master r ON r.region_id = i.region_id
-            WHERE i.inst_id = %s
-            """,
-            (institution_id,),
-        )
+        cursor.execute(INSTITUTION_SELECT_SQL + " WHERE i.inst_id = %s", (institution_id,))
         row = cursor.fetchone()
         cursor.close()
         return jsonify(_institution_row_to_dict(row))
