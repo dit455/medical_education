@@ -4,7 +4,8 @@ export default function SiteFooter() {
     <footer className="app-footer">
       <span>© 2026 BOME &amp; BOEN — EMS</span>
       <i></i>
-      <span>Directorate of IT, Government of Puducherry</span>
+      <span>Medical Education Board, Government of Puducherry</span>
     </footer>
   );
 }
+

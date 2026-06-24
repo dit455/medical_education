@@ -24,6 +24,7 @@ export default function AppShell({
   const [dashboardViewCommand, setDashboardViewCommand] = useState(null);
   const routesForRole = useMemo(() => ROUTES.filter((route) => route.roles.includes(role)), [role]);
   const currentRoute = routesForRole.find((route) => route.key === activeRoute) || routesForRole[0];
+  //const currentRoute = routesForRole?.find((route) => route.key === activeRoute) || routesForRole?.[0] || {};
 
   function handleNavigate(routeKey, view) {
     setActiveRoute(routeKey);

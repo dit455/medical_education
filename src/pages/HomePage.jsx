@@ -143,7 +143,7 @@ export default function HomePage({ onLoginClick }) {
         <QuickActionsStrip onLoginClick={onLoginClick} />
         <PortalServicesModules activeTab={activeTab} onTabChange={setActiveTab} />
         <RegisterNowSection onLoginClick={onLoginClick} />
-        <StatsSection />
+        {/* <StatsSection /> */}
         <DprWorkflowSection />
         <DownloadsQuickLinks />
       </main>

@@ -17,7 +17,7 @@ export default function SiteHeader({ showSearch = true, compact = false, role, u
             </div>
             <div>
               <strong>Examination Marks System (EMS)</strong>
-              <span>BOME &amp; BOEN / Directorate of IT, Government of Puducherry</span>
+              <span>Board of Medical Education &amp; Board of Examination in Nursing   </span>
             </div>
           </div>
           <div className="app-header-actions">
