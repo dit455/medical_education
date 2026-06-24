@@ -1070,6 +1070,23 @@ h3 {
   white-space: nowrap;
 }
 
+.institution-tab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.institution-tab-strip .compact-action.active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--white);
+}
+
+.institution-tab-strip .count-pill {
+  margin-left: 4px;
+}
+
 .board-metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

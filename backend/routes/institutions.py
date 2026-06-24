@@ -21,22 +21,58 @@ def _institution_row_to_dict(row):
 @institutions_bp.route("/api/institutions", methods=["GET"])
 def get_institutions():
     board = request.args.get("board")
-    column = board_column(board)
 
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            f"""
-            SELECT i.inst_id, i.inst_name, i.status_, r.region_desc
-            FROM tbl_inst_master i
-            LEFT JOIN tbl_region_master r ON r.region_id = i.region_id
-            WHERE i.{column} > 0
-            """
-        )
+        if board:
+            column = board_column(board)
+            cursor.execute(
+                f"""
+                SELECT i.inst_id, i.inst_name, i.status_, r.region_desc
+                FROM tbl_inst_master i
+                LEFT JOIN tbl_region_master r ON r.region_id = i.region_id
+                WHERE i.{column} > 0
+                """
+            )
+        else:
+            # No board filter - every institution on either board, for admin
+            # screens (e.g. picking an institution when creating an
+            # Institution-login account) that aren't board-scoped.
+            cursor.execute(
+                """
+                SELECT i.inst_id, i.inst_name, i.status_, r.region_desc
+                FROM tbl_inst_master i
+                LEFT JOIN tbl_region_master r ON r.region_id = i.region_id
+                WHERE i.bome_status > 0 OR i.boen_status > 0
+                """
+            )
         rows = cursor.fetchall()
         cursor.close()
         return jsonify([_institution_row_to_dict(r) for r in rows])
+    finally:
+        conn.close()
+
+
+@institutions_bp.route("/api/institutions/<int:institution_id>", methods=["GET"])
+def get_institution(institution_id):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT i.inst_id, i.inst_name, i.status_, r.region_desc
+            FROM tbl_inst_master i
+            LEFT JOIN tbl_region_master r ON r.region_id = i.region_id
+            WHERE i.inst_id = %s
+            """,
+            (institution_id,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        if row is None:
+            return jsonify({"error": "institution not found"}), 404
+        return jsonify(_institution_row_to_dict(row))
     finally:
         conn.close()
 

@@ -14,6 +14,7 @@ export const ALL_ROLES = [
   "Board Verifier",
   "Board Approver",
   "Reports User",
+  "Institution",
 ];
 
 export const STATUS_OPTIONS = [
@@ -182,6 +183,25 @@ export const ENTITY_FIELDS = {
     ["priority", "Priority"],
     ["status", "Status", ["Active", "Inactive"]],
   ],
+  institutionStudent: [
+    ["name", "Student Name"],
+    ["registerNo", "Register No"],
+    ["term", "Term"],
+    ["status", "Status", ["Active", "Inactive"]],
+  ],
+  institutionMarks: [
+    ["subject", "Subject"],
+    ["internal", "Internal"],
+    ["exam", "Exam"],
+    ["result", "Result", ["Pass", "Fail"]],
+    ["status", "Status", ["Active", "Inactive"]],
+  ],
+  institutionAttendance: [
+    ["subject", "Subject"],
+    ["examType", "Exam Type", ["Mid Term", "End Term"]],
+    ["attendance", "Attendance", ["Present", "Absent"]],
+    ["status", "Status", ["Active", "Inactive"]],
+  ],
 };
 
 export const ENTITY_COLUMNS = {
@@ -238,6 +258,10 @@ export const ENTITY_COLUMNS = {
   institutions: ["name", "region", "status"],
   courses: ["name", "status"],
   boardSubjects: ["subject", "year", "semester", "priority", "status"],
+  institutionStudents: ["name", "registerNo", "term", "status"],
+  institutionMarks: ["subject", "internal", "exam", "result", "status"],
+  institutionAttendance: ["subject", "examType", "attendance", "status"],
+  pendingChanges: ["entityType", "action", "summary", "status", "requestedDate"],
 };
 
 export const FIELD_LABELS = {
