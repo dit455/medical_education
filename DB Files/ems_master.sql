@@ -167,6 +167,7 @@ CREATE TABLE tbl_inst_course_map (
 
 
 DROP TABLE IF EXISTS tbl_course_subject_map;
+
 CREATE TABLE tbl_course_subject_map (
     course_subject_id INT PRIMARY KEY CHECK (course_subject_id BETWEEN 0 AND 9999999999),
     course_id INT NOT NULL,
@@ -187,7 +188,7 @@ CREATE TABLE tbl_course_subject_map (
         REFERENCES tbl_subject_master(subject_id),
     CONSTRAINT fk_course_subject_map_year
         FOREIGN KEY (year_id)
-        REFERENCES tbl_year_id(year_id),
+        REFERENCES tbl_year_master(year_id),
     CONSTRAINT fk_course_subject_map_sem
         FOREIGN KEY (sem_id)
         REFERENCES tbl_exam_sem_master(sem_id),
