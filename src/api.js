@@ -30,6 +30,10 @@ export function getRegions() {
   return request("/regions");
 }
 
+export function getCategories() {
+  return request("/categories");
+}
+
 export function getYears() {
   return request("/years");
 }
