@@ -1,14 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ArrowRight,
+  ArrowUpRight,
   BadgeCheck,
   BarChart3,
-  Bell,
+  Building2,
   CalendarCheck,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  Clock,
   Download,
   FileCheck2,
   FileSpreadsheet,
@@ -16,23 +18,25 @@ import {
   Fingerprint,
   GraduationCap,
   Headphones,
-  Home,
   KeyRound,
   Layers,
   LayoutDashboard,
   ListChecks,
   LockKeyhole,
+  Mail,
   Megaphone,
   PenLine,
   Phone,
   Search,
   ShieldCheck,
-  Upload,
-  UserCheck,
   UserPlus,
-  UserRoundCheck,
   Users,
 } from "lucide-react";
+
+// ---------------------------------------------------------------------------
+// Static content (unchanged from the previous homepage - same copy/data, just
+// presented inside the single-screen dashboard layout below).
+// ---------------------------------------------------------------------------
 
 const carouselSlides = [
   {
@@ -61,21 +65,27 @@ const carouselSlides = [
   },
 ];
 
+const heroHighlights = [
+  ["Secure Access", "OTP login + digital signature", ShieldCheck],
+  ["Two Boards", "BOME & BOEN, one portal", Building2],
+  ["DigiLocker", "Signed marks sheets delivered", FileCheck2],
+];
+
 const announcements = [
-  ["Colleges can enter student basic and education details and upload supporting documents."],
-  ["Student and education-details Excel templates are available for download."],
-  ["Examination schedules are published per college, course, and term."],
+  "Colleges can enter student basic and education details and upload supporting documents.",
+  "Student and education-details Excel templates are available for download.",
+  "Examination schedules are published per college, course, and term.",
 ];
 
 const commandActions = [
-  ["Register Student", "Enter basic & education details", UserPlus, "register", "#0f766e", "#ddf6f2"],
-  ["Download Templates", "Student & education Excel formats", Download, "downloads", "#0f4c9a", "#eff6ff"],
-  ["Track Verification", "Follow maker-checker-approver status", FileCheck2, "tracker", "#d97706", "#fef3c7"],
-  ["Department Login", "Open department dashboard", KeyRound, "login", "#7c3aed", "#ede9fe"],
+  ["Register Student", "Basic & education details", UserPlus, "register", "#0f766e", "#ddf6f2"],
+  ["Download Templates", "Excel formats", Download, "downloads", "#0f4c9a", "#eff6ff"],
+  ["Track Verification", "Maker-checker status", FileCheck2, "tracker", "#d97706", "#fef3c7"],
+  ["Department Login", "Open dashboard", KeyRound, "login", "#7c3aed", "#ede9fe"],
 ];
 
 const moduleCards = [
-  ["Student Module", "Basic details, education details, document upload, and maker-checker-approver verification with unique registration numbers.", GraduationCap, "#0f766e", "#ddf6f2"],
+  ["Student Module", "Basic & education details, document upload, and maker-checker-approver verification with unique registration numbers.", GraduationCap, "#0f766e", "#ddf6f2"],
   ["Examination Module", "Term-wise subjects, examination schedules with holiday alerts, and attendance marking.", ClipboardCheck, "#0f4c9a", "#eff6ff"],
   ["Marks Module", "Subject and student marks with pass/fail rules, approvals, and digitally signed marks sheets.", FileCheck2, "#d97706", "#fef3c7"],
   ["Admin Module", "User creation with OTP login, role assignment, office hierarchy mapping, and feature configuration.", Users, "#7c3aed", "#ede9fe"],
@@ -92,11 +102,20 @@ const workflowSteps = [
   ["DigiLocker", "Marks sheet delivered to students via DigiLocker.", CheckCircle2],
 ];
 
+const securityControls = [
+  ["OTP Authentication", "Portal login secured with OTP-based authentication for staff and officials.", KeyRound],
+  ["Digital Signature", "Student approvals and marks sheets carry digital signature certificates.", ShieldCheck],
+  ["DigiLocker Integration", "Approved marks sheets are made available to students through DigiLocker.", FileCheck2],
+  ["Audit Trail", "Attendance, marks, and approval changes are tracked with a full correction trail.", Fingerprint],
+];
+
+const processPath = ["Maker submits data", "Checker verifies records", "Approver signs off"];
+
 const stats = [
   ["5", "Core Modules", "Student, Examination, Marks, Admin, MIS"],
   ["34", "Requirements", "Functional requirements in the DPR"],
   ["2", "Boards", "BOME and BOEN"],
-  ["5", "Months", "Study, development, testing & deployment"],
+  ["5", "Months", "Study, build, test & deploy"],
 ];
 
 const downloadLinks = [
@@ -108,9 +127,25 @@ const downloadLinks = [
   ["Helpdesk Contact", Headphones, "#475569", "#f1f5f9"],
 ];
 
-function scrollToSection(id) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
+const NAV_TABS = [
+  ["Modules", LayoutDashboard],
+  ["Workflow", ShieldCheck],
+  ["Security", Fingerprint],
+  ["Downloads", Download],
+  ["Notices", Megaphone],
+  ["Helpdesk", Headphones],
+];
+
+const TAB_META = {
+  Modules: "Five DPR-aligned modules covering the full examination lifecycle.",
+  Workflow: "From data entry to a DigiLocker-delivered, signed marks sheet.",
+  Security: "Maker–checker–approver controls built for board operations.",
+  Downloads: "Common EMS templates and official references.",
+  Notices: "Latest portal announcements for colleges and officials.",
+  Helpdesk: "Reach the EMS support desk during working hours.",
+};
+
+// ---------------------------------------------------------------------------
 
 export default function HomePage({ onLoginClick }) {
   const [activeSlide, setActiveSlide] = useState(0);
@@ -119,209 +154,109 @@ export default function HomePage({ onLoginClick }) {
   useEffect(() => {
     const timer = setInterval(() => {
       setActiveSlide((prev) => (prev + 1) % carouselSlides.length);
-    }, 5500);
+    }, 6000);
     return () => clearInterval(timer);
   }, []);
 
-  const slide = carouselSlides[activeSlide];
+  const handleQuickAction = useCallback(
+    (action) => {
+      if (action === "login" || action === "register") return onLoginClick();
+      if (action === "downloads") return setActiveTab("Downloads");
+      if (action === "tracker") return setActiveTab("Workflow");
+      return setActiveTab("Modules");
+    },
+    [onLoginClick],
+  );
 
   return (
-    <div className="home-shell mtpg-home">
-      <PublicTopBar onLoginClick={onLoginClick} />
-      <PublicHeader onLoginClick={onLoginClick} />
-      <PublicNavbar />
+    <div className="ems-home">
+      <TopHeader activeTab={activeTab} onTabChange={setActiveTab} onLoginClick={onLoginClick} />
+      <Ticker />
 
-      <HomeCarousel
-        slide={slide}
-        activeSlide={activeSlide}
-        onSlideChange={setActiveSlide}
-        onLoginClick={onLoginClick}
-      />
+      <main className="ems-stage">
+        <Hero
+          slide={carouselSlides[activeSlide]}
+          activeSlide={activeSlide}
+          onSlideChange={setActiveSlide}
+          onLoginClick={onLoginClick}
+          onExplore={() => setActiveTab("Modules")}
+        />
 
-      <main>
-        <AnnouncementTicker />
-        <QuickActionsStrip onLoginClick={onLoginClick} />
-        <PortalServicesModules activeTab={activeTab} onTabChange={setActiveTab} />
-        <RegisterNowSection onLoginClick={onLoginClick} />
-        <StatsSection />
-        <DprWorkflowSection />
-        <DownloadsQuickLinks />
+        <aside className="ems-rail">
+          <QuickActions onAction={handleQuickAction} />
+          <ContentPanel activeTab={activeTab} onLoginClick={onLoginClick} />
+          <StatStrip />
+        </aside>
       </main>
 
-      <MobileBottomActions onLoginClick={onLoginClick} />
-      <PublicFooter />
+      <FooterBar />
+      <MobileBar onLoginClick={onLoginClick} onTabChange={setActiveTab} />
     </div>
   );
 }
 
-function PublicTopBar({ onLoginClick }) {
+// ---------------------------------------------------------------------------
+
+function TopHeader({ activeTab, onTabChange, onLoginClick }) {
   return (
-    <header className="home-header" id="home-top">
-      <div className="home-top-strip">
-        <div className="home-top-left">
-          <span>Government of Puducherry</span>
-          <i />
-          <strong>BOME &amp; BOEN</strong>
+    <header className="ems-top">
+      <div className="ems-brand">
+        <span className="ems-logo-pair">
+          <img src="/images/govt_puducherry.png" alt="Government of Puducherry emblem" />
+          <img src="/images/institute_seal.png" alt="MTPG&RIHS institute seal" />
+        </span>
+        <div className="ems-brand-text">
+          <strong>Examination Marks System</strong>
+          <span>BOME &amp; BOEN · Government of Puducherry</span>
         </div>
-        <div className="home-top-right">
-          <span className="hp-live-badge"><span />Portal Active</span>
-          <span><Phone size={12} /> Helpdesk</span>
-          <span>Accessibility</span>
-          <span>A- A+</span>
-          <button type="button" onClick={onLoginClick}>Department Login</button>
-        </div>
+      </div>
+
+      <nav className="ems-nav" aria-label="Portal sections">
+        {NAV_TABS.map(([label, Icon]) => (
+          <button
+            key={label}
+            type="button"
+            className={activeTab === label ? "active" : ""}
+            aria-pressed={activeTab === label}
+            onClick={() => onTabChange(label)}
+          >
+            <Icon size={15} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="ems-top-actions">
+        <label className="ems-search" aria-label="Search EMS services">
+          <Search size={15} />
+          <input placeholder="Search services…" />
+        </label>
+        <span className="ems-live" title="Portal status">
+          <span className="ems-live-dot" />
+          Active
+        </span>
+        <button className="ems-login-btn" type="button" onClick={onLoginClick}>
+          <ArrowRight size={16} />
+          Department Login
+        </button>
       </div>
     </header>
   );
 }
 
-function PublicHeader({ onLoginClick }) {
+function Ticker() {
+  const items = [...announcements, ...announcements, ...announcements];
   return (
-    <div className="home-header home-header-main">
-      <div className="home-brand-row">
-        <div className="home-brand-lockup">
-          <div className="home-logo-pair">
-            <span className="home-logo-shell"><img src="/images/govt_puducherry.png" alt="Government emblem" /></span>
-            <span className="home-logo-shell institute"><img src="/images/institute_seal.png" alt="Institute logo" /></span>
-          </div>
-          <div>
-            <strong>BOARD OF MEDICAL EDUCATION (BOME) &amp; BOARD OF EXAMINATION IN NURSING (BOEN)</strong>
-            <span>EXAMINATION MARKS SYSTEM (EMS)</span>
-            <small>MOTHER THERESA POST GRADUATE AND RESEARCH INSTITUTE OF HEALTH SCIENCES (MTPG&amp;RIHS)</small>
-          </div>
-        </div>
-
-        <div className="home-header-actions">
-          <label className="home-search" aria-label="Search EMS modules">
-            <Search size={15} />
-            <input placeholder="Search services..." />
-          </label>
-          <button className="primary-btn home-login-btn" type="button" onClick={onLoginClick}>
-            <ArrowRight size={16} />
-            Department Login
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PublicNavbar() {
-  const navItems = [
-    ["Home", Home, "home-top"],
-    ["Modules", LayoutDashboard, "home-services"],
-    ["Workflow", ShieldCheck, "home-workflow"],
-    ["Downloads", Download, "home-downloads"],
-    ["Notices", Bell, "home-notices"],
-    ["Helpdesk", Headphones, "home-footer"],
-  ];
-
-  return (
-    <nav className="home-nav" aria-label="Public navigation">
-      {navItems.map(([label, Icon, target], index) => (
-        <button
-          className={index === 0 ? "active" : ""}
-          type="button"
-          key={label}
-          onClick={() => scrollToSection(target)}
-        >
-          <Icon size={15} />
-          {label}
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-function HomeCarousel({ slide, activeSlide, onSlideChange, onLoginClick }) {
-  return (
-    <section
-      className="home-hero hp-hero hp-hero-single"
-      aria-label="Portal highlights"
-      style={{
-        backgroundImage: `radial-gradient(130% 130% at 50% 40%, rgba(8,16,42,0.46) 0%, rgba(6,12,36,0.74) 55%, rgba(3,7,22,0.93) 100%), linear-gradient(180deg, rgba(4,9,28,0.58) 0%, rgba(4,9,28,0.10) 26%, rgba(4,9,28,0.22) 62%, rgba(4,9,28,0.82) 100%), url(${slide.image})`,
-      }}
-    >
-      <button
-        className="home-hero-arrow left"
-        type="button"
-        onClick={() => onSlideChange((activeSlide + carouselSlides.length - 1) % carouselSlides.length)}
-        aria-label="Previous slide"
-      >
-        <ChevronLeft size={20} />
-      </button>
-
-      <div key={activeSlide} className="home-content home-hero-grid hp-hero-content">
-        <div className="home-hero-copy">
-          <span className="home-eyebrow">
-            <span className="hp-eyebrow-dot" />
-            {slide.badge} — BOME &amp; BOEN Official Portal
-          </span>
-          <h1>{slide.title}</h1>
-          <p>{slide.subtitle}</p>
-          <div className="home-hero-actions">
-            <button className="primary-btn home-gold-btn" type="button" onClick={onLoginClick}>
-              <UserPlus size={17} />
-              Register Now
-            </button>
-            <button
-              className="secondary-btn home-ghost-btn"
-              type="button"
-              onClick={() => scrollToSection("home-services")}
-            >
-              Explore Modules
-              <ArrowRight size={16} />
-            </button>
-          </div>
-          <div className="home-trust-row">
-            <span><CheckCircle2 size={13} /> Maker–Checker–Approver</span>
-            <span><ShieldCheck size={13} /> OTP Verification</span>
-            <span><Fingerprint size={13} /> Digital Signature</span>
-          </div>
-        </div>
-      </div>
-
-      <button
-        className="home-hero-arrow right"
-        type="button"
-        onClick={() => onSlideChange((activeSlide + 1) % carouselSlides.length)}
-        aria-label="Next slide"
-      >
-        <ChevronRight size={20} />
-      </button>
-
-      <div className="home-slide-dots" aria-label="Hero slides">
-        {carouselSlides.map((item, index) => (
-          <button
-            key={item.id}
-            type="button"
-            className={activeSlide === index ? "active" : ""}
-            onClick={() => onSlideChange(index)}
-            aria-label={`Show slide ${index + 1}`}
-          />
-        ))}
-      </div>
-
-      <div className="hp-progress-bar">
-        <span key={activeSlide} className="hp-progress-fill" />
-      </div>
-    </section>
-  );
-}
-
-function AnnouncementTicker() {
-  const items = announcements.map(([title]) => title);
-  return (
-    <div className="hp-ticker-wrap home-content" id="home-notices">
-      <span className="hp-ticker-label">
+    <div className="ems-ticker" aria-label="Latest notices">
+      <span className="ems-ticker-label">
         <Megaphone size={13} />
-        Latest Notices
+        Notices
       </span>
-      <div className="hp-ticker" aria-label="Scrolling announcements" aria-live="off">
-        <div className="hp-ticker-track">
-          {[...items, ...items, ...items].map((text, i) => (
-            <span key={i} className="hp-ticker-item">
-              <span className="hp-ticker-dot" />
+      <div className="ems-ticker-view">
+        <div className="ems-ticker-track">
+          {items.map((text, i) => (
+            <span key={i} className="ems-ticker-item">
+              <span className="ems-ticker-dot" />
               {text}
             </span>
           ))}
@@ -331,281 +266,271 @@ function AnnouncementTicker() {
   );
 }
 
-function QuickActionsStrip({ onLoginClick }) {
-  function go(action) {
-    if (action === "login" || action === "register") return onLoginClick();
-    scrollToSection(
-      action === "tracker" ? "home-workflow" : action === "downloads" ? "home-downloads" : "home-services"
-    );
-  }
+function Hero({ slide, activeSlide, onSlideChange, onLoginClick, onExplore }) {
+  const count = carouselSlides.length;
+  const go = (dir) => onSlideChange((activeSlide + dir + count) % count);
+
   return (
-    <section className="hp-cmd-band home-content" aria-label="Quick actions">
+    <section
+      className="ems-hero"
+      aria-label="Portal highlights"
+      style={{
+        backgroundImage:
+          `linear-gradient(180deg, rgba(4,10,28,0.18) 0%, rgba(4,10,28,0.06) 30%, rgba(3,8,22,0.86) 100%),` +
+          `linear-gradient(102deg, rgba(6,16,40,0.92) 0%, rgba(6,14,36,0.6) 46%, rgba(4,10,28,0.28) 100%),` +
+          `url(${slide.image})`,
+      }}
+    >
+      <div className="ems-hero-top">
+        <span className="ems-hero-badge">
+          <span className="ems-hero-badge-dot" />
+          {slide.badge} · Official Portal
+        </span>
+        <span className="ems-hero-count" aria-hidden="true">
+          {String(activeSlide + 1).padStart(2, "0")}
+          <i>/</i>
+          {String(count).padStart(2, "0")}
+        </span>
+      </div>
+
+      <div key={activeSlide} className="ems-hero-body">
+        <h1>{slide.title}</h1>
+        <p>{slide.subtitle}</p>
+
+        <div className="ems-hero-cta">
+          <button className="ems-btn-gold" type="button" onClick={onLoginClick}>
+            <UserPlus size={17} />
+            Register Now
+          </button>
+          <button className="ems-btn-ghost" type="button" onClick={onExplore}>
+            Explore Modules
+            <ArrowRight size={16} />
+          </button>
+        </div>
+
+        <div className="ems-hero-trust">
+          <span><CheckCircle2 size={13} /> Maker–Checker–Approver</span>
+          <span><ShieldCheck size={13} /> OTP Verification</span>
+          <span><Fingerprint size={13} /> Digital Signature</span>
+        </div>
+      </div>
+
+      <div className="ems-hero-foot">
+        <div className="ems-hero-highlights">
+          {heroHighlights.map(([title, detail, Icon]) => (
+            <div key={title} className="ems-hero-hl">
+              <span className="ems-hero-hl-icon"><Icon size={16} /></span>
+              <span className="ems-hero-hl-text">
+                <strong>{title}</strong>
+                <small>{detail}</small>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="ems-hero-controls">
+          <div className="ems-hero-dots" role="tablist" aria-label="Slides">
+            {carouselSlides.map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                className={activeSlide === index ? "active" : ""}
+                aria-label={`Slide ${index + 1}`}
+                aria-selected={activeSlide === index}
+                onClick={() => onSlideChange(index)}
+              />
+            ))}
+          </div>
+          <div className="ems-hero-arrows">
+            <button type="button" onClick={() => go(-1)} aria-label="Previous slide"><ChevronLeft size={18} /></button>
+            <button type="button" onClick={() => go(1)} aria-label="Next slide"><ChevronRight size={18} /></button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function QuickActions({ onAction }) {
+  return (
+    <div className="ems-quick" aria-label="Quick actions">
       {commandActions.map(([title, detail, Icon, action, color, bg]) => (
-        <button key={title} type="button" className="hp-cmd-card" onClick={() => go(action)}>
-          <span className="hp-cmd-icon" style={{ background: bg, color }}>
-            <Icon size={22} />
+        <button key={title} type="button" className="ems-quick-card" onClick={() => onAction(action)}>
+          <span className="ems-quick-icon" style={{ background: bg, color }}>
+            <Icon size={18} />
           </span>
-          <div className="hp-cmd-text">
+          <span className="ems-quick-text">
             <strong>{title}</strong>
             <small>{detail}</small>
-          </div>
-          <ArrowRight size={16} className="hp-cmd-arrow" />
+          </span>
+          <ArrowUpRight size={15} className="ems-quick-arrow" />
         </button>
       ))}
-    </section>
+    </div>
   );
 }
 
-function PortalServicesModules({ activeTab, onTabChange }) {
-  const tabs = ["Modules", "Workflow"];
+function ContentPanel({ activeTab, onLoginClick }) {
   return (
-    <section className="home-section home-content home-service-hub" id="home-services">
-      <div className="home-section-head">
-        <span>DPR Modules</span>
-        <h2>One platform for the full examination lifecycle.</h2>
-        <p>From student enrolment to examinations, marks approval, administration, reporting, and migration from the legacy system.</p>
-      </div>
-
-      <div className="home-tabs" role="tablist" aria-label="Homepage service views">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab}
-            className={activeTab === tab ? "active" : ""}
-            onClick={() => onTabChange(tab)}
-          >
-            {tab === "Modules" ? "EMS Modules" : "Approval Workflow"}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "Modules" && (
-        <div className="hp-modules-grid">
-          {moduleCards.map(([title, detail, Icon, accent, iconBg]) => (
-            <article key={title} className="hp-module-card" style={{ borderTopColor: accent }}>
-              <div className="hp-module-icon" style={{ background: iconBg, color: accent }}>
-                <Icon size={20} />
-              </div>
-              <strong>{title}</strong>
-              <p>{detail}</p>
-              <span className="hp-module-badge" style={{ background: `${accent}18`, color: accent }}>DPR aligned</span>
-            </article>
-          ))}
+    <section className="ems-panel" aria-live="polite">
+      <header className="ems-panel-head">
+        <div>
+          <span className="ems-panel-eyebrow">{activeTab}</span>
+          <p>{TAB_META[activeTab]}</p>
         </div>
-      )}
-
-      {activeTab === "Workflow" && (
-        <div className="home-workflow-grid compact-grid">
-          {workflowSteps.map(([title, detail, Icon], index) => (
-            <article key={title}>
-              <small>Step {index + 1}</small>
-              <span><Icon size={18} /></span>
-              <strong>{title}</strong>
-              <p>{detail}</p>
-            </article>
-          ))}
-        </div>
-      )}
-
-    </section>
-  );
-}
-
-function RegisterNowSection({ onLoginClick }) {
-  return (
-    <section className="home-cta home-content home-register-section">
-      <div>
-        <span>Official Workflow</span>
-        <h2>Move examination work from data entry to approved output.</h2>
-        <p>Authorized colleges enter data. Board officials verify, approve, digitally sign, and monitor through MIS.</p>
-        <div className="home-register-trust">
-          <span><LockKeyhole size={13} /> OTP login ready</span>
-          <span><ShieldCheck size={13} /> Board approval</span>
-          <span><Fingerprint size={13} /> Audit trail</span>
-        </div>
-      </div>
-      <div className="home-register-actions">
-        <button className="primary-btn home-gold-btn" type="button" onClick={onLoginClick}>
-          <LockKeyhole size={17} />
-          Login Now
-        </button>
-        <button
-          className="secondary-btn home-ghost-btn"
-          type="button"
-          onClick={() => scrollToSection("home-downloads")}
-        >
-          <Download size={16} />
-          View Downloads
-        </button>
+      </header>
+      <div className="ems-panel-scroll">
+        <PanelContent activeTab={activeTab} onLoginClick={onLoginClick} />
       </div>
     </section>
   );
 }
 
-function StatsSection() {
-  return (
-    <section className="hp-stats-strip" id="home-analytics">
-      <div className="home-content hp-stats-inner">
-        <div className="hp-stats-label">
-          <span>Project Scope</span>
-          <h3>Clear functional coverage from the DPR.</h3>
-          <p>Built to the 34 requirements specified in the Detailed Project Report for Government of Puducherry boards.</p>
-        </div>
-        <div className="hp-stats-grid">
-          {stats.map(([value, label, detail]) => (
-            <div key={label} className="hp-stat-item">
-              <strong>{value}</strong>
-              <span>{label}</span>
-              <p>{detail}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DprWorkflowSection() {
-  const controls = [
-    ["OTP Authentication", "Portal login secured with OTP-based authentication for staff and officials.", KeyRound],
-    ["Digital Signature", "Student approvals and marks sheets carry digital signature certificates.", ShieldCheck],
-    ["DigiLocker Integration", "Approved marks sheets are made available to students through DigiLocker.", FileCheck2],
-    ["Audit Trail", "Attendance, marks, and approval changes are tracked with a full correction trail.", Fingerprint],
-  ];
-
-  return (
-    <section className="home-section home-content" id="home-workflow">
-      <div className="home-section-head compact">
-        <span>Workflow, Security &amp; Compliance</span>
-        <h2>Maker–checker–approver, built for controlled board operations.</h2>
-      </div>
-      <div className="hp-security-layout">
-        <div className="hp-process-card">
-          <strong>Operational Path</strong>
-          {["Maker submits data", "Checker verifies records", "Approver signs off"].map((item, i) => (
-            <div key={item} className="hp-process-step">
-              <span className="hp-process-num">{i + 1}</span>
-              <span>{item}</span>
-            </div>
-          ))}
-        </div>
-        <div className="hp-features-grid">
-          {controls.map(([title, detail, Icon]) => (
-            <article key={title} className="hp-feature-card">
-              <div className="hp-feature-icon"><Icon size={20} /></div>
-              <strong>{title}</strong>
-              <p>{detail}</p>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DownloadsQuickLinks() {
-  return (
-    <section className="home-section home-content" id="home-downloads">
-      <div className="home-section-head compact">
-        <span>Official Resources</span>
-        <h2>Common EMS templates and references.</h2>
-      </div>
-      <div className="hp-dl-grid">
-        {downloadLinks.map(([label, Icon, color, bg]) => (
-          <button key={label} type="button" className="hp-dl-card">
-            <span className="hp-dl-icon" style={{ background: bg, color }}>
+function PanelContent({ activeTab, onLoginClick }) {
+  if (activeTab === "Modules") {
+    return (
+      <div className="ems-module-grid">
+        {moduleCards.map(([title, detail, Icon, accent, iconBg]) => (
+          <article key={title} className="ems-module-card" style={{ "--accent": accent }}>
+            <span className="ems-module-icon" style={{ background: iconBg, color: accent }}>
               <Icon size={18} />
             </span>
-            <span className="hp-dl-label">{label}</span>
-            <span className="hp-dl-action">
-              <Download size={15} />
+            <strong>{title}</strong>
+            <p>{detail}</p>
+          </article>
+        ))}
+      </div>
+    );
+  }
+
+  if (activeTab === "Workflow") {
+    return (
+      <ol className="ems-flow">
+        {workflowSteps.map(([title, detail, Icon], index) => (
+          <li key={title} className="ems-flow-step">
+            <span className="ems-flow-num">{index + 1}</span>
+            <span className="ems-flow-icon"><Icon size={16} /></span>
+            <div>
+              <strong>{title}</strong>
+              <p>{detail}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    );
+  }
+
+  if (activeTab === "Security") {
+    return (
+      <div className="ems-security">
+        <div className="ems-security-path">
+          {processPath.map((item, i) => (
+            <div key={item} className="ems-security-node">
+              <span>{i + 1}</span>
+              {item}
+            </div>
+          ))}
+        </div>
+        <div className="ems-security-grid">
+          {securityControls.map(([title, detail, Icon]) => (
+            <article key={title} className="ems-security-card">
+              <span className="ems-security-icon"><Icon size={17} /></span>
+              <strong>{title}</strong>
+              <p>{detail}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (activeTab === "Downloads") {
+    return (
+      <div className="ems-dl-grid">
+        {downloadLinks.map(([label, Icon, color, bg]) => (
+          <button key={label} type="button" className="ems-dl-card">
+            <span className="ems-dl-icon" style={{ background: bg, color }}>
+              <Icon size={17} />
             </span>
+            <span className="ems-dl-label">{label}</span>
+            <Download size={15} className="ems-dl-action" />
           </button>
         ))}
       </div>
-    </section>
+    );
+  }
+
+  if (activeTab === "Notices") {
+    return (
+      <ul className="ems-notice-list">
+        {announcements.map((text, i) => (
+          <li key={i} className="ems-notice-item">
+            <span className="ems-notice-dot" />
+            <p>{text}</p>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  // Helpdesk
+  return (
+    <div className="ems-help">
+      <div className="ems-help-row">
+        <span className="ems-help-icon"><Phone size={17} /></span>
+        <div><small>Helpdesk</small><strong>0413-0000000</strong></div>
+      </div>
+      <div className="ems-help-row">
+        <span className="ems-help-icon"><Mail size={17} /></span>
+        <div><small>Email</small><strong>helpdesk@mtpg-rihs.py.gov.in</strong></div>
+      </div>
+      <div className="ems-help-row">
+        <span className="ems-help-icon"><Clock size={17} /></span>
+        <div><small>Working hours</small><strong>10:00 AM – 5:00 PM</strong></div>
+      </div>
+      <button className="ems-btn-gold ems-help-cta" type="button" onClick={onLoginClick}>
+        <LockKeyhole size={16} />
+        Department Login
+      </button>
+    </div>
   );
 }
 
-function MobileBottomActions({ onLoginClick }) {
+function StatStrip() {
   return (
-    <nav className="home-mobile-actions" aria-label="Mobile EMS actions">
-      <button type="button" onClick={onLoginClick}><KeyRound size={16} /> Login</button>
-      <button type="button" onClick={() => scrollToSection("home-services")}><LayoutDashboard size={16} /> Modules</button>
-      <button type="button" onClick={() => scrollToSection("home-footer")}><Headphones size={16} /> Helpdesk</button>
-    </nav>
+    <div className="ems-stats" aria-label="Project scope">
+      {stats.map(([value, label, detail]) => (
+        <div key={label} className="ems-stat" title={detail}>
+          <strong>{value}</strong>
+          <span>{label}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
-function PublicFooter() {
-  const quickLinks = [
-    "Student Registration",
-    "Examination Schedule",
-    "Marks Verification",
-    "Download Templates",
-    "Helpdesk Support",
-  ];
-  const boards = [
-    "BOME Workflow",
-    "BOEN Workflow",
-    "Role-based Access",
-    "DigiLocker Integration",
-  ];
-
+function FooterBar() {
   return (
-    <footer className="home-footer" id="home-footer">
-      <div className="home-content hp-footer-inner">
-        <div className="hp-footer-brand">
-          <span className="home-logo-shell">
-            <img src="/images/institute_seal.png" alt="Institute logo" />
-          </span>
-          <div>
-            <strong>BOME &amp; BOEN Examination Marks Software</strong>
-            <p>Official portal for examination, marksheet, approval, and MIS workflows for Government of Puducherry.</p>
-            <div className="hp-footer-status">
-              <span className="hp-live-badge"><span />Secure Access</span>
-              <span>10:00 AM – 5:00 PM</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="hp-footer-col">
-          <span>Quick Links</span>
-          <ul>
-            {quickLinks.map((link) => (
-              <li key={link}><ArrowRight size={12} />{link}</li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="hp-footer-col">
-          <span>Boards Covered</span>
-          <ul>
-            {boards.map((b) => (
-              <li key={b}><CheckCircle2 size={12} />{b}</li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="hp-footer-col">
-          <span>Contact Helpdesk</span>
-          <strong className="hp-footer-phone">0413-0000000</strong>
-          <p>helpdesk@mtpg-rihs.py.gov.in</p>
-          <div className="hp-footer-badge">
-            <ShieldCheck size={13} />
-            Government of Puducherry Portal
-          </div>
-        </div>
-      </div>
-
-      <div className="hp-footer-bottom">
-        <div className="home-content hp-footer-bottom-inner">
-          <p>© 2026 Government of Puducherry — Directorate of Information Technology. All rights reserved.</p>
-          <p>BOME and BOEN Examination Management System</p>
-        </div>
-      </div>
+    <footer className="ems-foot">
+      <span className="ems-foot-left">
+        <ShieldCheck size={13} />
+        © 2026 Government of Puducherry — Directorate of Information Technology
+      </span>
+      <span className="ems-foot-right">
+        <span><Phone size={12} /> 0413-0000000</span>
+        <span><Mail size={12} /> helpdesk@mtpg-rihs.py.gov.in</span>
+      </span>
     </footer>
+  );
+}
+
+function MobileBar({ onLoginClick, onTabChange }) {
+  return (
+    <nav className="ems-mobile" aria-label="Mobile actions">
+      <button type="button" onClick={onLoginClick}><KeyRound size={16} /><span>Login</span></button>
+      <button type="button" onClick={() => onTabChange("Modules")}><LayoutDashboard size={16} /><span>Modules</span></button>
+      <button type="button" onClick={() => onTabChange("Downloads")}><Download size={16} /><span>Downloads</span></button>
+      <button type="button" onClick={() => onTabChange("Helpdesk")}><Headphones size={16} /><span>Helpdesk</span></button>
+    </nav>
   );
 }
