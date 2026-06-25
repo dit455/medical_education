@@ -42,7 +42,7 @@ def get_years():
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT year_id, year_desc FROM tbl_year_id WHERE status_ = 1")
+        cursor.execute("SELECT year_id, year_desc FROM tbl_year_master WHERE status_ = 1")
         rows = cursor.fetchall()
         cursor.close()
         return jsonify([{"id": r[0], "name": r[1]} for r in rows])

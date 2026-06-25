@@ -30,7 +30,7 @@ SUBJECT_SELECT_SQL = """
            m.priority_id, m.status_
     FROM tbl_course_subject_map m
     JOIN tbl_subject_master s ON s.subject_id = m.subject_id
-    JOIN tbl_year_id y ON y.year_id = m.year_id
+    JOIN tbl_year_master y ON y.year_id = m.year_id
     JOIN tbl_exam_sem_master e ON e.sem_id = m.sem_id
 """
 

@@ -460,6 +460,19 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     setMapCourseOpen(false);
   }
 
+  // When the user picks an institute inside the Map Course modal, fetch that
+  // institute's already-mapped courses and return their names so the modal can
+  // hide them from the checklist.
+  async function handleMapCourseInstituteChange(instituteId) {
+    if (!instituteId) return [];
+    try {
+      const mapped = await api.getCourses(Number(instituteId));
+      return mapped.map((c) => c.name);
+    } catch {
+      return [];
+    }
+  }
+
   // ---- Subject dashboard action flows (Add / Map / View) ------------------
   const [addSubjectOpen, setAddSubjectOpen] = useState(false);
   const [mapSubjectOpen, setMapSubjectOpen] = useState(false);
@@ -894,6 +907,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           extraFields={[["institute", "Institute", institutionOptions]]}
           onClose={() => setMapCourseOpen(false)}
           onSave={handleMapCourseSave}
+          onInstituteChange={handleMapCourseInstituteChange}
         />
       )}
       {viewCourseOpen && (

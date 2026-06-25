@@ -5,6 +5,9 @@ import * as api from "../api.js";
 // Cascading mapper for subjects: pick an Institute, then a Course mapped to
 // that institute, then tick the existing subjects (plus Year/Semester required
 // by the mapping table) and Save maps them all to the chosen course.
+//
+// When a Course is selected, already-mapped subjects for that course are
+// fetched and removed from the checklist — same behaviour as Map Course.
 export default function SubjectMapModal({
   instituteOptions = [],
   subjectOptions = [],
@@ -19,16 +22,47 @@ export default function SubjectMapModal({
   const [selected, setSelected] = useState([]);
   const [year, setYear] = useState("");
   const [semester, setSemester] = useState("");
+  const [filteredSubjects, setFilteredSubjects] = useState(subjectOptions);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
 
+  // When institute changes, reload its courses and reset everything below
   useEffect(() => {
     if (!instituteId) {
       setCourses([]);
       setCourseId("");
+      setFilteredSubjects(subjectOptions);
       return;
     }
     setCourseId("");
+    setSelected([]);
+    setFilteredSubjects(subjectOptions);
     api.getCourses(Number(instituteId)).then(setCourses).catch(() => setCourses([]));
-  }, [instituteId]);
+  }, [instituteId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When course changes, fetch already-mapped subjects and remove them
+  useEffect(() => {
+    if (!courseId) {
+      setFilteredSubjects(subjectOptions);
+      setSelected([]);
+      return;
+    }
+    setLoadingSubjects(true);
+    setSelected([]);
+    api.getSubjects(Number(courseId))
+      .then((mappedSubjects) => {
+        // mappedSubjects is [{id, subject, ...}] — filter by name
+        const available = subjectOptions.filter(
+          (opt) =>
+            !mappedSubjects.some(
+              (ms) =>
+                ms.subject.trim().toLowerCase() === opt.label.trim().toLowerCase()
+            )
+        );
+        setFilteredSubjects(available);
+      })
+      .catch(() => setFilteredSubjects(subjectOptions))
+      .finally(() => setLoadingSubjects(false));
+  }, [courseId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggle(value) {
     setSelected((prev) =>
@@ -39,11 +73,21 @@ export default function SubjectMapModal({
   const canSave = courseId && selected.length > 0 && year && semester;
 
   function handleSave() {
-    const names = subjectOptions
+    const names = filteredSubjects
       .filter((option) => selected.includes(option.value))
       .map((option) => option.label);
     onSave(Number(courseId), Number(instituteId), names, { year, semester });
   }
+
+  const emptyMessage = !instituteId
+    ? "Select an institute first."
+    : !courseId
+    ? "Select a course to see available subjects."
+    : loadingSubjects
+    ? "Loading subjects…"
+    : filteredSubjects.length === 0
+    ? "All subjects are already mapped to this course."
+    : null;
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -127,18 +171,18 @@ export default function SubjectMapModal({
         </div>
 
         <div className="course-select-list">
-          {subjectOptions.length === 0 && <p>No subjects available to map.</p>}
-          {subjectOptions.map((option) => (
-            <label key={option.value} className="course-select-row">
-              <input
-                type="checkbox"
-                checked={selected.includes(option.value)}
-                onChange={() => toggle(option.value)}
-                disabled={!courseId}
-              />
-              <span>{option.label}</span>
-            </label>
-          ))}
+          {emptyMessage && <p>{emptyMessage}</p>}
+          {!emptyMessage &&
+            filteredSubjects.map((option) => (
+              <label key={option.value} className="course-select-row">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(option.value)}
+                  onChange={() => toggle(option.value)}
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
         </div>
 
         <div className="modal-actions">
