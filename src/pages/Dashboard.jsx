@@ -13,11 +13,17 @@ import {
   Trash2,
   Activity,
   X,
+  FileText,
+  Link2,
 } from "lucide-react";
 import StatusBadge from "../components/StatusBadge.jsx";
 import DataTable from "../components/DataTable.jsx";
 import RecordModal from "../components/RecordModal.jsx";
 import CourseSelectModal from "../components/CourseSelectModal.jsx";
+import RecordPickModal from "../components/RecordPickModal.jsx";
+import ListViewModal from "../components/ListViewModal.jsx";
+import SubjectMapModal from "../components/SubjectMapModal.jsx";
+import CascadeEditModal from "../components/CascadeEditModal.jsx";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import KpiCard from "../components/KpiCard.jsx";
 import Breadcrumb from "../components/Breadcrumb.jsx";
@@ -206,6 +212,10 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     [examSems],
   );
 
+  const institutionOptions = useMemo(
+    () => institutions.map((i) => ({ value: String(i.id), label: i.name })),
+    [institutions],
+  );
   const courseOptions = useMemo(
     () => courses.map((c) => ({ value: String(c.id), label: c.name })),
     [courses],
@@ -386,6 +396,133 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     (option) => !subjectsForCourse.some((s) => s.subject === option.label),
   );
 
+  // Unified add / edit / view modal driven by the action bar below the KPI
+  // cards. Each entity maps to its field set and the matching save handler.
+  const [formModal, setFormModal] = useState(null);
+  const [editPick, setEditPick] = useState(null);
+  const [editCourseOpen, setEditCourseOpen] = useState(false);
+  const [editSubjectOpen, setEditSubjectOpen] = useState(false);
+  const entityForm = {
+    institution: { title: "Institute", fields: institutionFields, save: saveInstitution },
+    course: { title: "Course", fields: ENTITY_FIELDS.course, save: saveCourse },
+    subject: { title: "Subject", fields: subjectFields, save: saveSubject },
+  };
+
+  function openForm(entity, mode, row) {
+    const cfg = entityForm[entity];
+    setFormModal({ entity, mode, row: row || emptyRowFromFields(cfg.fields) });
+  }
+
+  async function handleFormSave(values) {
+    await entityForm[formModal.entity].save(values);
+    setFormModal(null);
+  }
+
+  // ---- Course dashboard action flows (Add / Map / View) -------------------
+  const [addCourseOpen, setAddCourseOpen] = useState(false);
+  const [mapCourseOpen, setMapCourseOpen] = useState(false);
+  const [viewCourseOpen, setViewCourseOpen] = useState(false);
+
+  // Add Course needs an Institute picker since the user may reach the Courses
+  // view without first selecting an institution from the table.
+  const addCourseFields = useMemo(
+    () => [
+      ["institute", "Institute", institutionOptions],
+      ["name", "Course"],
+      ["status", "Status", ["Active", "Inactive"]],
+    ],
+    [institutionOptions],
+  );
+
+  // Maps the chosen course names to the chosen institute. Switches the table
+  // to that institute so the result is visible immediately.
+  async function mapCoursesToInstitute(instituteId, names, status = "Active") {
+    const id = Number(instituteId);
+    if (!id || names.length === 0) return;
+    for (const name of names) {
+      await api.createCourse(id, { name, status, actor: username });
+    }
+    setSelectedInstitutionId(id);
+    setSelectedCourseId(null);
+    setSelectedSubjectId(null);
+    setView("courses");
+    refreshCourses(id);
+    refreshInstitutions();
+  }
+
+  async function handleAddCourseSave(values) {
+    await mapCoursesToInstitute(values.institute, [values.name], values.status || "Active");
+    setAddCourseOpen(false);
+  }
+
+  async function handleMapCourseSave(names, extra) {
+    await mapCoursesToInstitute(extra.institute, names);
+    setMapCourseOpen(false);
+  }
+
+  // ---- Subject dashboard action flows (Add / Map / View) ------------------
+  const [addSubjectOpen, setAddSubjectOpen] = useState(false);
+  const [mapSubjectOpen, setMapSubjectOpen] = useState(false);
+  const [viewSubjectOpen, setViewSubjectOpen] = useState(false);
+
+  // Add Subject is self-contained: pick the Course it belongs to, name it, and
+  // supply the Year/Semester/Priority the mapping table requires.
+  const addSubjectFields = useMemo(
+    () => [
+      ["course", "Course", courseOptions],
+      ["subject", "Subject"],
+      ["year", "Year", yearOptions],
+      ["semester", "Semester", semOptions],
+      ["priority", "Priority"],
+      ["status", "Status", ["Active", "Inactive"]],
+    ],
+    [courseOptions, yearOptions, semOptions],
+  );
+
+  function refreshSubjectMaster() {
+    api.getListSubjects().then(setSubjects).catch(() => {});
+  }
+
+  async function handleAddSubjectSave(values) {
+    const courseId = Number(values.course);
+    if (!courseId) return;
+    await api.createSubject(courseId, {
+      subject: values.subject,
+      year_id: resolveYearId(values.year),
+      sem_id: resolveSemId(values.semester),
+      priority: values.priority || null,
+      status: values.status || "Active",
+      actor: username,
+    });
+    if (courseId === selectedCourseIdResolved) refreshSubjects(courseId);
+    refreshSubjectMaster();
+    setAddSubjectOpen(false);
+  }
+
+  async function handleMapSubjectSave(courseId, instituteId, names, extra) {
+    if (!courseId || names.length === 0) return;
+    const year_id = resolveYearId(extra.year);
+    const sem_id = resolveSemId(extra.semester);
+    // priority_id is NOT NULL in tbl_course_subject_map; assign sequential
+    // priorities so each mapped subject gets a distinct, valid value.
+    for (let i = 0; i < names.length; i++) {
+      await api.createSubject(courseId, {
+        subject: names[i],
+        year_id,
+        sem_id,
+        priority: i + 1,
+        status: "Active",
+        actor: username,
+      });
+    }
+    setSelectedInstitutionId(instituteId);
+    setSelectedCourseId(courseId);
+    setSelectedSubjectId(null);
+    setView("subjects");
+    refreshSubjectMaster();
+    setMapSubjectOpen(false);
+  }
+
   function openAddModal(type) {
     if (type === "course") {
       setCourseSelectOpen(true);
@@ -412,8 +549,15 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   }
 
   async function handleSubjectSelectSave(names, extraValues) {
-    for (const name of names) {
-      await saveSubject({ subject: name, year: extraValues.year, semester: extraValues.semester });
+    // priority_id is NOT NULL in tbl_course_subject_map; assign sequential
+    // priorities so each mapped subject gets a distinct, valid value.
+    for (let i = 0; i < names.length; i++) {
+      await saveSubject({
+        subject: names[i],
+        year: extraValues.year,
+        semester: extraValues.semester,
+        priority: i + 1,
+      });
     }
     setSubjectSelectOpen(false);
   }
@@ -542,6 +686,93 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     },
   }[view];
 
+  // Per-view action buttons rendered directly under the KPI cards. These
+  // replace the add buttons that used to live in the table-card header.
+  const actionBar = {
+    institutions: [
+      { label: "Add Institute", icon: Plus, primary: true, onClick: () => openForm("institution", "add") },
+      {
+        label: "Edit Institute",
+        icon: Pencil,
+        disabled: institutions.length === 0,
+        title: institutions.length === 0 ? "No institutions to edit" : "",
+        onClick: () => setEditPick("institution"),
+      },
+    ],
+    courses: [
+      {
+        label: "Add Course",
+        icon: Plus,
+        primary: true,
+        disabled: institutions.length === 0,
+        title: institutions.length === 0 ? "Add an institution first" : "",
+        onClick: () => setAddCourseOpen(true),
+      },
+      {
+        label: "Map Course",
+        icon: Link2,
+        disabled: institutions.length === 0 || courses.length === 0,
+        title:
+          institutions.length === 0
+            ? "Add an institution first"
+            : courses.length === 0
+              ? "No existing courses to map"
+              : "",
+        onClick: () => setMapCourseOpen(true),
+      },
+      {
+        label: "Edit Course",
+        icon: Pencil,
+        disabled: institutions.length === 0,
+        title: institutions.length === 0 ? "Add an institution first" : "",
+        onClick: () => setEditCourseOpen(true),
+      },
+      {
+        label: "View Course",
+        icon: FileText,
+        disabled: courses.length === 0,
+        title: courses.length === 0 ? "No courses to view" : "",
+        onClick: () => setViewCourseOpen(true),
+      },
+    ],
+    subjects: [
+      {
+        label: "Add Subject",
+        icon: Plus,
+        primary: true,
+        disabled: courses.length === 0,
+        title: courses.length === 0 ? "Add a course first" : "",
+        onClick: () => setAddSubjectOpen(true),
+      },
+      {
+        label: "Map Subject",
+        icon: Link2,
+        disabled: institutions.length === 0 || subjects.length === 0,
+        title:
+          institutions.length === 0
+            ? "Add an institution first"
+            : subjects.length === 0
+              ? "No existing subjects to map"
+              : "",
+        onClick: () => setMapSubjectOpen(true),
+      },
+      {
+        label: "Edit Subject",
+        icon: Pencil,
+        disabled: institutions.length === 0,
+        title: institutions.length === 0 ? "Add an institution first" : "",
+        onClick: () => setEditSubjectOpen(true),
+      },
+      {
+        label: "View Subject",
+        icon: FileText,
+        disabled: subjects.length === 0,
+        title: subjects.length === 0 ? "No subjects to view" : "",
+        onClick: () => setViewSubjectOpen(true),
+      },
+    ],
+  }[view];
+
   return (
     <section className="board-dashboard">
       <div className="dashboard-command-row">
@@ -557,6 +788,27 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           <KpiCard key={metric.label} {...metric} />
         ))}
       </div>
+
+      {view !== "overview" && actionBar && (
+        <div className="dashboard-action-bar">
+          {actionBar.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.label}
+                type="button"
+                className={action.primary ? "primary-btn" : "secondary-btn"}
+                onClick={action.onClick}
+                disabled={action.disabled}
+                title={action.title || undefined}
+              >
+                <Icon size={16} />
+                {action.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {view !== "overview" && (
         <div className="master-workspace">
@@ -582,6 +834,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
             onToggle={tableConfig.onToggle}
             statusFilterOptions={["Active", "Inactive"]}
             wide={view === "subjects"}
+            hideHeaderAdd
           />
         </div>
       )}
@@ -607,6 +860,135 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           title={addModalConfig[addModal.type].title}
           onClose={() => setAddModal(null)}
           onSave={handleAddModalSave}
+        />
+      )}
+      {formModal && (
+        <RecordModal
+          mode={formModal.mode}
+          row={formModal.row}
+          fields={entityForm[formModal.entity].fields}
+          title={entityForm[formModal.entity].title}
+          onClose={() => setFormModal(null)}
+          onSave={handleFormSave}
+        />
+      )}
+      {addCourseOpen && (
+        <RecordModal
+          mode="add"
+          row={{
+            ...emptyRowFromFields(addCourseFields),
+            institute: institutionOptions[0]?.value || "",
+            status: "Active",
+          }}
+          fields={addCourseFields}
+          title="Add Course"
+          onClose={() => setAddCourseOpen(false)}
+          onSave={handleAddCourseSave}
+        />
+      )}
+      {mapCourseOpen && (
+        <CourseSelectModal
+          title="Course"
+          emptyMessage="No courses available to map."
+          options={courseOptions}
+          extraFields={[["institute", "Institute", institutionOptions]]}
+          onClose={() => setMapCourseOpen(false)}
+          onSave={handleMapCourseSave}
+        />
+      )}
+      {viewCourseOpen && (
+        <ListViewModal
+          title="Existing Courses"
+          items={courses.map((c) => ({ id: c.id, label: c.name, status: c.status }))}
+          emptyMessage="No courses found."
+          onClose={() => setViewCourseOpen(false)}
+        />
+      )}
+      {addSubjectOpen && (
+        <RecordModal
+          mode="add"
+          row={{
+            ...emptyRowFromFields(addSubjectFields),
+            course: courseOptions[0]?.value || "",
+            year: yearOptions[0]?.value || "",
+            semester: semOptions[0]?.value || "",
+            status: "Active",
+          }}
+          fields={addSubjectFields}
+          title="Add Subject"
+          onClose={() => setAddSubjectOpen(false)}
+          onSave={handleAddSubjectSave}
+        />
+      )}
+      {mapSubjectOpen && (
+        <SubjectMapModal
+          instituteOptions={institutionOptions}
+          subjectOptions={subjectOptions}
+          yearOptions={yearOptions}
+          semOptions={semOptions}
+          onClose={() => setMapSubjectOpen(false)}
+          onSave={handleMapSubjectSave}
+        />
+      )}
+      {viewSubjectOpen && (
+        <ListViewModal
+          title="Existing Subjects"
+          items={subjects.map((s) => ({ id: s.id, label: s.name, status: s.status }))}
+          emptyMessage="No subjects found."
+          onClose={() => setViewSubjectOpen(false)}
+        />
+      )}
+      {editCourseOpen && (
+        <CascadeEditModal
+          level="course"
+          title="Course"
+          instituteOptions={institutionOptions}
+          onClose={() => setEditCourseOpen(false)}
+          onPick={(row, ctx) => {
+            setEditCourseOpen(false);
+            setSelectedInstitutionId(Number(ctx.instituteId));
+            setSelectedCourseId(null);
+            setSelectedSubjectId(null);
+            setView("courses");
+            openForm("course", "edit", row);
+          }}
+        />
+      )}
+      {editSubjectOpen && (
+        <CascadeEditModal
+          level="subject"
+          title="Subject"
+          instituteOptions={institutionOptions}
+          onClose={() => setEditSubjectOpen(false)}
+          onPick={(row, ctx) => {
+            setEditSubjectOpen(false);
+            setSelectedInstitutionId(Number(ctx.instituteId));
+            setSelectedCourseId(Number(ctx.courseId));
+            setSelectedSubjectId(null);
+            setView("subjects");
+            openForm("subject", "edit", row);
+          }}
+        />
+      )}
+      {editPick && (
+        <RecordPickModal
+          title={
+            editPick === "institution" ? "Institute" : editPick === "course" ? "Course" : "Subject"
+          }
+          rows={
+            editPick === "institution"
+              ? institutions
+              : editPick === "course"
+                ? coursesForInstitution
+                : subjectsForCourse
+          }
+          getLabel={(row) => (editPick === "subject" ? row.subject : row.name)}
+          emptyMessage={`No ${editPick === "institution" ? "institutions" : `${editPick}s`} available to edit.`}
+          onClose={() => setEditPick(null)}
+          onPick={(row) => {
+            setEditPick(null);
+            openForm(editPick, "edit", row);
+          }}
         />
       )}
       {courseSelectOpen && (
