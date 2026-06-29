@@ -217,3 +217,14 @@ INSERT INTO tbl_course_subject_map (course_subject_id, course_id, subject_id, ye
   (2, 1, 2, 1, 1, 2, 'system', NOW(), 1),
   (3, 2, 3, 1, 2, 1, 'system', NOW(), 1),
   (4, 4, 4, 1, 1, 1, 'system', NOW(), 1);
+
+INSERT INTO users
+(id, username, password, department, created_by, role, permissions_json, inst_id)
+VALUES
+(1, 'superadmin',
+'scrypt:32768:8:1$BLY1KDKJVSs0cciz$27b57b151c40439a90e6dbafc89911684c5c49680ec99859d7c4ddfb0bf160a5918f4974d9243b13f348ddfe5d915083cd2f0c8004e96ab47975409fb093be84',
+NULL, 'system', 'Super Admin', NULL, NULL),
+
+(2, 'admin',
+'scrypt:32768:8:1$ZEaDgd4R1ejhpaIJ$464017c5331282a2b3ef3aba4e89c1d924dfaeeb57ff2f255c65838f4f3ae6494f22e0a272733afa60738f2e2b13b17b8c506087de682da5979bbee55d47a0c4',
+'admin', 'superadmin', 'department-admin', NULL, NULL);
