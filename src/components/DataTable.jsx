@@ -26,6 +26,7 @@ export default function DataTable({
   addLabel = "Add",
   secondaryAddLabel = "",
   onSecondaryAdd,
+  hideHeaderAdd = false,
   onSelect,
   onView,
   onSave,
@@ -122,28 +123,30 @@ export default function DataTable({
           <h3>{title}</h3>
           {disabled && disabledHint && <span>{disabledHint}</span>}
         </div>
-        <div className="data-table-heading-actions">
-          {secondaryAddLabel && onSecondaryAdd && (
-            <button
-              className="secondary-btn compact-btn"
-              disabled={disabled}
-              onClick={onSecondaryAdd}
-            >
-              <Plus size={16} />
-              {secondaryAddLabel}
-            </button>
-          )}
-          {canAdd && (
-            <button
-              className="primary-btn compact-btn"
-              disabled={disabled}
-              onClick={() => setModalState({ mode: "add", row: emptyRowFromFields(fields) })}
-            >
-              <Plus size={16} />
-              {addLabel}
-            </button>
-          )}
-        </div>
+        {!hideHeaderAdd && (
+          <div className="data-table-heading-actions">
+            {secondaryAddLabel && onSecondaryAdd && (
+              <button
+                className="secondary-btn compact-btn"
+                disabled={disabled}
+                onClick={onSecondaryAdd}
+              >
+                <Plus size={16} />
+                {secondaryAddLabel}
+              </button>
+            )}
+            {canAdd && (
+              <button
+                className="primary-btn compact-btn"
+                disabled={disabled}
+                onClick={() => setModalState({ mode: "add", row: emptyRowFromFields(fields) })}
+              >
+                <Plus size={16} />
+                {addLabel}
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <div className="table-toolbar">
         <label className="search-box small">

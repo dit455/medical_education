@@ -59,6 +59,8 @@ def apply_create_subject(cursor, course_id, subject, year_id, sem_id, priority=N
     )
     existing = cursor.fetchone()
 
+    cursor.fetchall()
+
     if existing:
         subject_id = existing[0]
         cursor.execute(
@@ -174,7 +176,7 @@ def create_subject_for_course(course_id):
     body = request.get_json(force=True) or {}
     conn = get_connection()
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         try:
             result = apply_create_subject(
                 cursor, course_id, body.get("subject"), body.get("year_id"), body.get("sem_id"),

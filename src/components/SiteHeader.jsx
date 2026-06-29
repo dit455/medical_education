@@ -55,7 +55,7 @@ export default function SiteHeader({ showSearch = true, compact = false, role, u
             <span>
               Board of Medical Education &amp; Board of Examination in Nursing
             </span>
-            <em>Directorate of Information Technology, Government of Puducherry</em>
+            {/* <em>Directorate of Information Technology, Government of Puducherry</em> */}
           </div>
           <div className="identity-logo-shell identity-logo-right">
             <img
