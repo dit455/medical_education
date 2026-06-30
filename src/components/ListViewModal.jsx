@@ -26,14 +26,13 @@ export default function ListViewModal({
           <p className="record-pick-empty">{emptyMessage}</p>
         ) : (
           <ol className="list-view">
-            {items.map((item, index) => (
-              <li key={item.id ?? index} className="list-view-row">
-                <span className="list-view-index">{index + 1}</span>
-                <span className="list-view-label">{item.label}</span>
-                {item.status && <StatusBadge status={item.status} />}
-              </li>
-            ))}
-          </ol>
+    {items.map((item, index) => (
+     <li key={item.id ?? index} className="list-view-row">
+       <span className="list-view-label">{item.label}</span>
+       {item.status && <StatusBadge status={item.status} />}
+     </li>
+  ))}
+</ol>
         )}
         <div className="modal-actions">
           <button className="secondary-btn" onClick={onClose}>
