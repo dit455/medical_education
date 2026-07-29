@@ -1,0 +1,163 @@
+/* ==========================================================================
+   UX4G accessibility widget — size overrides.
+
+   The widget itself is third-party, loaded from the UX4G CDN in index.html
+   (see the <script> at the end of <body>). Out of the box its panel is 500px
+   wide with 117px feature tiles and a 70px launcher, which dominates the
+   screen on a laptop. These rules trim it to a comfortable size WITHOUT
+   touching any behaviour — only dimensions, spacing and type scale.
+
+   Everything is keyed to the widget's own IDs/classes (`#uw-main`,
+   `#uw-widget-custom-trigger`, `.ux4g-accessibility-*`). Those are
+   third-party internals: if the CDN version in index.html is bumped past
+   v3.26, re-check these selectors still match.
+
+   `!important` is used deliberately — the widget injects its own stylesheet
+   after ours and sets several of these inline.
+   ========================================================================== */
+
+/* ---- Launcher button ----------------------------------------------------
+   Do NOT set width/height here. The launcher is a flex row containing a
+   "Ctrl+F2" shortcut label, the icon <img> and a text span that expands on
+   hover; pinning its box collapses the icon to 0px and clips the span.
+   Scaling leaves its internal layout untouched and stays crisp (the icon is
+   an SVG data-URI). Origin is bottom-right so it keeps hugging the corner. */
+
+#uw-widget-custom-trigger {
+  transform: scale(0.74) !important;
+  transform-origin: bottom right !important;
+}
+
+/* ---- Panel shell (was 500px wide) --------------------------------------- */
+
+#uw-main.ux4g-accessibility-uwaw {
+  width: 380px !important;
+  max-width: 100vw !important;
+  font-size: 14px !important;
+}
+
+/* Header bar (was 78px tall, 16px padding) */
+#uw-main .ux4g-accessibility-view-header {
+  padding: 10px 14px !important;
+}
+
+#uw-main .ux4g-accessibility-view-header,
+#uw-main .ux4g-accessibility-view-header * {
+  font-size: 14px !important;
+}
+
+#uw-main .ux4g-accessibility-need-help-header {
+  padding: 10px 14px !important;
+}
+
+/* Scrolling body */
+#uw-main .ux4g-accessibility-uwaw-body {
+  padding: 0 12px !important;
+}
+
+/* Section blocks + their headings */
+#uw-main .ux4g-accessibility-uw-section__head {
+  font-size: 13px !important;
+  padding: 10px 0 !important;
+}
+
+#uw-main .ux4g-accessibility-main__wrapper {
+  padding: 10px !important;
+  margin-bottom: 10px !important;
+}
+
+/* ---- Feature tiles (were 145x117, 28px icon, 14px label) ---------------- */
+
+/* The grid is hard-coded to `140px 140px 140px` + 10px gaps (440px), which
+   assumed the stock 500px panel. Make the columns fluid so they fit whatever
+   width the panel actually has. */
+#uw-main .ux4g-accessibility-grid-view {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+#uw-main .ux4g-accessibility-uwaw-features__item {
+  min-height: 0 !important;
+  height: auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  padding: 10px 6px !important;
+  border-radius: 10px !important;
+}
+
+/* The inner wrapper carries a hard-coded height: 115px — that, not the tile
+   itself, is what makes the default tiles so tall. */
+#uw-main .ux4g-accessibility-uwaw-features__item__i {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+}
+
+#uw-main .ux4g-accessibility-uwaw-features__item__icon,
+#uw-main .ux4g-accessibility-uwaw-features__item__icon svg {
+  width: 22px !important;
+  height: 22px !important;
+  font-size: 22px !important;
+  margin-bottom: 6px !important;
+}
+
+/* The glyph is a <span> (icon font), not an <svg> — size it explicitly. */
+#uw-main .ux4g-accessibility-icon {
+  width: 22px !important;
+  height: 22px !important;
+  font-size: 22px !important;
+  line-height: 1 !important;
+}
+
+#uw-main .ux4g-accessibility-uwaw-features__item__name {
+  font-size: 11.5px !important;
+  line-height: 1.35 !important;
+  padding: 6px 0 0 !important;
+}
+
+/* Profile rows */
+#uw-main .ux4g-accessibility-profile-item {
+  padding: 10px !important;
+}
+
+#uw-main .ux4g-accessibility-profile-icon,
+#uw-main .ux4g-accessibility-profile-icon svg {
+  width: 26px !important;
+  height: 26px !important;
+}
+
+#uw-main .ux4g-accessibility-ux4g-label {
+  font-size: 13px !important;
+}
+
+#uw-main .ux4g-accessibility-description {
+  font-size: 11.5px !important;
+  line-height: 1.4 !important;
+}
+
+#uw-main .ux4g-accessibility-setting-row {
+  padding: 8px 0 !important;
+}
+
+/* ---- Reset footer (had a 50px dead gap above it) ------------------------ */
+
+#uw-main .ux4g-accessibility-reset-panel {
+  padding: 12px 14px !important;
+}
+
+#uw-main .ux4g-accessibility-reset-panel button {
+  font-size: 13px !important;
+  padding: 8px 14px !important;
+}
+
+/* ---- Small screens: full-width sheet rather than a cramped column ------- */
+
+@media (max-width: 480px) {
+  #uw-main.ux4g-accessibility-uwaw {
+    width: 100vw !important;
+  }
+
+  #uw-widget-custom-trigger {
+    transform: scale(0.66) !important;
+  }
+}
