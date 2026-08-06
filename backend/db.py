@@ -16,6 +16,11 @@ def get_connection():
         host=os.environ.get("DB_HOST", "localhost"),
         port=int(os.environ.get("DB_PORT", "3306")),
         user=os.environ.get("DB_USER", "root"),
+<<<<<<< HEAD
         password=os.environ.get("DB_PASSWORD", "admin123"),
         database=os.environ.get("DB_NAME", "ems_dev"),
+=======
+        password=os.environ.get("DB_PASSWORD", "savitha123"),
+        database=os.environ.get("DB_NAME", "medical_education"),
+>>>>>>> e38aa9d7b559428314b6f5eb2ff86a31d226fc7e
     )

@@ -3,11 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Medical Education Board EMS</title>
+    <title>BOME / BOEN — Examination Marks System, Government of Puducherry</title>
+    <meta
+      name="description"
+      content="Official portal of the Board of Medical Education (BOME) and Board of Examinations in Nursing (BOEN), Government of Puducherry."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Single UI face for the public homepage, used for body text AND
+         headings (see --pub-display in styles/home.css). Every rule falls back
+         to a system stack, so the site still renders correctly on an offline
+         intranet where Google Fonts is unreachable. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <!-- UX4G accessibility widget (official GIGW reference implementation,
+         MeitY) — same embed ux4g.gov.in uses itself. Note: loads from the
+         UX4G CDN, so it will not appear on an offline intranet. -->
+    <script src="https://cdn.ux4g.gov.in/accessibility-v3.26/accessibility-widget.js" async></script>
   </body>
 </html>
