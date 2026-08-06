@@ -427,11 +427,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
   // Add Course needs an Institute picker since the user may reach the Courses
   // view without first selecting an institution from the table.
-<<<<<<< HEAD
 const addCourseFields = useMemo(
-=======
-  const addCourseFields = useMemo(
->>>>>>> e38aa9d7b559428314b6f5eb2ff86a31d226fc7e
   () => [
     ["name", "Course"],
     ["status", "Status", ["Active", "Inactive"]],
@@ -455,11 +451,6 @@ const addCourseFields = useMemo(
     refreshInstitutions();
   }
 
-<<<<<<< HEAD
-=======
-  // WITH this:
-// REPLACE the entire handleAddCourseSave with this:
->>>>>>> e38aa9d7b559428314b6f5eb2ff86a31d226fc7e
 async function handleAddCourseSave(values) {
   const instId = selectedInstitutionIdResolved || institutions[0]?.id || null;
   if (!instId) {
@@ -514,31 +505,19 @@ async function handleAddCourseSave(values) {
 
   // Add Subject is self-contained: pick the Course it belongs to, name it, and
   // supply the Year/Semester/Priority the mapping table requires.
-<<<<<<< HEAD
 const addSubjectFields = useMemo(
-=======
-  const addSubjectFields = useMemo(
->>>>>>> e38aa9d7b559428314b6f5eb2ff86a31d226fc7e
   () => [
     ["subject", "Subject"],
     ["status", "Status", ["Active", "Inactive"]],
   ],
   [],
-<<<<<<< HEAD
 );
-=======
-  );
->>>>>>> e38aa9d7b559428314b6f5eb2ff86a31d226fc7e
 
   function refreshSubjectMaster() {
     api.getListSubjects().then(setSubjects).catch(() => {});
   }
 
-<<<<<<< HEAD
 async function handleAddSubjectSave(values) {
-=======
-  async function handleAddSubjectSave(values) {
->>>>>>> e38aa9d7b559428314b6f5eb2ff86a31d226fc7e
   if (!selectedCourseIdResolved) {
     alert("Please select a course first.");
     return;
@@ -941,15 +920,9 @@ async function handleAddSubjectSave(values) {
         />
       )}
       {addCourseOpen && (
-<<<<<<< HEAD
   <RecordModal
     mode="add"
     row={{
-=======
-   <RecordModal
-      mode="add"
-      row={{
->>>>>>> e38aa9d7b559428314b6f5eb2ff86a31d226fc7e
       ...emptyRowFromFields(addCourseFields),
       status: "Active",
     }}
@@ -971,7 +944,6 @@ async function handleAddSubjectSave(values) {
         />
       )}
       {viewCourseOpen && (
-<<<<<<< HEAD
         <ListViewModal
           title="Existing Courses"
           items={courses.map((c,i) => ({ id: i+1, label: c.name, status: c.status }))}
@@ -986,24 +958,6 @@ async function handleAddSubjectSave(values) {
       ...emptyRowFromFields(addSubjectFields),
       status: "Active",
     }}
-=======
-          <ListViewModal
-            title="Existing Courses"
-            items={[...courses]
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((c, i) => ({ id: i + 1, label: c.name, status: c.status }))}
-            emptyMessage="No courses found."
-            onClose={() => setViewCourseOpen(false)}
-          />
-        )}
-      {addSubjectOpen && (
-        <RecordModal
-          mode="add"
-          row={{
-            ...emptyRowFromFields(addSubjectFields),
-            status: "Active",
-          }}
->>>>>>> e38aa9d7b559428314b6f5eb2ff86a31d226fc7e
           fields={addSubjectFields}
           title="Add Subject"
           onClose={() => setAddSubjectOpen(false)}
@@ -1021,7 +975,6 @@ async function handleAddSubjectSave(values) {
         />
       )}
       {viewSubjectOpen && (
-<<<<<<< HEAD
         <ListViewModal
           title="Existing Subjects"
           items={subjects.map((s,i) => ({ id: i+1, label: s.name, status: s.status }))}
@@ -1029,17 +982,6 @@ async function handleAddSubjectSave(values) {
           onClose={() => setViewSubjectOpen(false)}
         />
       )}
-=======
-          <ListViewModal
-            title="Existing Subjects"
-            items={[...subjects]
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((s, i) => ({ id: i + 1, label: s.name, status: s.status }))}
-            emptyMessage="No subjects found."
-            onClose={() => setViewSubjectOpen(false)}
-          />
-        )}
->>>>>>> e38aa9d7b559428314b6f5eb2ff86a31d226fc7e
       {editCourseOpen && (
         <CascadeEditModal
           level="course"
