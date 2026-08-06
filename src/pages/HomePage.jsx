@@ -182,22 +182,11 @@ export default function HomePage({ onLoginClick }) {
           onExplore={() => setActiveTab("Modules")}
         />
 
-<<<<<<< HEAD
-      <main>
-        <AnnouncementTicker />
-        <QuickActionsStrip onLoginClick={onLoginClick} />
-        <PortalServicesModules activeTab={activeTab} onTabChange={setActiveTab} />
-        <RegisterNowSection onLoginClick={onLoginClick} />
-        {/* <StatsSection /> */}
-        <DprWorkflowSection />
-        <DownloadsQuickLinks />
-=======
         <aside className="ems-rail">
           <QuickActions onAction={handleQuickAction} />
           <ContentPanel activeTab={activeTab} onLoginClick={onLoginClick} />
           <StatStrip />
         </aside>
->>>>>>> 8c35f3530034b845036ea7fe7d9668b2b531c354
       </main>
 
       <FooterBar />

@@ -200,7 +200,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     [regions],
   );
   const categoryOptions = useMemo(
-    () => categories.map((c) => ({ value: String(c.id), label: c.name })),
+    () => categories.map((ct) => ({ value: String(ct.id), label: ct.name })),
     [categories],
   );
   const yearOptions = useMemo(
@@ -254,9 +254,9 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
   function resolveCategoryId(categoryValue) {
     if (!categoryValue) return null;
-    const byId = categories.find((c) => String(c.id) === String(categoryValue));
+    const byId = categories.find((ct) => String(ct.id) === String(categoryValue));
     if (byId) return byId.id;
-    const byName = categories.find((c) => c.name === categoryValue);
+    const byName = categories.find((ct) => ct.name === categoryValue);
     return byName ? byName.id : null;
   }
 
@@ -425,14 +425,13 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
   // Add Course needs an Institute picker since the user may reach the Courses
   // view without first selecting an institution from the table.
-  const addCourseFields = useMemo(
-    () => [
-      ["institute", "Institute", institutionOptions],
-      ["name", "Course"],
-      ["status", "Status", ["Active", "Inactive"]],
-    ],
-    [institutionOptions],
-  );
+const addCourseFields = useMemo(
+  () => [
+    ["name", "Course"],
+    ["status", "Status", ["Active", "Inactive"]],
+  ],
+  [],
+);
 
   // Maps the chosen course names to the chosen institute. Switches the table
   // to that institute so the result is visible immediately.
@@ -450,10 +449,34 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     refreshInstitutions();
   }
 
-  async function handleAddCourseSave(values) {
-    await mapCoursesToInstitute(values.institute, [values.name], values.status || "Active");
-    setAddCourseOpen(false);
+async function handleAddCourseSave(values) {
+  const instId = selectedInstitutionIdResolved || institutions[0]?.id || null;
+  if (!instId) {
+    alert("No institution available.");
+    return;
   }
+  if (!values.name?.trim()) {
+    alert("Course name is required.");
+    return;
+  }
+  try {
+    const created = await api.createCourse(instId, {
+      name: values.name.trim(),
+      status: values.status || "Active",
+      actor: username,
+    });
+    setSelectedInstitutionId(instId);
+    setSelectedCourseId(created?.id || null);
+    setSelectedSubjectId(null);
+    setView("courses");
+    refreshCourses(instId);
+    refreshInstitutions();
+    setAddCourseOpen(false);
+  } catch (err) {
+    console.error("Add course failed:", err.message);
+    alert(err.message);
+  }
+}
 
   async function handleMapCourseSave(names, extra) {
     await mapCoursesToInstitute(extra.institute, names);
@@ -480,37 +503,46 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
   // Add Subject is self-contained: pick the Course it belongs to, name it, and
   // supply the Year/Semester/Priority the mapping table requires.
-  const addSubjectFields = useMemo(
-    () => [
-      ["course", "Course", courseOptions],
-      ["subject", "Subject"],
-      ["year", "Year", yearOptions],
-      ["semester", "Semester", semOptions],
-      ["priority", "Priority"],
-      ["status", "Status", ["Active", "Inactive"]],
-    ],
-    [courseOptions, yearOptions, semOptions],
-  );
+const addSubjectFields = useMemo(
+  () => [
+    ["subject", "Subject"],
+    ["status", "Status", ["Active", "Inactive"]],
+  ],
+  [],
+);
 
   function refreshSubjectMaster() {
     api.getListSubjects().then(setSubjects).catch(() => {});
   }
 
-  async function handleAddSubjectSave(values) {
-    const courseId = Number(values.course);
-    if (!courseId) return;
-    await api.createSubject(courseId, {
-      subject: values.subject,
-      year_id: resolveYearId(values.year),
-      sem_id: resolveSemId(values.semester),
-      priority: values.priority || null,
+async function handleAddSubjectSave(values) {
+  if (!selectedCourseIdResolved) {
+    alert("Please select a course first.");
+    return;
+  }
+  if (!values.subject?.trim()) {
+    alert("Subject name is required.");
+    return;
+  }
+  try {
+    const defaultYear = years[0]?.id || null;
+    const defaultSem = examSems[0]?.id || null;
+    await api.createSubject(selectedCourseIdResolved, {
+      subject: values.subject.trim(),
+      year_id: defaultYear,
+      sem_id: defaultSem,
+      priority: 1,
       status: values.status || "Active",
       actor: username,
     });
-    if (courseId === selectedCourseIdResolved) refreshSubjects(courseId);
+    refreshSubjects(selectedCourseIdResolved);
     refreshSubjectMaster();
     setAddSubjectOpen(false);
+  } catch (err) {
+    console.error("Add subject failed:", err.message);
+    alert(err.message);
   }
+}
 
   async function handleMapSubjectSave(courseId, instituteId, names, extra) {
     if (!courseId || names.length === 0) return;
@@ -886,13 +918,12 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
         />
       )}
       {addCourseOpen && (
-        <RecordModal
-          mode="add"
-          row={{
-            ...emptyRowFromFields(addCourseFields),
-            institute: institutionOptions[0]?.value || "",
-            status: "Active",
-          }}
+  <RecordModal
+    mode="add"
+    row={{
+      ...emptyRowFromFields(addCourseFields),
+      status: "Active",
+    }}
           fields={addCourseFields}
           title="Add Course"
           onClose={() => setAddCourseOpen(false)}
@@ -913,21 +944,18 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       {viewCourseOpen && (
         <ListViewModal
           title="Existing Courses"
-          items={courses.map((c) => ({ id: c.id, label: c.name, status: c.status }))}
+          items={courses.map((c,i) => ({ id: i+1, label: c.name, status: c.status }))}
           emptyMessage="No courses found."
           onClose={() => setViewCourseOpen(false)}
         />
       )}
       {addSubjectOpen && (
-        <RecordModal
-          mode="add"
-          row={{
-            ...emptyRowFromFields(addSubjectFields),
-            course: courseOptions[0]?.value || "",
-            year: yearOptions[0]?.value || "",
-            semester: semOptions[0]?.value || "",
-            status: "Active",
-          }}
+  <RecordModal
+    mode="add"
+    row={{
+      ...emptyRowFromFields(addSubjectFields),
+      status: "Active",
+    }}
           fields={addSubjectFields}
           title="Add Subject"
           onClose={() => setAddSubjectOpen(false)}
@@ -947,7 +975,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       {viewSubjectOpen && (
         <ListViewModal
           title="Existing Subjects"
-          items={subjects.map((s) => ({ id: s.id, label: s.name, status: s.status }))}
+          items={subjects.map((s,i) => ({ id: i+1, label: s.name, status: s.status }))}
           emptyMessage="No subjects found."
           onClose={() => setViewSubjectOpen(false)}
         />
