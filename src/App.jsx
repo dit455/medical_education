@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import HomePage from "./pages/HomePage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import DepartmentSelectPage from "./pages/DepartmentSelectPage.jsx";
+import ChangePasswordPage from "./pages/ChangePasswordPage.jsx";
 import AppShell from "./pages/AppShell.jsx";
 import { SEED_DATA } from "./data.js";
 
-const DEFAULT_SESSION = { screen: "home", role: null, loginType: null, username: null, institutionId: null };
+const DEFAULT_SESSION = { screen: "home", role: null, loginType: null, username: null, institutionId: null, institutionRole: null };
 const SESSION_STORAGE_KEY = "ems-session";
 const ACTIVE_ROUTE_STORAGE_KEY = "ems-active-route";
 
@@ -14,7 +15,7 @@ function readStoredSession() {
     const stored = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!stored) return DEFAULT_SESSION;
     const parsed = JSON.parse(stored);
-    if (!["home", "login", "department-select", "app"].includes(parsed?.screen)) return DEFAULT_SESSION;
+    if (!["home", "login", "department-select", "change-password", "app"].includes(parsed?.screen)) return DEFAULT_SESSION;
     if (parsed.screen === "app" && !parsed.role) return DEFAULT_SESSION;
     return {
       screen: parsed.screen,
@@ -22,6 +23,7 @@ function readStoredSession() {
       loginType: parsed.loginType || null,
       username: parsed.username || null,
       institutionId: parsed.institutionId || null,
+      institutionRole: parsed.institutionRole || null,
     };
   } catch {
     return DEFAULT_SESSION;
@@ -77,13 +79,30 @@ export default function App() {
       setSession({ screen: "department-select", role: null, loginType: "department", username: user.username });
       return;
     }
+    if (user.mustChangePassword) {
+      setSession({
+        screen: "change-password",
+        role: user.role,
+        loginType: user.role === "Institution" ? "institution" : "super-admin",
+        username: user.username,
+        institutionId: user.institutionId || null,
+        institutionRole: user.institutionRole || null,
+      });
+      return;
+    }
     setSession({
       screen: "app",
       role: user.role,
-      loginType: "super-admin",
+      loginType: user.role === "Institution" ? "institution" : "super-admin",
       username: user.username,
       institutionId: user.institutionId || null,
+      institutionRole: user.institutionRole || null,
     });
+    setActiveRoute("dashboard");
+  }
+
+  function handlePasswordChanged() {
+    setSession((prev) => ({ ...prev, screen: "app" }));
     setActiveRoute("dashboard");
   }
 
@@ -118,11 +137,15 @@ export default function App() {
   if (session.screen === "department-select") {
     return <DepartmentSelectPage onBack={handleLogout} onSelect={handleDepartmentSelect} />;
   }
+  if (session.screen === "change-password") {
+    return <ChangePasswordPage username={session.username} onChanged={handlePasswordChanged} />;
+  }
   return (
     <AppShell
       role={session.role}
       username={session.username}
       institutionId={session.institutionId}
+      institutionRole={session.institutionRole}
       data={data}
       activeRoute={activeRoute}
       setActiveRoute={setActiveRoute}

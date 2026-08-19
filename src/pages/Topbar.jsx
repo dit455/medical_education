@@ -1,8 +1,9 @@
 import { Menu } from "lucide-react";
 
 export default function Topbar({ route, onMenuClick }) {
+  const HEADERLESS_TYPES = ["dashboard", "student-registration", "internal-marks", "institution-approvals-portal"];
   const title = route?.type === "dashboard" ? "Dashboard" : route?.title || "Dashboard";
-  if (route?.type === "dashboard") {
+  if (HEADERLESS_TYPES.includes(route?.type)) {
     return (
       <button className="icon-btn mobile-menu-btn dashboard-mobile-menu" type="button" onClick={onMenuClick} aria-label="Open menu">
         <Menu size={18} />

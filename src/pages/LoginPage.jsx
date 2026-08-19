@@ -7,7 +7,7 @@ import * as api from "../api.js";
 
 export default function LoginPage({ onLogin, onBackHome }) {
   const [loginType, setLoginType] = useState("super-admin");
-  const [form, setForm] = useState({ username: "", password: "", captcha: "" });
+  const [form, setForm] = useState({ username: "", password: "", captcha: "", institutionRole: "Creator" });
   const [captcha, setCaptcha] = useState(randomCaptcha());
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -42,6 +42,10 @@ export default function LoginPage({ onLogin, onBackHome }) {
     setSubmitting(true);
     try {
       const user = await api.login(form.username.trim(), form.password);
+      if (user.role === "Institution" && user.institutionRole && user.institutionRole !== form.institutionRole) {
+        setError(`This account is registered as ${user.institutionRole}, not ${form.institutionRole}. Select ${user.institutionRole} to continue.`);
+        return;
+      }
       onLogin(user);
     } catch (err) {
       setError(err.message || "Invalid username or password.");
@@ -81,9 +85,6 @@ export default function LoginPage({ onLogin, onBackHome }) {
               >
                 Department
               </button>
-              {/* Institution login: backend + portal UI are ready (InstitutionPortal.jsx,
-                  ApprovalsPage.jsx, /api/institution-users, /api/pending-changes) - uncomment
-                  this tab when you're ready to let institutions log in.
               <button
                 type="button"
                 className={loginType === "institution" ? "active" : ""}
@@ -91,9 +92,20 @@ export default function LoginPage({ onLogin, onBackHome }) {
               >
                 Institution
               </button>
-              */}
             </div>
             <form className="login-form" onSubmit={handleSubmit}>
+              {loginType === "institution" && (
+                <label>
+                  <span>Role</span>
+                  <select
+                    value={form.institutionRole}
+                    onChange={(e) => setField("institutionRole", e.target.value)}
+                  >
+                    <option value="Creator">Creator</option>
+                    <option value="Approver">Approver</option>
+                  </select>
+                </label>
+              )}
               <label>
                 <span>Username</span>
                 <input

@@ -1,9 +1,11 @@
 """CRUD for tbl_inst_master (the Institutions table on the board dashboard)."""
 
 from flask import Blueprint, jsonify, request
+from werkzeug.security import generate_password_hash
 
 from db import get_connection
 from utils import actor_from_body, board_column, label_to_status, status_to_label
+from credentials import generate_role_username, generate_password
 
 institutions_bp = Blueprint("institutions", __name__)
 
@@ -93,10 +95,38 @@ def create_institution():
         )
         conn.commit()
 
+        # Auto-provision two separate logins for this institution - one
+        # permanently bound to Creator, one to Approver. Each plaintext
+        # password is returned exactly once in this response; after this,
+        # only its hash exists in the DB.
+        creator_username = generate_role_username("Creator", name, new_id)
+        creator_password = generate_password()
+        approver_username = generate_role_username("Approver", name, new_id)
+        approver_password = generate_password()
+
+        cursor.execute(
+            """
+            INSERT INTO users (username, password, created_by, role, inst_id, must_change_password, institution_role)
+            VALUES (%s, %s, %s, 'Institution', %s, 1, 'Creator')
+            """,
+            (creator_username, generate_password_hash(creator_password), actor, new_id),
+        )
+        cursor.execute(
+            """
+            INSERT INTO users (username, password, created_by, role, inst_id, must_change_password, institution_role)
+            VALUES (%s, %s, %s, 'Institution', %s, 1, 'Approver')
+            """,
+            (approver_username, generate_password_hash(approver_password), actor, new_id),
+        )
+        conn.commit()
+
         cursor.execute(INSTITUTION_SELECT_SQL + " WHERE i.inst_id = %s", (new_id,))
         row = cursor.fetchone()
         cursor.close()
-        return jsonify(_institution_row_to_dict(row)), 201
+        result = _institution_row_to_dict(row)
+        result["creatorLogin"] = {"username": creator_username, "password": creator_password}
+        result["approverLogin"] = {"username": approver_username, "password": approver_password}
+        return jsonify(result), 201
     finally:
         conn.close()
 
@@ -137,6 +167,11 @@ def delete_institution(institution_id):
     conn = get_connection()
     try:
         cursor = conn.cursor()
+        # Remove this institution's auto-provisioned login account(s) first -
+        # tbl_inst_master can't be deleted while users.inst_id still points to it.
+        cursor.execute(
+            "DELETE FROM users WHERE inst_id = %s", (institution_id,)
+        )
         cursor.execute(
             "DELETE FROM tbl_inst_course_map WHERE inst_id = %s", (institution_id,)
         )

@@ -352,7 +352,7 @@ export const SOCIAL_LINKS = [
 
 export const CONTACT_SECTION = {
   eyebrow: "Get in Touch",
-  title: "Board of Medical Education / BOEN",
+  title: "BOME / BOEN",
   address: "IGGGH & PGI Campus, Puducherry – 605 001",
   hours: "Working hours: 10:00 AM – 5:00 PM (Mon – Fri)",
 };

@@ -1,42 +1,43 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Layers, BookOpen, Users, BadgeCheck, ClipboardCheck, ListChecks } from "lucide-react";
+import { CircleCheck, X, Pencil, FileText, Trash2 } from "lucide-react";
+import { passOrFail } from "../utils.js";
 import DataTable from "../components/DataTable.jsx";
-import CourseSelectModal from "../components/CourseSelectModal.jsx";
+import RecordModal from "../components/RecordModal.jsx";
+import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
+import IconButton from "../components/IconButton.jsx";
 import { ENTITY_FIELDS, ENTITY_COLUMNS } from "../data.js";
 import * as api from "../api.js";
 
-// Institution-login landing page. Nothing here writes to the live tables
-// directly - every save/delete/toggle is submitted as a row in
-// tbl_pending_changes (see backend/routes/approvals.py) and only takes
-// effect once a board user approves it from the Approvals inbox.
-const TABS = [
-  { key: "courses", label: "Courses", icon: Layers },
-  { key: "subjects", label: "Subjects", icon: BookOpen },
-  { key: "students", label: "Students", icon: Users },
-  { key: "marks", label: "Marks", icon: BadgeCheck },
-  { key: "attendance", label: "Attendance", icon: ClipboardCheck },
-  { key: "requests", label: "My Requests", icon: ListChecks },
-];
+// Institution-login landing page, scoped to Students + Internal Marks only.
+// Creator: picks Course -> Subject (existing academic master data - not
+// created here), then adds a student and their internal marks together as
+// one request. Approver: reviews and approves/rejects those requests.
+// Nothing here writes to the live tables directly - every add is submitted
+// as a row in tbl_pending_changes (see backend/routes/approvals.py) and
+// only takes effect once the institution's Approver approves it.
+export default function InstitutionPortal({ institutionId, username, institutionRole = "Creator" }) {
+  const isApprover = institutionRole === "Approver";
 
-export default function InstitutionPortal({ institutionId, username }) {
-  const [tab, setTab] = useState("courses");
   const [institution, setInstitution] = useState(null);
   const [courses, setCourses] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [students, setStudents] = useState([]);
-  const [marks, setMarks] = useState([]);
-  const [attendance, setAttendance] = useState([]);
   const [pendingChanges, setPendingChanges] = useState([]);
-  const [masterCourses, setMasterCourses] = useState([]);
-  const [masterSubjects, setMasterSubjects] = useState([]);
-  const [years, setYears] = useState([]);
-  const [examSems, setExamSems] = useState([]);
 
   const [selectedCourseId, setSelectedCourseId] = useState(null);
-  const [selectedStudentId, setSelectedStudentId] = useState(null);
-  const [courseSelectOpen, setCourseSelectOpen] = useState(false);
-  const [subjectSelectOpen, setSubjectSelectOpen] = useState(false);
+  const [selectedSubjectId, setSelectedSubjectId] = useState(null);
+  const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [editingCreatorChange, setEditingCreatorChange] = useState(null);
+  const [viewingChange, setViewingChange] = useState(null);
+  const [lookups, setLookups] = useState({ courses: [], subjects: [], years: [], sems: [], examCats: [], examSessions: [] });
+
+  const courseSubjectChanges = pendingChanges.filter(
+    (c) =>
+      c.entityType === "student_with_marks" &&
+      c.payload?.courseId === selectedCourseId &&
+      c.payload?.subjectId === selectedSubjectId,
+  );
 
   const refreshCourses = useCallback(() => {
     api.getCourses(institutionId).then(setCourses).catch(() => setCourses([]));
@@ -50,29 +51,9 @@ export default function InstitutionPortal({ institutionId, username }) {
     api.getSubjects(courseId).then(setSubjects).catch(() => setSubjects([]));
   }, []);
 
-  const refreshStudents = useCallback((courseId) => {
-    if (!courseId) {
-      setStudents([]);
-      return;
-    }
-    api.getStudents(institutionId, courseId).then(setStudents).catch(() => setStudents([]));
+  const refreshStudents = useCallback(() => {
+    api.getInstitutionStudents(institutionId).then(setStudents).catch(() => setStudents([]));
   }, [institutionId]);
-
-  const refreshMarks = useCallback((studentId) => {
-    if (!studentId) {
-      setMarks([]);
-      return;
-    }
-    api.getStudentMarks(studentId).then(setMarks).catch(() => setMarks([]));
-  }, []);
-
-  const refreshAttendance = useCallback((studentId) => {
-    if (!studentId) {
-      setAttendance([]);
-      return;
-    }
-    api.getAttendance(studentId).then(setAttendance).catch(() => setAttendance([]));
-  }, []);
 
   const refreshPendingChanges = useCallback(() => {
     api.getPendingChanges({ institutionId }).then(setPendingChanges).catch(() => setPendingChanges([]));
@@ -80,99 +61,71 @@ export default function InstitutionPortal({ institutionId, username }) {
 
   useEffect(() => {
     api.getInstitution(institutionId).then(setInstitution).catch(() => setInstitution(null));
-    api.getYears().then(setYears).catch(() => setYears([]));
-    api.getExamSems().then(setExamSems).catch(() => setExamSems([]));
-    api.getListCourses().then(setMasterCourses).catch(() => setMasterCourses([]));
-    api.getListSubjects().then(setMasterSubjects).catch(() => setMasterSubjects([]));
+  }, [institutionId]);
+
+  useEffect(() => {
     refreshCourses();
+    refreshStudents();
     refreshPendingChanges();
-  }, [institutionId, refreshCourses, refreshPendingChanges]);
+  }, [refreshCourses, refreshStudents, refreshPendingChanges]);
+
+  useEffect(() => {
+    Promise.all([
+      api.getListCourses().catch(() => []),
+      api.getListSubjects().catch(() => []),
+      api.getYears().catch(() => []),
+      api.getExamSems().catch(() => []),
+      api.getExamCategories().catch(() => []),
+      api.getExamSessions().catch(() => []),
+    ]).then(([courses, subjects, years, sems, examCats, examSessions]) =>
+      setLookups({ courses, subjects, years, sems, examCats, examSessions })
+    );
+  }, []);
+
+  const nameFrom = (list, id) => list.find((x) => String(x.id) === String(id))?.name ?? id;
+  const PAYLOAD_LABELS = {
+    courseId: "Course", subjectId: "Subject", yearId: "Year", semId: "Semester",
+    examCatId: "Exam Category", examSessionId: "Exam Session", studentId: "Student",
+    scoredMarks: "Scored Marks", totalMarks: "Total Marks", examDate: "Exam Date",
+    passMarks: "Pass Marks", result: "Result",
+  };
+  function renderPayloadValue(key, value) {
+    if (key === "courseId") return nameFrom(lookups.courses, value);
+    if (key === "subjectId") return nameFrom(lookups.subjects, value);
+    if (key === "yearId") return nameFrom(lookups.years, value);
+    if (key === "semId") return nameFrom(lookups.sems, value);
+    if (key === "examCatId") return nameFrom(lookups.examCats, value);
+    if (key === "examSessionId") return nameFrom(lookups.examSessions, value);
+    if (key === "studentId") return students.find((s) => String(s.id) === String(value))?.name ?? value;
+    return String(value);
+  }
 
   useEffect(() => {
     refreshSubjects(selectedCourseId);
-    refreshStudents(selectedCourseId);
-    setSelectedStudentId(null);
-  }, [selectedCourseId, refreshSubjects, refreshStudents]);
-
-  useEffect(() => {
-    refreshMarks(selectedStudentId);
-    refreshAttendance(selectedStudentId);
-  }, [selectedStudentId, refreshMarks, refreshAttendance]);
+    setSelectedSubjectId(null);
+  }, [selectedCourseId, refreshSubjects]);
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) || null;
-  const selectedStudent = students.find((s) => s.id === selectedStudentId) || null;
+  const selectedSubject = subjects.find((s) => s.id === selectedSubjectId) || null;
 
-  const yearOptions = useMemo(() => years.map((y) => ({ value: String(y.id), label: y.name })), [years]);
-  const semOptions = useMemo(() => examSems.map((s) => ({ value: String(s.id), label: s.name })), [examSems]);
-  const courseOptions = useMemo(
-    () => masterCourses.map((c) => ({ value: String(c.id), label: c.name })),
-    [masterCourses],
-  );
-  const subjectMasterOptions = useMemo(
-    () => masterSubjects.map((s) => ({ value: String(s.id), label: s.name })),
-    [masterSubjects],
-  );
+  const courseOptions = useMemo(() => courses.map((c) => ({ value: String(c.id), label: c.name })), [courses]);
   const subjectOptions = useMemo(
     () => subjects.map((s) => ({ value: String(s.id), label: s.subject })),
     [subjects],
   );
 
-  const courseSelectOptions = courseOptions.filter(
-    (option) => !courses.some((c) => c.name === option.label),
+  const studentWithMarksFields = useMemo(
+    () => [
+      ["name", "Student Name"],
+      ["registerNo", "Register No"],
+      ["term", "Term"],
+      ["internal", "Scored Marks"],
+      ["exam", "Total Marks"],
+      ["result", "Result", ["Pass", "Fail"]],
+      ["status", "Status", ["Active", "Inactive"]],
+    ],
+    [],
   );
-  const subjectSelectOptions = subjectMasterOptions.filter(
-    (option) => !subjects.some((s) => s.subject === option.label),
-  );
-
-  const courseFields = ENTITY_FIELDS.course;
-  const subjectFields = useMemo(
-    () =>
-      ENTITY_FIELDS.boardSubject.map(([key, label, options]) => {
-        if (key === "year") return [key, label, yearOptions];
-        if (key === "semester") return [key, label, semOptions];
-        return [key, label, options];
-      }),
-    [yearOptions, semOptions],
-  );
-  const studentFields = ENTITY_FIELDS.institutionStudent;
-  const marksFields = useMemo(
-    () =>
-      ENTITY_FIELDS.institutionMarks.map(([key, label, options]) =>
-        key === "subject" ? [key, label, subjectOptions] : [key, label, options],
-      ),
-    [subjectOptions],
-  );
-  const attendanceFields = useMemo(
-    () =>
-      ENTITY_FIELDS.institutionAttendance.map(([key, label, options]) =>
-        key === "subject" ? [key, label, subjectOptions] : [key, label, options],
-      ),
-    [subjectOptions],
-  );
-
-  function resolveYearId(yearValue) {
-    if (!yearValue) return null;
-    const byId = years.find((y) => String(y.id) === String(yearValue));
-    if (byId) return byId.id;
-    const byName = years.find((y) => y.name === yearValue);
-    return byName ? byName.id : null;
-  }
-
-  function resolveSemId(semValue) {
-    if (!semValue) return null;
-    const byId = examSems.find((s) => String(s.id) === String(semValue));
-    if (byId) return byId.id;
-    const byName = examSems.find((s) => s.name === semValue);
-    return byName ? byName.id : null;
-  }
-
-  function resolveSubjectId(subjectValue) {
-    if (!subjectValue) return null;
-    const byId = subjects.find((s) => String(s.id) === String(subjectValue));
-    if (byId) return byId.id;
-    const byName = subjects.find((s) => s.subject === subjectValue);
-    return byName ? byName.id : null;
-  }
 
   async function submitChange(entityType, action, entityId, payload) {
     await api.submitPendingChange({
@@ -186,124 +139,183 @@ export default function InstitutionPortal({ institutionId, username }) {
     refreshPendingChanges();
   }
 
-  // --- Courses --------------------------------------------------------
-  async function saveCourse(row) {
-    const payload = { name: row.name, status: row.status || "Active" };
-    if (row.id) await submitChange("course", "update", row.id, payload);
-    else await submitChange("course", "create", null, payload);
-  }
-  async function deleteCourseRow(row) {
-    await submitChange("course", "delete", row.id, {});
-  }
-  async function toggleCourseRow(row) {
-    const nextStatus = row.status === "Inactive" ? "Active" : "Inactive";
-    await submitChange("course", "update", row.id, { name: row.name, status: nextStatus });
-  }
-  async function handleCourseSelectSave(names) {
-    for (const name of names) await submitChange("course", "create", null, { name });
-    setCourseSelectOpen(false);
-  }
-
-  // --- Subjects ---------------------------------------------------------
-  async function saveSubject(row) {
-    const payload = {
-      subject: row.subject,
-      yearId: resolveYearId(row.year),
-      semId: resolveSemId(row.semester),
-      priority: row.priority || null,
-      status: row.status || "Active",
-    };
-    if (row.id) await submitChange("subject", "update", row.id, payload);
-    else await submitChange("subject", "create", null, { ...payload, courseId: selectedCourseId });
-  }
-  async function deleteSubjectRow(row) {
-    await submitChange("subject", "delete", row.id, {});
-  }
-  async function toggleSubjectRow(row) {
-    const nextStatus = row.status === "Inactive" ? "Active" : "Inactive";
-    await submitChange("subject", "update", row.id, {
-      subject: row.subject,
-      yearId: resolveYearId(row.year),
-      semId: resolveSemId(row.semester),
-      priority: row.priority,
-      status: nextStatus,
-    });
-  }
-  async function handleSubjectSelectSave(names, extraValues) {
-    for (const name of names) {
-      await submitChange("subject", "create", null, {
-        subject: name,
+  // Creator: student profile + internal marks for the selected course +
+  // subject, submitted together as one request.
+  async function saveStudentWithMarks(row) {
+    if (!selectedCourseId || !selectedSubjectId) return;
+    try {
+      await submitChange("student_with_marks", "create", null, {
+        name: row.name,
+        registerNo: row.registerNo,
+        term: row.term,
+        status: row.status || "Active",
         courseId: selectedCourseId,
-        yearId: extraValues.year,
-        semId: extraValues.semester,
+        subjectId: selectedSubjectId,
+        internal: row.internal,
+        exam: row.exam,
+        result: row.result,
       });
+      setAddStudentOpen(false);
+    } catch (err) {
+      alert(err.message || "Could not submit this request.");
     }
-    setSubjectSelectOpen(false);
   }
 
-  // --- Students -----------------------------------------------------------
-  async function saveStudent(row) {
-    const payload = {
-      name: row.name,
-      registerNo: row.registerNo,
-      term: row.term,
-      status: row.status || "Active",
+  async function handleCreatorResubmit(change, values) {
+    try {
+      await api.updatePendingChange(change.id, {
+        name: values.name,
+        registerNo: values.registerNo,
+        term: values.term,
+        status: values.status || "Active",
+        courseId: change.payload.courseId,
+        subjectId: change.payload.subjectId,
+        internal: values.internal,
+        exam: values.exam,
+        result: values.result,
+      }, username);
+      setEditingCreatorChange(null);
+      refreshPendingChanges();
+    } catch (err) {
+      alert(err.message || "Could not resubmit this request.");
+    }
+  }
+
+  const [deletingChange, setDeletingChange] = useState(null);
+
+  async function handleDeleteCreatorChange(change) {
+    try {
+      await api.deletePendingChange(change.id);
+      setDeletingChange(null);
+      refreshPendingChanges();
+    } catch (err) {
+      alert(err.message || "Could not delete this request.");
+    }
+  }
+
+  // --- Approvals (Approver role) ------------------------------------------
+  const [reviewError, setReviewError] = useState("");
+  const [rejectingChange, setRejectingChange] = useState(null);
+  const [editingChange, setEditingChange] = useState(null);
+
+  // Student registration is created directly (no approval step) - only
+  // Internal Marks requests need Approver review. Any leftover
+  // "student_registration" rows in tbl_pending_changes (from before this
+  // was direct-write) are intentionally excluded here so they never surface
+  // on this page again.
+  const reviewChanges = pendingChanges.filter((c) => c.entityType === "internal_marks");
+
+  function studentById(id) {
+    return students.find((s) => String(s.id) === String(id));
+  }
+
+  // Normalizes either entity type into the same display shape for the table.
+  function rowView(change) {
+    if (change.entityType === "student_registration") {
+      return {
+        name: change.payload.studentName,
+        regNo: change.payload.studentRegNo,
+        scored: "-",
+        total: "-",
+        email: change.payload.studentEmail,
+        phone: change.payload.studentMobile,
+      };
+    }
+    if (change.entityType === "internal_marks") {
+      const student = studentById(change.payload.studentId);
+      return {
+        name: student?.name || `Student #${change.payload.studentId}`,
+        regNo: student?.registerNo || "-",
+        scored: change.payload.scoredMarks,
+        total: change.payload.totalMarks,
+        result: change.payload.result || passOrFail(change.payload.scoredMarks, change.payload.passMarks),
+        email: student?.email || "-",
+        phone: student?.mobile || "-",
+      };
+    }
+    return {
+      name: change.payload.name, regNo: change.payload.registerNo,
+      scored: change.payload.internal, total: change.payload.exam,
+      result: null,
+      email: "-", phone: "-",
     };
-    if (row.id) await submitChange("student", "update", row.id, payload);
-    else await submitChange("student", "create", null, { ...payload, courseId: selectedCourseId });
-  }
-  async function deleteStudentRow(row) {
-    await submitChange("student", "delete", row.id, {});
-  }
-  async function toggleStudentRow(row) {
-    const nextStatus = row.status === "Inactive" ? "Active" : "Inactive";
-    await submitChange("student", "update", row.id, {
-      name: row.name,
-      registerNo: row.registerNo,
-      term: row.term,
-      status: nextStatus,
-    });
   }
 
-  // --- Marks ------------------------------------------------------------
-  async function saveMarks(row) {
-    const payload = {
-      subjectId: resolveSubjectId(row.subject),
-      internal: row.internal,
-      exam: row.exam,
-      result: row.result,
-      status: row.status || "Active",
-    };
-    if (row.id) await submitChange("student_marks", "update", row.id, payload);
-    else await submitChange("student_marks", "create", null, { ...payload, studentId: selectedStudentId });
-  }
-  async function deleteMarksRow(row) {
-    await submitChange("student_marks", "delete", row.id, {});
+  const [viewingReview, setViewingReview] = useState(null);
+  const [editingReview, setEditingReview] = useState(null);
+  const [deletingReview, setDeletingReview] = useState(null);
+
+  async function handleDeleteReview(change) {
+    try {
+      await api.deletePendingChange(change.id);
+      setDeletingReview(null);
+      refreshPendingChanges();
+    } catch (err) {
+      setReviewError(err.message || "Could not delete this request.");
+    }
   }
 
-  // --- Attendance ---------------------------------------------------------
-  async function saveAttendance(row) {
-    const payload = {
-      subjectId: resolveSubjectId(row.subject),
-      examType: row.examType,
-      attendance: row.attendance,
-      status: row.status || "Active",
-    };
-    if (row.id) await submitChange("attendance", "update", row.id, payload);
-    else await submitChange("attendance", "create", null, { ...payload, studentId: selectedStudentId });
-  }
-  async function deleteAttendanceRow(row) {
-    await submitChange("attendance", "delete", row.id, {});
+  const STUDENT_REG_EDIT_FIELDS = [
+    ["studentName", "Student Name"],
+    ["studentRegNo", "Register No"],
+    ["studentDob", "Date of Birth"],
+    ["studentFatherName", "Father's Name"],
+    ["studentAddress", "Address"],
+    ["studentEmail", "Email"],
+    ["studentMobile", "Mobile"],
+  ];
+  const INTERNAL_MARKS_EDIT_FIELDS = [
+    ["scoredMarks", "Scored Marks"],
+    ["totalMarks", "Total Marks"],
+    ["examDate", "Exam Date"],
+  ];
+
+  async function handleResubmitReview(change, values) {
+    try {
+      await api.updatePendingChange(change.id, { ...change.payload, ...values }, username);
+      setEditingReview(null);
+      refreshPendingChanges();
+    } catch (err) {
+      setReviewError(err.message || "Could not resubmit this request.");
+    }
   }
 
-  const marksRows = marks.map((m) => ({
-    ...m,
-    subject: subjects.find((s) => s.id === m.subjectId)?.subject || m.subjectId,
-  }));
-  const attendanceRows = attendance.map((a) => ({
-    ...a,
-    subject: subjects.find((s) => s.id === a.subjectId)?.subject || a.subjectId,
-  }));
+  async function handleApproveChange(change) {
+    setReviewError("");
+    try {
+      await api.approvePendingChange(change.id, username);
+      refreshPendingChanges();
+    } catch (err) {
+      setReviewError(err.message || "Could not approve this request.");
+    }
+  }
+
+  async function handleRejectChange(change, note) {
+    setReviewError("");
+    try {
+      await api.rejectPendingChange(change.id, username, note);
+      setRejectingChange(null);
+      refreshPendingChanges();
+    } catch (err) {
+      setReviewError(err.message || "Could not reject this request.");
+    }
+  }
+
+  async function handleResubmitChange(change, values) {
+    await api.updatePendingChange(change.id, {
+      name: values.name,
+      registerNo: values.registerNo,
+      term: values.term,
+      status: values.status || "Active",
+      courseId: change.payload.courseId,
+      subjectId: change.payload.subjectId,
+      internal: values.internal,
+      exam: values.exam,
+      result: values.result,
+    }, username);
+    setEditingChange(null);
+    refreshPendingChanges();
+  }
 
   return (
     <section className="content-stack institution-portal">
@@ -312,174 +324,195 @@ export default function InstitutionPortal({ institutionId, username }) {
           <div>
             <p className="eyebrow">Institution Portal</p>
             <h2>{institution?.name || "Loading..."}</h2>
+            <span>{isApprover ? "Approver" : "Creator"}</span>
           </div>
           {institution && <StatusBadge status={institution.status} />}
         </div>
-        <div className="institution-tab-strip" role="tablist" aria-label="Institution sections">
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                className={tab === t.key ? "secondary-btn compact-action active" : "secondary-btn compact-action"}
-                onClick={() => setTab(t.key)}
-              >
-                <Icon size={16} />
-                {t.label}
-                {t.key === "requests" && pendingChanges.some((c) => c.status === "Pending") && (
-                  <span className="count-pill">{pendingChanges.filter((c) => c.status === "Pending").length}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
       </section>
 
-      {tab === "courses" && (
-        <DataTable
-          title="Courses"
-          rows={courses}
-          columns={ENTITY_COLUMNS.courses}
-          fields={courseFields}
-          addLabel="Add New Course"
-          secondaryAddLabel="Add Existing Course"
-          onSecondaryAdd={() => setCourseSelectOpen(true)}
-          onSelect={(row) => setSelectedCourseId(row.id)}
-          selectedId={selectedCourseId}
-          onSave={saveCourse}
-          onDelete={deleteCourseRow}
-          onToggle={toggleCourseRow}
-          emptyHint="No courses yet"
-          statusFilterOptions={["Active", "Inactive"]}
-        />
-      )}
-
-      {tab === "subjects" && (
+      {!isApprover && (
         <>
-          {!selectedCourse && <p className="preview-empty small">Select a course from the Courses tab first.</p>}
-          {selectedCourse && (
-            <DataTable
-              key={selectedCourseId}
-              title={`Subjects - ${selectedCourse.name}`}
-              rows={subjects}
-              columns={ENTITY_COLUMNS.boardSubjects}
-              fields={subjectFields}
-              addLabel="Add New Subject"
-              secondaryAddLabel="Add Existing Subject"
-              onSecondaryAdd={() => setSubjectSelectOpen(true)}
-              onSave={saveSubject}
-              onDelete={deleteSubjectRow}
-              onToggle={toggleSubjectRow}
-              emptyHint="No subjects mapped"
-              statusFilterOptions={["Active", "Inactive"]}
-            />
-          )}
+          <section className="data-table-card">
+            <div className="data-table-heading">
+              <div>
+                <h3>Student &amp; Internal Marks Entry</h3>
+                <span>Select the course and subject, then add the student and their internal marks together.</span>
+              </div>
+            </div>
+            <div className="form-grid" style={{ padding: "0 4px 16px" }}>
+              <label>
+                <span>Course</span>
+                <select
+                  value={selectedCourseId || ""}
+                  onChange={(e) => setSelectedCourseId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Select course</option>
+                  {courseOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Subject</span>
+                <select
+                  value={selectedSubjectId || ""}
+                  disabled={!selectedCourseId}
+                  onChange={(e) => setSelectedSubjectId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">{selectedCourseId ? "Select subject" : "Select a course first"}</option>
+                  {subjectOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {selectedCourse && selectedSubject && (
+              <>
+                <div className="dashboard-action-bar">
+                  <button type="button" className="primary-btn" onClick={() => setAddStudentOpen(true)}>
+                    Add Student &amp; Internal Marks
+                  </button>
+                </div>
+                <div className="table-wrap data-table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Reg No</th>
+                        <th>Student Name</th>
+                        <th>Scored Marks</th>
+                        <th>Total Marks</th>
+                        <th>Status</th>
+                        <th>Uploaded on</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {courseSubjectChanges.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="empty-state">
+                            <div className="table-empty">
+                              <span>No students yet</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        courseSubjectChanges.map((change) => (
+                          <tr key={change.id}>
+                            <td data-label="Student Name">{change.payload.name}</td>
+                            <td data-label="Register No">{change.payload.registerNo}</td>
+                            <td data-label="Term">{change.payload.term}</td>
+                            <td data-label="Scored Marks">{change.payload.internal}</td>
+                            <td data-label="Total Marks">{change.payload.exam}</td>
+                            <td data-label="Result">{change.payload.result}</td>
+                            <td data-label="Status">
+                              <StatusBadge status={change.status} />
+                            </td>
+                            <td data-label="Actions">
+                              <div className="action-group">
+                                <IconButton label="View" icon={FileText} onClick={() => setViewingChange(change)} />
+                                <IconButton
+                                  label="Delete"
+                                  icon={Trash2}
+                                  tone="danger"
+                                  disabled={change.status === "Approved"}
+                                  title={change.status === "Approved" ? "Approved requests cannot be deleted" : "Withdraw this request"}
+                                  onClick={() => change.status !== "Approved" && setDeletingChange(change)}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </section>
         </>
       )}
 
-      {tab === "students" && (
-        <>
-          {!selectedCourse && <p className="preview-empty small">Select a course from the Courses tab first.</p>}
-          {selectedCourse && (
-            <DataTable
-              key={selectedCourseId}
-              title={`Students - ${selectedCourse.name}`}
-              rows={students}
-              columns={ENTITY_COLUMNS.institutionStudents}
-              fields={studentFields}
-              onSelect={(row) => setSelectedStudentId(row.id)}
-              selectedId={selectedStudentId}
-              onSave={saveStudent}
-              onDelete={deleteStudentRow}
-              onToggle={toggleStudentRow}
-              emptyHint="No students yet"
-              statusFilterOptions={["Active", "Inactive"]}
-            />
-          )}
-        </>
-      )}
-
-      {tab === "marks" && (
-        <>
-          {!selectedStudent && <p className="preview-empty small">Select a student from the Students tab first.</p>}
-          {selectedStudent && (
-            <DataTable
-              key={selectedStudentId}
-              title={`Marks - ${selectedStudent.name}`}
-              rows={marksRows}
-              columns={ENTITY_COLUMNS.institutionMarks}
-              fields={marksFields}
-              onSave={saveMarks}
-              onDelete={deleteMarksRow}
-              emptyHint="No marks recorded"
-              statusFilterOptions={["Active", "Inactive"]}
-            />
-          )}
-        </>
-      )}
-
-      {tab === "attendance" && (
-        <>
-          {!selectedStudent && <p className="preview-empty small">Select a student from the Students tab first.</p>}
-          {selectedStudent && (
-            <DataTable
-              key={selectedStudentId}
-              title={`Attendance - ${selectedStudent.name}`}
-              rows={attendanceRows}
-              columns={ENTITY_COLUMNS.institutionAttendance}
-              fields={attendanceFields}
-              onSave={saveAttendance}
-              onDelete={deleteAttendanceRow}
-              emptyHint="No attendance recorded"
-              statusFilterOptions={["Active", "Inactive"]}
-            />
-          )}
-        </>
-      )}
-
-      {tab === "requests" && (
+      {isApprover && (
         <section className="data-table-card">
           <div className="data-table-heading">
             <div>
-              <h3>My Requests</h3>
-              <span>Every change you submit waits here until a board user approves or rejects it.</span>
+              <h3>Marks Approvals</h3>
+              <span>Review internal marks requests submitted by Creators at your institution.</span>
             </div>
           </div>
+          {reviewError && <div className="login-error">{reviewError}</div>}
           <div className="table-wrap data-table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Type</th>
-                  <th>Action</th>
-                  <th>Details</th>
+                  <th>Reg No</th>
+                  <th>Student Name</th>
+                  <th>Scored Marks</th>
+                  <th>Total Marks</th>
+                  <th>Result</th>
                   <th>Status</th>
-                  <th>Requested</th>
-                  <th>Note</th>
+                  <th>Uploaded on</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {pendingChanges.length === 0 ? (
+                {reviewChanges.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="empty-state">
+                    <td colSpan={8} className="empty-state">
                       <div className="table-empty">
-                        <span>No requests submitted yet</span>
+                        <span>No marks requests to review</span>
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  pendingChanges.map((change) => (
-                    <tr key={change.id}>
-                      <td data-label="Type">{change.entityType}</td>
-                      <td data-label="Action">{change.action}</td>
-                      <td data-label="Details">{summarizePayload(change.payload)}</td>
-                      <td data-label="Status">
-                        <StatusBadge status={change.status} />
-                      </td>
-                      <td data-label="Requested">{change.requestedDate?.slice(0, 10)}</td>
-                      <td data-label="Note">{change.reviewNote || "-"}</td>
-                    </tr>
-                  ))
+                  reviewChanges.map((change) => {
+                    const v = rowView(change);
+                    const isFinal = change.status === "Approved";
+                    return (
+                      <tr key={change.id}>
+                        <td data-label="Reg No">{v.regNo}</td>
+                        <td data-label="Student Name">{v.name}</td>
+                        <td data-label="Scored Marks">{v.scored}</td>
+                        <td data-label="Total Marks">{v.total}</td>
+                        <td data-label="Result">
+                          {v.result ? (
+                            <span style={{ fontWeight: 700, color: v.result === "Pass" ? "#1e7e34" : "#b00020" }}>{v.result}</span>
+                          ) : "-"}
+                        </td>
+                        <td data-label="Status">
+                          <StatusBadge status={change.status} />
+                        </td>
+                        <td data-label="Uploaded on">{change.requestedDate?.slice(0, 10)}</td>
+                        <td data-label="Actions">
+                          <div className="action-group">
+                            {change.status === "Pending" && (
+                              <>
+                                <IconButton label="Approve" onClick={() => handleApproveChange(change)} icon={CircleCheck} />
+                                <IconButton label="Reject" onClick={() => setRejectingChange(change)} icon={X} tone="danger" />
+                              </>
+                            )}
+                            <IconButton label="View" icon={FileText} onClick={() => setViewingReview(change)} />
+                            {!isFinal && (
+                              <>
+                                <IconButton
+                                  label="Delete"
+                                  icon={Trash2}
+                                  tone="danger"
+                                  title="Withdraw this request"
+                                  onClick={() => setDeletingReview(change)}
+                                />
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -487,29 +520,203 @@ export default function InstitutionPortal({ institutionId, username }) {
         </section>
       )}
 
-      {courseSelectOpen && (
-        <CourseSelectModal
-          title="Course"
-          emptyMessage="No more courses available to add."
-          options={courseSelectOptions}
-          onClose={() => setCourseSelectOpen(false)}
-          onSave={handleCourseSelectSave}
+      {addStudentOpen && (
+        <RecordModal
+          mode="add"
+          row={{ name: "", registerNo: "", term: "", internal: "", exam: "", result: "Pass", status: "Active" }}
+          fields={studentWithMarksFields}
+          title="Add Student & Internal Marks"
+          onClose={() => setAddStudentOpen(false)}
+          onSave={saveStudentWithMarks}
         />
       )}
-      {subjectSelectOpen && (
-        <CourseSelectModal
-          title="Subject"
-          emptyMessage="No more subjects available to add."
-          options={subjectSelectOptions}
-          extraFields={[
-            ["year", "Year", yearOptions],
-            ["semester", "Semester", semOptions],
-          ]}
-          onClose={() => setSubjectSelectOpen(false)}
-          onSave={handleSubjectSelectSave}
+      {rejectingChange && (
+        <ReviewRejectDialog
+          change={rejectingChange}
+          onCancel={() => setRejectingChange(null)}
+          onConfirm={(note) => handleRejectChange(rejectingChange, note)}
+        />
+      )}
+      {editingChange && (
+        <RecordModal
+          mode="edit"
+          row={{ ...editingChange.payload }}
+          fields={studentWithMarksFields}
+          title="Correct Student & Marks"
+          onClose={() => setEditingChange(null)}
+          onSave={(values) => handleResubmitChange(editingChange, values)}
+        />
+      )}
+      {editingCreatorChange && (
+        <RecordModal
+          mode="edit"
+          row={{ ...editingCreatorChange.payload }}
+          fields={studentWithMarksFields}
+          title="Correct Student & Marks"
+          onClose={() => setEditingCreatorChange(null)}
+          onSave={(values) => handleCreatorResubmit(editingCreatorChange, values)}
+        />
+      )}
+
+      {deletingChange && (
+        <ConfirmDialog
+          title="Delete this request?"
+          message="This action cannot be undone."
+          onConfirm={() => handleDeleteCreatorChange(deletingChange)}
+          onCancel={() => setDeletingChange(null)}
+        />
+      )}
+    
+      {viewingChange && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal" role="dialog" aria-modal="true" aria-label="Student Details">
+            <div className="modal-heading">
+              <div>
+                <p className="eyebrow">view</p>
+                <h3>{viewingChange.payload.name}</h3>
+              </div>
+              <button className="icon-btn" onClick={() => setViewingChange(null)} aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="preview-section-stack">
+              <section className="preview-section">
+                <dl>
+                  <div><dt>Register No</dt><dd>{viewingChange.payload.registerNo}</dd></div>
+                  <div><dt>Term</dt><dd>{viewingChange.payload.term}</dd></div>
+                  <div><dt>Scored Marks</dt><dd>{viewingChange.payload.internal}</dd></div>
+                  <div><dt>Total Marks</dt><dd>{viewingChange.payload.exam}</dd></div>
+                  <div><dt>Result</dt><dd>{viewingChange.payload.result}</dd></div>
+                  <div><dt>Status</dt><dd><StatusBadge status={viewingChange.status} /></dd></div>
+                  {viewingChange.reviewNote && <div><dt>Note</dt><dd>{viewingChange.reviewNote}</dd></div>}
+                </dl>
+              </section>
+            </div>
+            <div className="modal-actions">
+              <button className="primary-btn" onClick={() => setViewingChange(null)}>
+                Close
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {viewingReview && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal" role="dialog" aria-modal="true" aria-label="Request Details">
+            <div className="modal-heading">
+              <div>
+                <p className="eyebrow">view</p>
+                <h3>{rowView(viewingReview).name}</h3>
+              </div>
+              <button className="icon-btn" onClick={() => setViewingReview(null)} aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="preview-section-stack">
+              <section className="preview-section">
+                <dl>
+                  {Object.entries(viewingReview.payload).map(([key, value]) => (
+                    <div key={key}><dt>{PAYLOAD_LABELS[key] || key}</dt><dd>{renderPayloadValue(key, value)}</dd></div>
+                  ))}
+                  <div><dt>Status</dt><dd><StatusBadge status={viewingReview.status} /></dd></div>
+                </dl>
+              </section>
+            </div>
+            <div className="modal-actions">
+              <button className="primary-btn" onClick={() => setViewingReview(null)}>Close</button>
+            </div>
+          </section>
+        </div>
+      )}
+      {editingReview && (
+        <RecordModal
+          mode="edit"
+          row={{ ...editingReview.payload }}
+          fields={editingReview.entityType === "student_registration" ? STUDENT_REG_EDIT_FIELDS : INTERNAL_MARKS_EDIT_FIELDS}
+          title="Correct and Resubmit"
+          onClose={() => setEditingReview(null)}
+          onSave={(values) => handleResubmitReview(editingReview, values)}
+        />
+      )}
+      {deletingReview && (
+        <ConfirmDialog
+          title="Delete this request?"
+          message="This action cannot be undone."
+          onConfirm={() => handleDeleteReview(deletingReview)}
+          onCancel={() => setDeletingReview(null)}
         />
       )}
     </section>
+  );
+}
+
+function StudentMarksSummary({ payload }) {
+  const passed = payload.result === "Pass";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 260 }}>
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          background: "var(--brand-soft)",
+          color: "var(--deep-navy)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontWeight: 700,
+          fontSize: "0.85rem",
+          flexShrink: 0,
+        }}
+      >
+        {(payload.name || "?").trim().charAt(0).toUpperCase()}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <strong style={{ fontSize: "0.92rem", color: "var(--ink)" }}>{payload.name}</strong>
+          <span style={{ fontSize: "0.76rem", color: "var(--muted)" }}>Reg. {payload.registerNo}</span>
+          <span style={{ fontSize: "0.76rem", color: "var(--muted)" }}>&middot; Term {payload.term}</span>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <span
+            style={{
+              fontSize: "0.74rem",
+              fontWeight: 600,
+              padding: "2px 9px",
+              borderRadius: 999,
+              background: "var(--soft-gray)",
+              color: "var(--ink)",
+            }}
+          >
+            Internal {payload.internal}
+          </span>
+          <span
+            style={{
+              fontSize: "0.74rem",
+              fontWeight: 600,
+              padding: "2px 9px",
+              borderRadius: 999,
+              background: "var(--soft-gray)",
+              color: "var(--ink)",
+            }}
+          >
+            Exam {payload.exam}
+          </span>
+          <span
+            style={{
+              fontSize: "0.74rem",
+              fontWeight: 700,
+              padding: "2px 9px",
+              borderRadius: 999,
+              background: passed ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)",
+              color: passed ? "#15803d" : "#b91c1c",
+            }}
+          >
+            {payload.result}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -518,4 +725,36 @@ function summarizePayload(payload) {
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
     .map(([key, value]) => `${key}: ${value}`)
     .join(", ");
+}
+
+function ReviewRejectDialog({ change, onCancel, onConfirm }) {
+  const [note, setNote] = useState("");
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="modal confirm-dialog" role="alertdialog" aria-modal="true" aria-label="Reject this request?">
+        <div className="modal-heading">
+          <div>
+            <p className="eyebrow">Confirm</p>
+            <h3>Reject this student request?</h3>
+          </div>
+          <button className="icon-btn" onClick={onCancel} aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <label>
+          <span>Reason (optional)</span>
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Let the Creator know why" />
+        </label>
+        <div className="modal-actions">
+          <button className="secondary-btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="primary-btn" onClick={() => onConfirm(note)}>
+            <X size={16} />
+            Reject
+          </button>
+        </div>
+      </section>
+    </div>
+  );
 }

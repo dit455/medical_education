@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import "../styles/home.css";
+import ExternalLinkWarning from "../components/ExternalLinkWarning.jsx";
 import { useHomeStats } from "../hooks/useHomeStats.js";
 import {
   ABOUT_CARD,
@@ -62,6 +63,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const SLIDE_INTERVAL_MS = 6500;
+
 
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -164,6 +166,7 @@ export default function HomePage({ onLoginClick }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [lightbox, setLightbox] = useState(null);
   const [showTop, setShowTop] = useState(false);
+  
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 600);
@@ -229,13 +232,19 @@ export default function HomePage({ onLoginClick }) {
           <ArrowUp size={18} />
         </button>
       ) : null}
-    </div>
+      </div>
   );
 }
 
-// ---------------------------------------------------------------------------
+// ---------------------------------UTILITY BAR------------------------------------------
 
 function UtilityBar() {
+  const [pendingExternalLink, setPendingExternalLink] = useState(null);
+
+  function guardExternalClick(e, href) {
+    e.preventDefault();
+    setPendingExternalLink(href);
+  }
   return (
     <div className="pub-utility">
       <div className="pub-shell">
@@ -246,13 +255,23 @@ function UtilityBar() {
           {/* Text-size / contrast controls live in the UX4G accessibility
               widget loaded in index.html — no duplicate controls here. */}
           {/* GIGW 18(8): National Portal link, always a new tab. */}
-          <a className="pub-utility-portal" href={NATIONAL_PORTAL.href} target="_blank" rel="noopener noreferrer">
+          <a className="pub-utility-portal" href={NATIONAL_PORTAL.href} target="_blank" rel="noopener noreferrer" onClick={(e) => guardExternalClick(e, NATIONAL_PORTAL.href)}>
             {NATIONAL_PORTAL.label}
             <ExternalLink size={11} aria-hidden="true" />
             <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
           </a>
         </div>
       </div>
+      {pendingExternalLink && (
+        <ExternalLinkWarning
+          href={pendingExternalLink}
+          onCancel={() => setPendingExternalLink(null)}
+          onContinue={() => {
+            window.open(pendingExternalLink, "_blank", "noopener,noreferrer");
+            setPendingExternalLink(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -904,6 +923,12 @@ function Lightbox({ item, onClose }) {
 }
 
 function Resources() {
+  const [pendingExternalLink, setPendingExternalLink] = useState(null);
+
+  function guardExternalClick(e, href) {
+    e.preventDefault();
+    setPendingExternalLink(href);
+  }
   return (
     <section id="resources" className="pub-resources" aria-labelledby="resources-title">
       <div className="pub-shell">
@@ -944,7 +969,7 @@ function Resources() {
                 return (
                   <li key={id}>
                     {href ? (
-                      <a className="pub-card" href={href} target="_blank" rel="noopener noreferrer" aria-label={`${ariaLabel} Opens in a new tab.`}>
+                      <a className="pub-card" href={href} target="_blank" rel="noopener noreferrer" aria-label={`${ariaLabel} Opens in a new tab.`} onClick={(e) => guardExternalClick(e, href)}>
                         {content}
                       </a>
                     ) : (
@@ -971,6 +996,7 @@ function Resources() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`${label} ${UI_TEXT.newTabSuffix}`}
+                    onClick={(e) => guardExternalClick(e, href)}
                   >
                     <span className="pub-card-icon" aria-hidden="true">
                       <Icon size={17} />
@@ -989,13 +1015,13 @@ function Resources() {
 
         <div className="pub-gov-strip" aria-label={UI_TEXT.landmarks.govPlatforms}>
           <span className="pub-gov-strip-label">{UI_TEXT.alsoOn}</span>
-          <a className="pub-gov-chip pub-gov-chip-portal" href={NATIONAL_PORTAL.href} target="_blank" rel="noopener noreferrer">
+          <a className="pub-gov-chip pub-gov-chip-portal" href={NATIONAL_PORTAL.href} target="_blank" rel="noopener noreferrer" onClick={(e) => guardExternalClick(e, NATIONAL_PORTAL.href)}>
             {NATIONAL_PORTAL.label}
             <ExternalLink size={12} aria-hidden="true" />
             <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
           </a>
           {GOV_PLATFORMS.map(({ id, label, href }) => (
-            <a key={id} className="pub-gov-chip" href={href} target="_blank" rel="noopener noreferrer">
+            <a key={id} className="pub-gov-chip" href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => guardExternalClick(e, href)}>
               {label}
               <ExternalLink size={11} aria-hidden="true" />
               <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
@@ -1003,6 +1029,16 @@ function Resources() {
           ))}
         </div>
       </div>
+      {pendingExternalLink && (
+        <ExternalLinkWarning
+          href={pendingExternalLink}
+          onCancel={() => setPendingExternalLink(null)}
+          onContinue={() => {
+            window.open(pendingExternalLink, "_blank", "noopener,noreferrer");
+            setPendingExternalLink(null);
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -1167,6 +1203,12 @@ function Contact() {
 }
 
 function Footer({ onNavigate }) {
+  const [pendingExternalLink, setPendingExternalLink] = useState(null);
+
+  function guardExternalClick(e, href) {
+    e.preventDefault();
+    setPendingExternalLink(href);
+  }
   const BadgeIcon = FOOTER_BADGE.icon;
 
   return (
@@ -1190,7 +1232,7 @@ function Footer({ onNavigate }) {
             </span>
             <div className="pub-footer-social" aria-label={UI_TEXT.landmarks.socialNav}>
               {SOCIAL_LINKS.map(({ id, label, href, icon: Icon }) => (
-                <a key={id} href={href} target="_blank" rel="noopener noreferrer" aria-label={`${label} ${UI_TEXT.newTabSuffix}`}>
+                <a key={id} href={href} target="_blank" rel="noopener noreferrer" aria-label={`${label} ${UI_TEXT.newTabSuffix}`} onClick={(e) => guardExternalClick(e, href)}>
                   <Icon size={16} aria-hidden="true" />
                 </a>
               ))}
@@ -1215,7 +1257,7 @@ function Footer({ onNavigate }) {
             <ul className="pub-footer-links">
               {EXTERNAL_LINKS.map(({ id, label, href }) => (
                 <li key={id}>
-                  <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`${label} ${UI_TEXT.newTabSuffix}`}>
+                  <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`${label} ${UI_TEXT.newTabSuffix}`} onClick={(e) => guardExternalClick(e, href)}>
                     <ChevronRight size={11} aria-hidden="true" />
                     {label}
                   </a>
@@ -1243,6 +1285,16 @@ function Footer({ onNavigate }) {
           </p>
         </div>
       </div>
+      {pendingExternalLink && (
+        <ExternalLinkWarning
+          href={pendingExternalLink}
+          onCancel={() => setPendingExternalLink(null)}
+          onContinue={() => {
+            window.open(pendingExternalLink, "_blank", "noopener,noreferrer");
+            setPendingExternalLink(null);
+          }}
+        />
+      )}
     </footer>
   );
 }

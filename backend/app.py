@@ -25,6 +25,8 @@ from routes.lookups import lookups_bp
 from routes.marks import marks_bp
 from routes.students import students_bp
 from routes.subjects import subjects_bp
+from routes.student_reg import student_reg_bp
+
 
 app = Flask(__name__)
 # Vite picks a different port if 5173 is busy, and may be reached via the
@@ -36,11 +38,11 @@ app = Flask(__name__)
 #     r"^http://192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$",
 # ])
 CORS(app)
-
 app.register_blueprint(lookups_bp)
 app.register_blueprint(institutions_bp)
 app.register_blueprint(courses_bp)
 app.register_blueprint(subjects_bp)
+app.register_blueprint(student_reg_bp)
 app.register_blueprint(students_bp)
 app.register_blueprint(marks_bp)
 app.register_blueprint(attendance_bp)

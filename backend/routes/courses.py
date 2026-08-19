@@ -141,6 +141,36 @@ def get_courses_for_institution(institution_id):
         conn.close()
 
 
+@courses_bp.route("/api/institutions/<int:institution_id>/category-courses", methods=["GET"])
+def get_courses_by_institution_category(institution_id):
+    """Every active course whose category matches this institution's own
+    category - used by the Institution Portal so Creators automatically see
+    all courses for their institution's category, no manual mapping needed."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT cat_id FROM tbl_inst_master WHERE inst_id = %s", (institution_id,))
+        row = cursor.fetchone()
+        if row is None or row[0] is None:
+            cursor.close()
+            return jsonify([])
+        cat_id = row[0]
+        cursor.execute(
+            """
+            SELECT course_id, course_desc, status_
+            FROM tbl_course_master
+            WHERE cat_id = %s AND status_ = 1
+            ORDER BY course_desc
+            """,
+            (cat_id,),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return jsonify([_course_row_to_dict(r) for r in rows])
+    finally:
+        conn.close()
+
+
 @courses_bp.route("/api/institutions/<int:institution_id>/courses", methods=["POST"])
 def create_course_for_institution(institution_id):
     body = request.get_json(force=True) or {}

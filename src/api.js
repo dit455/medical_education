@@ -5,8 +5,8 @@
 // Use whatever host the frontend itself was loaded from (localhost, a LAN IP,
 // etc.) instead of hardcoding "localhost" - otherwise a browser on another
 // machine would try to reach its OWN localhost:5000, not this one.
-//const BASE_URL = `http://${window.location.hostname}:5001/api`;
-const BASE_URL = "/api";
+const BASE_URL = `http://${window.location.hostname}:5001/api`;
+//const BASE_URL = "/api";
 
 async function request(path, options) {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -81,6 +81,10 @@ export function getCourses(institutionId) {
   return request(`/institutions/${institutionId}/courses`);
 }
 
+export function getCoursesByCategory(institutionId) {
+  return request(`/institutions/${institutionId}/category-courses`);
+}
+
 export function createCourse(institutionId, payload) {
   return request(`/institutions/${institutionId}/courses`, {
     method: "POST",
@@ -125,6 +129,13 @@ export function login(username, password) {
   return request("/login", {
     method: "POST",
     body: JSON.stringify({ username, password }),
+  });
+}
+
+export function changePassword(payload) {
+  return request("/change-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
@@ -179,6 +190,13 @@ export function submitPendingChange(payload) {
   });
 }
 
+export function updatePendingChange(changeId, payload, actor) {
+  return request(`/pending-changes/${changeId}`, {
+    method: "PUT",
+    body: JSON.stringify({ payload, actor }),
+  });
+}
+
 export function approvePendingChange(changeId, actor) {
   return request(`/pending-changes/${changeId}/approve`, {
     method: "POST",
@@ -193,6 +211,10 @@ export function rejectPendingChange(changeId, actor, note) {
   });
 }
 
+export function deletePendingChange(changeId) {
+  return request(`/pending-changes/${changeId}`, { method: "DELETE" });
+}
+
 // --------------------------------------------------------------------------
 // Students / Marks / Attendance - direct CRUD (used by approved-change
 // application server-side; not called from the UI yet).
@@ -202,15 +224,18 @@ export function getStudents(institutionId, courseId) {
   const query = courseId ? `?course_id=${courseId}` : "";
   return request(`/institutions/${institutionId}/students${query}`);
 }
+export function getInstitutionStudents(institutionId) {
+  return request(`/institutions/${institutionId}/students`);
+}
 
-export function createStudent(institutionId, payload) {
+export function createStudentDirect(institutionId, payload) {
   return request(`/institutions/${institutionId}/students`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function updateStudent(studentId, payload) {
+export function updateStudentDirect(studentId, payload) {
   return request(`/students/${studentId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
@@ -219,6 +244,18 @@ export function updateStudent(studentId, payload) {
 
 export function deleteStudent(studentId) {
   return request(`/students/${studentId}`, { method: "DELETE" });
+}
+
+export function getExamSchedule(institutionId) {
+  return request(`/institutions/${institutionId}/exam-schedule`);
+}
+
+export function getExamCategories() {
+  return request("/exam-categories");
+}
+
+export function getExamSessions() {
+  return request("/exam-sessions");
 }
 
 export function getStudentMarks(studentId) {

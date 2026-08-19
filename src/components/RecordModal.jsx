@@ -24,60 +24,88 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
             <X size={18} />
           </button>
         </div>
-        <div className="form-grid">
-          {fields.map(([key, label, options]) => {
-            // Options can be plain strings (legacy) or { value, label } objects
-            // (used for DB-backed dropdowns like region/year/semester, where the
-            // stored value is an id but the user should see a readable name).
-            const normalizedOptions = options
-              ? options.map((option) =>
-                  typeof option === "object" && option !== null
-                    ? option
-                    : { value: option, label: option },
-                )
-              : null;
-            // The stored row value may be the option's id (value) or, for rows
-            // loaded from the API with a human-readable display field (e.g. an
-            // institution's region name), its label - match either way so the
-            // <select> shows the right entry instead of falling back to blank.
-            const currentValue = normalizedOptions
-              ? normalizedOptions.find(
-                  (option) => option.value === formValues[key] || option.label === formValues[key],
-                )?.value ?? normalizedOptions[0]?.value ?? ""
-              : null;
-            return (
-              <label key={key}>
-                <span>{label}</span>
-                {normalizedOptions ? (
-                  <select
-                    aria-label={label}
-                    data-field={key}
-                    name={key}
-                    value={currentValue}
-                    onChange={(e) => setField(key, e.target.value)}
-                    disabled={isViewMode}
-                  >
-                    {normalizedOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type={key === "password" ? "password" : "text"}
-                    aria-label={label}
-                    data-field={key}
-                    name={key}
-                    value={formValues[key] || ""}
-                    onChange={(e) => setField(key, e.target.value)}
-                    disabled={isViewMode}
-                  />
-                )}
-              </label>
-            );
-          })}
-        </div>
+
+        {isViewMode ? (
+          <div className="view-grid">
+            {fields.map(([key, label, options]) => {
+              const normalizedOptions = options
+                ? options.map((option) =>
+                    typeof option === "object" && option !== null
+                      ? option
+                      : { value: option, label: option },
+                  )
+                : null;
+              const raw = formValues[key];
+              const display = normalizedOptions
+                ? normalizedOptions.find(
+                    (o) => o.value === raw || o.label === raw,
+                  )?.label ?? raw ?? "—"
+                : raw ?? "—";
+              return (
+                <div className="view-row" key={key}>
+                  <span className="view-label">{label}</span>
+                  <span className="view-value">{display === "" ? "—" : display}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="form-grid">
+            {fields.map(([key, label, options]) => {
+              // Options can be plain strings (legacy) or { value, label } objects
+              // (used for DB-backed dropdowns like region/year/semester, where the
+              // stored value is an id but the user should see a readable name).
+              const normalizedOptions = options
+                ? options.map((option) =>
+                    typeof option === "object" && option !== null
+                      ? option
+                      : { value: option, label: option },
+                  )
+                : null;
+              // The stored row value may be the option's id (value) or, for rows
+              // loaded from the API with a human-readable display field (e.g. an
+              // institution's region name), its label - match either way so the
+              // <select> shows the right entry instead of falling back to blank.
+              const currentValue = normalizedOptions
+                ? normalizedOptions.find(
+                    (option) => option.value === formValues[key] || option.label === formValues[key],
+                  )?.value ?? normalizedOptions[0]?.value ?? ""
+                : null;
+              return (
+                <label key={key}>
+                  <span>{label}</span>
+                  {normalizedOptions ? (
+                    <select
+                      aria-label={label}
+                      data-field={key}
+                      name={key}
+                      value={currentValue}
+                      onChange={(e) => setField(key, e.target.value)}
+                      disabled={isViewMode}
+                    >
+                      {normalizedOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={key === "password" ? "password" : "text"}
+                      aria-label={label}
+                      data-field={key}
+                      name={key}
+                      value={formValues[key] || ""}
+                      onChange={(e) => setField(key, e.target.value)}
+                      disabled={isViewMode}
+                    />
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        )}
+
         <div className="modal-actions">
           <button className="secondary-btn" onClick={onClose}>
             Cancel

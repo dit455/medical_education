@@ -15,6 +15,7 @@ import {
   X,
   FileText,
   Link2,
+  ArrowLeft,
 } from "lucide-react";
 import StatusBadge from "../components/StatusBadge.jsx";
 import DataTable from "../components/DataTable.jsx";
@@ -23,6 +24,7 @@ import CourseSelectModal from "../components/CourseSelectModal.jsx";
 import RecordPickModal from "../components/RecordPickModal.jsx";
 import ListViewModal from "../components/ListViewModal.jsx";
 import SubjectMapModal from "../components/SubjectMapModal.jsx";
+import AddSubjectModal from "../components/AddSubjectModal.jsx";
 import CascadeEditModal from "../components/CascadeEditModal.jsx";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import KpiCard from "../components/KpiCard.jsx";
@@ -115,6 +117,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   const [addModal, setAddModal] = useState(null);
+  const [newInstitutionCredentials, setNewInstitutionCredentials] = useState(null);
   const [isSubjectDetailsOpen, setIsSubjectDetailsOpen] = useState(false);
 
   const pendingApprovals = data.workflows.filter(
@@ -172,6 +175,15 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   const selectedCourse = coursesForInstitution.find((c) => c.id === selectedCourseId) || null;
   const selectedCourseIdResolved = selectedCourse?.id || null;
   const selectedSubject = subjectsForCourse.find((s) => s.id === selectedSubjectId) || null;
+
+  // Re-fetch whenever the Subjects view becomes active again (e.g. after
+  // approving a pending mark change on the Approvals page and navigating
+  // back here), so Total Max/Pass reflect the just-applied change.
+  useEffect(() => {
+    if (view === "subjects" && selectedCourseIdResolved) {
+      refreshSubjects(selectedCourseIdResolved);
+    }
+  }, [view, selectedCourseIdResolved, refreshSubjects]);
 
   useEffect(() => {
     onDashboardViewChange?.(view);
@@ -294,6 +306,13 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       setSelectedInstitutionId(created.id);
       setSelectedCourseId(null);
       setSelectedSubjectId(null);
+      if (created.creatorLogin) {
+        setNewInstitutionCredentials({
+          name: created.name,
+          creator: created.creatorLogin,
+          approver: created.approverLogin,
+        });
+      }
     }
     refreshInstitutions();
   }
@@ -427,13 +446,14 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
   // Add Course needs an Institute picker since the user may reach the Courses
   // view without first selecting an institution from the table.
-const addCourseFields = useMemo(
-  () => [
-    ["name", "Course"],
-    ["status", "Status", ["Active", "Inactive"]],
-  ],
-  [],
-);
+  const addCourseFields = useMemo(
+    () => [
+      ["name", "Course"],
+      ["category", "Category", categoryOptions],
+      ["status", "Status", ["Active", "Inactive"]],
+    ],
+    [categoryOptions],
+  );
 
   // Maps the chosen course names to the chosen institute. Switches the table
   // to that institute so the result is visible immediately.
@@ -451,34 +471,35 @@ const addCourseFields = useMemo(
     refreshInstitutions();
   }
 
-async function handleAddCourseSave(values) {
-  const instId = selectedInstitutionIdResolved || institutions[0]?.id || null;
-  if (!instId) {
-    alert("No institution available.");
-    return;
-  }
-  if (!values.name?.trim()) {
-    alert("Course name is required.");
-    return;
-  }
-  try {
-    const created = await api.createCourse(instId, {
+  async function handleAddCourseSave(values) {
+    const instId = selectedInstitutionIdResolved || institutions[0]?.id || null;
+    if (!instId) {
+      alert("No institution available.");
+      return;
+    }
+    if (!values.name?.trim()) {
+      alert("Course name is required.");
+      return;
+    }
+    try {
+      const created = await api.createCourse(instId, {
       name: values.name.trim(),
+      category_id: resolveCategoryId(values.category),
       status: values.status || "Active",
       actor: username,
     });
-    setSelectedInstitutionId(instId);
-    setSelectedCourseId(created?.id || null);
-    setSelectedSubjectId(null);
-    setView("courses");
-    refreshCourses(instId);
-    refreshInstitutions();
-    setAddCourseOpen(false);
-  } catch (err) {
-    console.error("Add course failed:", err.message);
-    alert(err.message);
+      setSelectedInstitutionId(instId);
+      setSelectedCourseId(created?.id || null);
+      setSelectedSubjectId(null);
+      setView("courses");
+      refreshCourses(instId);
+      refreshInstitutions();
+      setAddCourseOpen(false);
+    } catch (err) {
+      console.error("Add course failed:", err.message);
+      alert(err.message);
+    }
   }
-}
 
   async function handleMapCourseSave(names, extra) {
     await mapCoursesToInstitute(extra.institute, names);
@@ -500,51 +521,87 @@ async function handleAddCourseSave(values) {
 
   // ---- Subject dashboard action flows (Add / Map / View) ------------------
   const [addSubjectOpen, setAddSubjectOpen] = useState(false);
+  const [editMarksSubject, setEditMarksSubject] = useState(null);
   const [mapSubjectOpen, setMapSubjectOpen] = useState(false);
   const [viewSubjectOpen, setViewSubjectOpen] = useState(false);
-
-  // Add Subject is self-contained: pick the Course it belongs to, name it, and
-  // supply the Year/Semester/Priority the mapping table requires.
-const addSubjectFields = useMemo(
-  () => [
-    ["subject", "Subject"],
-    ["status", "Status", ["Active", "Inactive"]],
-  ],
-  [],
-);
 
   function refreshSubjectMaster() {
     api.getListSubjects().then(setSubjects).catch(() => {});
   }
 
-async function handleAddSubjectSave(values) {
-  if (!selectedCourseIdResolved) {
-    alert("Please select a course first.");
-    return;
+  // Add Subject collects a subject + IA/EA/TP divisions (max/pass) + effective
+  // date from AddSubjectModal. The modal shows its own confirmation popup after
+  // save, so we DON'T close it here — the user closes it via "Done".
+  async function handleAddSubjectSave(values) {
+    if (!selectedCourseIdResolved) {
+      alert("Please select a course first.");
+      return;
+    }
+    if (!values.subjectName?.trim()) {
+      alert("Subject is required.");
+      return;
+    }
+    try {
+      const defaultYear = years[0]?.id || null;
+      const defaultSem = examSems[0]?.id || null;
+      await api.createSubject(selectedCourseIdResolved, {
+        subject: values.subjectName.trim(),
+        year_id: defaultYear,
+        sem_id: defaultSem,
+        priority: 1,
+        status: "Active",
+        divisions: values.divisions,
+        effective_date: values.effectiveDate,
+        totalMarks: values.totalMarks,
+        signature_name: values.signatureName,
+        actor: username,
+      });
+      refreshSubjects(selectedCourseIdResolved);
+      refreshSubjectMaster();
+      setAddSubjectOpen(false);
+    } catch (err) {
+      console.error("Add subject failed:", err.message);
+      alert(err.message);
+    }
   }
-  if (!values.subject?.trim()) {
-    alert("Subject name is required.");
-    return;
+
+  // Mark changes need approval by a competent official before they take
+  // effect: this submits a pending-change instead of saving directly.
+  // apply_create_subject (dispatched on approval) reuses the existing
+  // course_subject_id, so no duplicate row is created.
+  async function handleEditMarksSave(values) {
+    if (!selectedCourseIdResolved || !selectedInstitutionIdResolved) {
+      alert("Please select a course first.");
+      return;
+    }
+    try {
+      const defaultYear = years[0]?.id || null;
+      const defaultSem = examSems[0]?.id || null;
+      await api.submitPendingChange({
+        entityType: "subject",
+        action: "update",
+        entityId: editMarksSubject.id,
+        institutionId: selectedInstitutionIdResolved,
+        actor: username,
+        payload: {
+          courseId: selectedCourseIdResolved,
+          subject: values.subjectName.trim(),
+          yearId: resolveYearId(editMarksSubject.year) || defaultYear,
+          semId: resolveSemId(editMarksSubject.semester) || defaultSem,
+          priority: editMarksSubject.priority || 1,
+          status: "Active",
+          courseSubjectId: editMarksSubject.id,
+          divisions: values.divisions,
+          effectiveDate: values.effectiveDate,
+          totalMarks: values.totalMarks,
+          signatureName: values.signatureName,
+        },
+      });
+    } catch (err) {
+      console.error("Submit mark change failed:", err.message);
+      alert(err.message);
+    }
   }
-  try {
-    const defaultYear = years[0]?.id || null;
-    const defaultSem = examSems[0]?.id || null;
-    await api.createSubject(selectedCourseIdResolved, {
-      subject: values.subject.trim(),
-      year_id: defaultYear,
-      sem_id: defaultSem,
-      priority: 1,
-      status: values.status || "Active",
-      actor: username,
-    });
-    refreshSubjects(selectedCourseIdResolved);
-    refreshSubjectMaster();
-    setAddSubjectOpen(false);
-  } catch (err) {
-    console.error("Add subject failed:", err.message);
-    alert(err.message);
-  }
-}
 
   async function handleMapSubjectSave(courseId, instituteId, names, extra) {
     if (!courseId || names.length === 0) return;
@@ -787,8 +844,12 @@ async function handleAddSubjectSave(values) {
         label: "Add Subject",
         icon: Plus,
         primary: true,
-        disabled: courses.length === 0,
-        title: courses.length === 0 ? "Add a course first" : "",
+        disabled: courses.length === 0 || !selectedCourseIdResolved,
+        title: courses.length === 0
+          ? "Add a course first"
+          : !selectedCourseIdResolved
+            ? "Select a course from Course Master first"
+            : "",
         onClick: () => setAddSubjectOpen(true),
       },
       {
@@ -820,10 +881,25 @@ async function handleAddSubjectSave(values) {
     ],
   }[view];
 
+  const canGoBack = view === "courses" || view === "subjects";
+  function handleBack() {
+    if (view === "subjects") {
+      goToCourses();
+    } else if (view === "courses") {
+      goToInstitutions();
+    }
+  }
+
   return (
     <section className="board-dashboard">
       <div className="dashboard-command-row">
         <div>
+          {canGoBack && (
+            <button type="button" className="back-btn" onClick={handleBack}>
+              <ArrowLeft size={16} />
+              Back
+            </button>
+          )}
           <Breadcrumb items={breadcrumbs} />
           <h2>Academic Command Center</h2>
         </div>
@@ -896,6 +972,10 @@ async function handleAddSubjectSave(values) {
           onAdd={(row) => saveSubject(row)}
           onEdit={(row) => saveSubject(row)}
           onDelete={(row) => deleteSubjectRow(row)}
+          onEditMarks={(subj) => {
+            setIsSubjectDetailsOpen(false);
+            setEditMarksSubject(subj);
+          }}
         />
       )}
 
@@ -919,13 +999,54 @@ async function handleAddSubjectSave(values) {
           onSave={handleFormSave}
         />
       )}
+      {newInstitutionCredentials && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal" role="dialog" aria-modal="true" aria-label="Institution Login Created">
+            <div className="modal-heading">
+              <div>
+                <p className="eyebrow">login created</p>
+                <h3>{newInstitutionCredentials.name}</h3>
+              </div>
+            </div>
+            <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: 16 }}>
+              Share these one-time credentials with the institution. They will be required to
+              set a new password on first login. This password will not be shown again.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {[
+                { label: "Creator", data: newInstitutionCredentials.creator },
+                { label: "Approver", data: newInstitutionCredentials.approver },
+              ].map(({ label, data }) => (
+                <div key={label} style={{ padding: "12px 14px", borderRadius: 10, background: "var(--soft-gray)" }}>
+                  <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--brand-dark)", textTransform: "uppercase", marginBottom: 6 }}>
+                    {label}
+                  </div>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
+                    Username
+                  </div>
+                  <div style={{ fontSize: "1rem", fontWeight: 700, marginBottom: 6 }}>{data.username}</div>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
+                    Temporary Password
+                  </div>
+                  <div style={{ fontSize: "1rem", fontWeight: 700 }}>{data.password}</div>
+                </div>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button className="primary-btn" onClick={() => setNewInstitutionCredentials(null)}>
+                Done
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {addCourseOpen && (
-  <RecordModal
-    mode="add"
-    row={{
-      ...emptyRowFromFields(addCourseFields),
-      status: "Active",
-    }}
+        <RecordModal
+          mode="add"
+          row={{
+            ...emptyRowFromFields(addCourseFields),
+            status: "Active",
+          }}
           fields={addCourseFields}
           title="Add Course"
           onClose={() => setAddCourseOpen(false)}
@@ -946,22 +1067,27 @@ async function handleAddSubjectSave(values) {
       {viewCourseOpen && (
         <ListViewModal
           title="Existing Courses"
-          items={courses.map((c,i) => ({ id: i+1, label: c.name, status: c.status }))}
+          items={courses.map((c, i) => ({ id: i + 1, label: c.name, status: c.status }))}
           emptyMessage="No courses found."
           onClose={() => setViewCourseOpen(false)}
         />
       )}
       {addSubjectOpen && (
-  <RecordModal
-    mode="add"
-    row={{
-      ...emptyRowFromFields(addSubjectFields),
-      status: "Active",
-    }}
-          fields={addSubjectFields}
-          title="Add Subject"
+        <AddSubjectModal
+          subjectOptions={subjectSelectOptions}
+          username={username}
           onClose={() => setAddSubjectOpen(false)}
           onSave={handleAddSubjectSave}
+        />
+      )}
+      {editMarksSubject && (
+        <AddSubjectModal
+          editMode
+          initialSubject={editMarksSubject}
+          subjectOptions={[]}
+          username={username}
+          onClose={() => setEditMarksSubject(null)}
+          onSave={handleEditMarksSave}
         />
       )}
       {mapSubjectOpen && (
@@ -977,7 +1103,7 @@ async function handleAddSubjectSave(values) {
       {viewSubjectOpen && (
         <ListViewModal
           title="Existing Subjects"
-          items={subjects.map((s,i) => ({ id: i+1, label: s.name, status: s.status }))}
+          items={subjects.map((s, i) => ({ id: i + 1, label: s.name, status: s.status }))}
           emptyMessage="No subjects found."
           onClose={() => setViewSubjectOpen(false)}
         />
@@ -1094,7 +1220,7 @@ function RecentActivities({ workflows }) {
   );
 }
 
-function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onClose, onAdd, onEdit, onDelete }) {
+function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onClose, onAdd, onEdit, onDelete, onEditMarks }) {
   const [modalState, setModalState] = useState(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -1111,6 +1237,12 @@ function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onC
     onClose();
   }
 
+  // Friendly labels for the marks divisions coming back from the API.
+  const DIV_LABEL = {
+    "Internal Assessment": "Internal Assessment (Max / Pass)",
+    "External Assessment": "External Assessment (Max / Pass)",
+    "Theory/Practical": "Theory/Practical (Max / Pass)",
+  };
   const sections = [
     course && {
       title: "Course Detail",
@@ -1126,9 +1258,16 @@ function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onC
         ["Year", subject.year],
         ["Semester", subject.semester],
         ["Priority", subject.priority],
+        ["Total Max", subject.totalMax],
+        ["Total Pass", subject.totalPass],
+        ["Effective Date", subject.effectiveDate],
+        ...(subject.divisions || []).map((d) => [
+          DIV_LABEL[d.type] || `${d.type} (Max / Pass)`,
+          `${d.maxMarks} / ${d.passMarks}`,
+        ]),
       ],
     },
-  ];
+  ].filter(Boolean);
 
   const actions = [
     {
@@ -1138,9 +1277,14 @@ function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onC
       onClick: () => setModalState({ mode: "add", row: emptyRowFromFields(subjectFields) }),
     },
     subject && {
-      label: "Edit",
+      label: "Edit Info",
       icon: Pencil,
       onClick: () => setModalState({ mode: "edit", row: subject }),
+    },
+    subject && {
+      label: "Edit Marks",
+      icon: Pencil,
+      onClick: () => onEditMarks(subject),
     },
     subject && {
       label: "Delete",
