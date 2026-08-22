@@ -420,6 +420,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   // Unified add / edit / view modal driven by the action bar below the KPI
   // cards. Each entity maps to its field set and the matching save handler.
   const [formModal, setFormModal] = useState(null);
+  const [subjectModalState, setSubjectModalState] = useState(null);
   const [editPick, setEditPick] = useState(null);
   const [editCourseOpen, setEditCourseOpen] = useState(false);
   const [editSubjectOpen, setEditSubjectOpen] = useState(false);
@@ -793,6 +794,8 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   // Per-view action buttons rendered directly under the KPI cards. These
   // replace the add buttons that used to live in the table-card header.
   const actionBar = {
+
+    
     institutions: [
       { label: "Add Institute", icon: Plus, primary: true, onClick: () => openForm("institution", "add") },
       {
@@ -802,6 +805,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
         title: institutions.length === 0 ? "No institutions to edit" : "",
         onClick: () => setEditPick("institution"),
       },
+      
     ],
     courses: [
       {
@@ -841,7 +845,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     ],
     subjects: [
       {
-        label: "Add Subject",
+        label: "Assign Mark to existing Subject",
         icon: Plus,
         primary: true,
         disabled: courses.length === 0 || !selectedCourseIdResolved,
@@ -851,6 +855,14 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
             ? "Select a course from Course Master first"
             : "",
         onClick: () => setAddSubjectOpen(true),
+      },
+      {
+        label: "Add Subject",
+        icon: Plus,
+        disabled: !selectedCourseIdResolved,
+        title: !selectedCourseIdResolved ? "Select a course from Course Master first" : "",
+        onClick: () =>
+          setSubjectModalState({ mode: "add", row: emptyRowFromFields(subjectFields) }),
       },
       {
         label: "Map Subject",
@@ -879,6 +891,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
         onClick: () => setViewSubjectOpen(true),
       },
     ],
+    
   }[view];
 
   const canGoBack = view === "courses" || view === "subjects";
@@ -997,6 +1010,19 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           title={entityForm[formModal.entity].title}
           onClose={() => setFormModal(null)}
           onSave={handleFormSave}
+        />
+      )}
+      {subjectModalState && (
+        <RecordModal
+          mode={subjectModalState.mode}
+          row={subjectModalState.row}
+          fields={subjectFields}
+          title="Add Subject"
+          onClose={() => setSubjectModalState(null)}
+          onSave={async (values) => {
+            await saveSubject(values);
+            setSubjectModalState(null);
+          }}
         />
       )}
       {newInstitutionCredentials && (
@@ -1270,12 +1296,6 @@ function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onC
   ].filter(Boolean);
 
   const actions = [
-    {
-      label: "Add",
-      icon: Plus,
-      disabled: !course,
-      onClick: () => setModalState({ mode: "add", row: emptyRowFromFields(subjectFields) }),
-    },
     subject && {
       label: "Edit Info",
       icon: Pencil,
