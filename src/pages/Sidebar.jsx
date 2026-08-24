@@ -20,10 +20,6 @@ import { BOARD_ROLES } from "../data.js";
 
 const BOARD_MENU = [
   {
-    label: "Dashboard",
-    items: [{ label: "Dashboard", icon: LayoutDashboard, routeKey: "dashboard", view: "overview" }],
-  },
-  {
     label: "Academic Master",
     items: [
       { label: "Institutions", icon: Building2, routeKey: "dashboard", view: "institutions" },
@@ -61,7 +57,6 @@ const BOARD_MENU = [
 ];
 
 const SUPER_ADMIN_MENU = [
-  { label: "Dashboard", items: [{ label: "Dashboard", icon: LayoutDashboard, routeKey: "dashboard" }] },
   {
     label: "Administration",
     items: [

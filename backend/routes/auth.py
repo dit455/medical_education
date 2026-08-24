@@ -55,6 +55,8 @@ def _user_row_to_dict(row):
         "department": row[2],
         "role": row[3],
         "institutionId": row[4] if len(row) > 4 else None,
+        "mustChangePassword": bool(row[5]) if len(row) > 5 else False,
+        "institutionRole": row[6] if len(row) > 6 else None,
     }
 
 
@@ -70,14 +72,44 @@ def login():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, username, department, role, inst_id, password FROM users WHERE username = %s",
+            "SELECT id, username, department, role, inst_id, password, must_change_password, institution_role FROM users WHERE username = %s",
             (username,),
         )
         row = cursor.fetchone()
         cursor.close()
         if row is None or not row[5] or not check_password_hash(row[5], password):
             return jsonify({"error": "Invalid username or password"}), 401
-        return jsonify(_user_row_to_dict(row[:5]))
+        return jsonify(_user_row_to_dict((row[0], row[1], row[2], row[3], row[4], row[6], row[7])))
+    finally:
+        conn.close()
+
+
+@auth_bp.route("/api/change-password", methods=["POST"])
+def change_password():
+    body = request.get_json(force=True) or {}
+    username = (body.get("username") or "").strip()
+    current_password = body.get("currentPassword") or ""
+    new_password = body.get("newPassword") or ""
+    if not username or not current_password or not new_password:
+        return jsonify({"error": "Current and new password are required"}), 400
+    if len(new_password) < 8:
+        return jsonify({"error": "New password must be at least 8 characters"}), 400
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, password FROM users WHERE username = %s", (username,))
+        row = cursor.fetchone()
+        if row is None or not check_password_hash(row[1], current_password):
+            cursor.close()
+            return jsonify({"error": "Current password is incorrect"}), 401
+        cursor.execute(
+            "UPDATE users SET password = %s, must_change_password = 0 WHERE id = %s",
+            (generate_password_hash(new_password), row[0]),
+        )
+        conn.commit()
+        cursor.close()
+        return jsonify({"ok": True})
     finally:
         conn.close()
 

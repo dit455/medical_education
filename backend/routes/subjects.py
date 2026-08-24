@@ -7,22 +7,102 @@ approval dispatcher (routes/approvals.py).
 
 from flask import Blueprint, jsonify, request
 
+from werkzeug.security import check_password_hash
+
 from db import get_connection
 from utils import actor_from_body, label_to_status, status_to_label
+from crypto_sign import generate_key_pair, sign_payload
 
 subjects_bp = Blueprint("subjects", __name__)
 
+def _verify_signing_password(cursor, username, password):
+    """Re-authenticate the signing user before their key is used. Raises
+    ValueError if the password is missing or wrong."""
+    if not password:
+        raise ValueError("password is required to sign marks")
+    cursor.execute("SELECT password FROM users WHERE username = %s", (username,))
+    row = cursor.fetchone()
+    if row is None or not row[0] or not check_password_hash(row[0], password):
+        raise ValueError("invalid password - signature rejected")
 
-def _subject_row_to_dict(row):
-    course_subject_id, subject_desc, year_desc, sem_desc, priority_id, status_ = row
-    return {
+def _get_or_create_private_key(cursor, user_id):
+    """Return the user's private key PEM, generating a key pair on first use."""
+    cursor.execute(
+        "SELECT private_key FROM tbl_user_keys WHERE user_id = %s", (user_id,)
+    )
+    row = cursor.fetchone()
+    if row:
+        return row[0]
+    priv_pem, pub_pem = generate_key_pair()
+    cursor.execute(
+        """
+        INSERT INTO tbl_user_keys (user_id, public_key, private_key, created_date)
+        VALUES (%s, %s, %s, NOW())
+        """,
+        (user_id, pub_pem, priv_pem),
+    )
+    return priv_pem
+
+
+def _sign_mark_change(cursor, actor, course_subject_id, exam_type_id, mx, ps, total_marks, signature_name):
+    """Sign a canonical representation of the changed marks with the actor's key."""
+    payload = f"{course_subject_id}|{exam_type_id}|{mx}|{ps}|{total_marks}|{signature_name}"
+    priv_pem = _get_or_create_private_key(cursor, actor)
+    signature = sign_payload(priv_pem, payload)
+    return payload, signature
+
+def _load_divisions(cursor, course_subject_id):
+    cursor.execute(
+        """
+        SELECT sm.exam_type_id, t.exam_type_desc, sm.max_marks, sm.pass_marks,
+               sm.total_marks, sm.effective_date
+        FROM tbl_subject_marks sm
+        JOIN tbl_exam_type_master t ON t.exam_type_id = sm.exam_type_id
+        WHERE sm.course_subject_id = %s
+        ORDER BY sm.id
+        """,
+        (course_subject_id,),
+    )
+    divisions = []
+    total_max = 0
+    total_pass = 0
+    eff = None
+    for etid, etype, mx, ps, total_marks, edate in cursor.fetchall():
+        divisions.append({
+            "examTypeId": etid,
+            "type": etype,
+            "maxMarks": mx,
+            "passMarks": ps,
+            "totalMarks": total_marks,
+        })
+        total_max += mx or 0
+        total_pass += ps or 0
+        if edate and not eff:
+            eff = edate
+    return divisions, total_max, total_pass, (str(eff) if eff else None)
+
+
+def _subject_row_to_dict(row, cursor=None):
+    (course_subject_id, subject_desc, year_desc, sem_desc, priority_id, status_) = row
+    result = {
         "id": course_subject_id,
         "subject": subject_desc,
         "year": year_desc,
         "semester": sem_desc,
         "priority": priority_id,
         "status": status_to_label(status_),
+        "divisions": [],
+        "totalMax": None,
+        "totalPass": None,
+        "effectiveDate": None,
     }
+    if cursor is not None:
+        divisions, total_max, total_pass, eff = _load_divisions(cursor, course_subject_id)
+        result["divisions"] = divisions
+        result["totalMax"] = total_max
+        result["totalPass"] = total_pass
+        result["effectiveDate"] = eff
+    return result
 
 
 SUBJECT_SELECT_SQL = """
@@ -34,11 +114,19 @@ SUBJECT_SELECT_SQL = """
     JOIN tbl_exam_sem_master e ON e.sem_id = m.sem_id
 """
 
-
 def apply_create_subject(cursor, course_id, subject, year_id, sem_id, priority=None,
-                          status_label="Active", actor="system"):
+                          status_label="Active", actor="system",
+                          divisions=None, effective_date=None, total_marks=100,
+                          course_subject_id=None, signature_name=None):
     subject = (subject or "").strip()
     status_ = label_to_status(status_label)
+
+    if divisions:
+        signature_name = (signature_name or "").strip().upper()
+        if not signature_name:
+            raise ValueError("digital signature name is required")
+    # re-authenticate before their key signs anything.
+    
 
     cursor.execute(
         "SELECT bome_status, boen_status FROM tbl_course_master WHERE course_id = %s",
@@ -80,15 +168,21 @@ def apply_create_subject(cursor, course_id, subject, year_id, sem_id, priority=N
             (subject_id, subject, actor, status_),
         )
 
-    # Don't create a second mapping row if this subject is already mapped to
-    # the same course/year/semester.
-    cursor.execute(
-        """
-        SELECT course_subject_id FROM tbl_course_subject_map
-        WHERE course_id = %s AND subject_id = %s AND year_id = %s AND sem_id = %s
-        """,
-        (course_id, subject_id, year_id, sem_id),
-    )
+    # When editing marks the caller passes the exact mapping row to reuse.
+    # Otherwise fall back to matching course/subject/year/sem.
+    if course_subject_id is not None:
+        cursor.execute(
+            "SELECT course_subject_id FROM tbl_course_subject_map WHERE course_subject_id = %s",
+            (course_subject_id,),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT course_subject_id FROM tbl_course_subject_map
+            WHERE course_id = %s AND subject_id = %s AND year_id = %s AND sem_id = %s
+            """,
+            (course_id, subject_id, year_id, sem_id),
+        )
     existing_map = cursor.fetchone()
 
     if existing_map:
@@ -108,8 +202,77 @@ def apply_create_subject(cursor, course_id, subject, year_id, sem_id, priority=N
             (map_id, course_id, subject_id, year_id, sem_id, priority, actor, status_),
         )
 
+    # Replace this subject's marks divisions with the supplied set.
+    # Snapshot existing divisions (keyed by exam_type_id) so we can log whether
+    # each incoming division is a first-time INSERT or an UPDATE to prior marks.
+    cursor.execute(
+        """
+        SELECT exam_type_id, max_marks, pass_marks, total_marks
+        FROM tbl_subject_marks WHERE course_subject_id = %s
+        """,
+        (map_id,),
+    )
+    prev = {row[0]: {"max": row[1], "pass": row[2], "total": row[3]} for row in cursor.fetchall()}
+
+    # Replace this subject's marks divisions with the supplied set.
+    cursor.execute(
+        "DELETE FROM tbl_subject_marks WHERE course_subject_id = %s", (map_id,)
+    )
+    for d in (divisions or []):
+        mx = int(d.get("maxMarks") or 0)
+        ps = int(d.get("passMarks") or 0)
+        if mx <= 0 and ps <= 0:
+            continue  # skip blank divisions
+        etid = d.get("examTypeId")
+        cursor.execute(
+            """
+            INSERT INTO tbl_subject_marks
+                (course_subject_id, exam_type_id, max_marks, pass_marks, total_marks, effective_date)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (map_id, etid, mx, ps, total_marks, effective_date),
+        )
+
+        # Write an audit-trail entry: UPDATE when this exam type had prior
+        # marks, otherwise INSERT.
+        old = prev.get(etid)
+        if old is None:
+            payload, signature = _sign_mark_change(
+                cursor, actor, map_id, etid, mx, ps, total_marks, signature_name
+            )
+            cursor.execute(
+                """
+                INSERT INTO tbl_subject_marks_log
+                    (course_subject_id, exam_type_id, new_max_marks, new_pass_marks,
+                     new_total_marks, action_, changed_by, changed_date,
+                     signed_by, signed_payload, signature_, signed_date, signature_name)
+                VALUES (%s, %s, %s, %s, %s, 'INSERT', %s, NOW(),
+                        %s, %s, %s, NOW(), %s)
+                """,
+                (map_id, etid, mx, ps, total_marks, actor,
+                 actor, payload, signature, signature_name),
+            )
+        elif old["max"] != mx or old["pass"] != ps or old["total"] != total_marks:
+            payload, signature = _sign_mark_change(
+                cursor, actor, map_id, etid, mx, ps, total_marks, signature_name
+            )
+            cursor.execute(
+                """
+                INSERT INTO tbl_subject_marks_log
+                    (course_subject_id, exam_type_id, old_max_marks, old_pass_marks,
+                     old_total_marks, new_max_marks, new_pass_marks, new_total_marks,
+                     action_, changed_by, changed_date,
+                     signed_by, signed_payload, signature_, signed_date, signature_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'UPDATE', %s, NOW(),
+                        %s, %s, %s, NOW(), %s)
+                """,
+                (map_id, etid, old["max"], old["pass"], old["total"],
+                 mx, ps, total_marks, actor,
+                 actor, payload, signature, signature_name),
+            )
+
     cursor.execute(SUBJECT_SELECT_SQL + " WHERE m.course_subject_id = %s", (map_id,))
-    return _subject_row_to_dict(cursor.fetchone())
+    return _subject_row_to_dict(cursor.fetchone(), cursor)
 
 
 def apply_update_subject(cursor, course_subject_id, subject, year_id, sem_id,
@@ -165,8 +328,9 @@ def get_subjects_for_course(course_id):
             SUBJECT_SELECT_SQL + " WHERE m.course_id = %s", (course_id,)
         )
         rows = cursor.fetchall()
+        result = [_subject_row_to_dict(r, cursor) for r in rows]
         cursor.close()
-        return jsonify([_subject_row_to_dict(r) for r in rows])
+        return jsonify(result)
     finally:
         conn.close()
 
@@ -181,6 +345,9 @@ def create_subject_for_course(course_id):
             result = apply_create_subject(
                 cursor, course_id, body.get("subject"), body.get("year_id"), body.get("sem_id"),
                 body.get("priority"), body.get("status", "Active"), actor_from_body(body),
+                body.get("divisions"), body.get("effective_date"),
+                body.get("totalMarks", 100), body.get("course_subject_id"),
+                body.get("signature_name"),
             )
         except ValueError as exc:
             cursor.close()
@@ -222,5 +389,31 @@ def delete_subject(course_subject_id):
         conn.commit()
         cursor.close()
         return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+@subjects_bp.route("/api/marks-log/<int:log_id>/verify", methods=["GET"])
+def verify_mark_signature(log_id):
+    from crypto_sign import verify_payload
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT l.signed_payload, l.signature_, k.public_key
+            FROM tbl_subject_marks_log l
+            JOIN tbl_user_keys k ON k.user_id = l.signed_by
+            WHERE l.log_id = %s
+            """,
+            (log_id,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        if not row or not row[0]:
+            return jsonify({"verified": False, "reason": "no signature on this entry"}), 404
+        payload, signature, public_key = row
+        ok = verify_payload(public_key, payload, signature)
+        return jsonify({"log_id": log_id, "verified": ok})
     finally:
         conn.close()

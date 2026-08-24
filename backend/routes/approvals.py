@@ -23,11 +23,13 @@ from routes.courses import apply_create_course, apply_update_course, apply_delet
 from routes.subjects import apply_create_subject, apply_update_subject, apply_delete_subject
 from routes.students import apply_create_student, apply_update_student, apply_delete_student
 from routes.marks import apply_create_marks, apply_update_marks, apply_delete_marks
+from routes.student_reg import apply_create_student_registration, apply_create_internal_marks
 from routes.attendance import apply_create_attendance, apply_update_attendance, apply_delete_attendance
 
 approvals_bp = Blueprint("approvals", __name__)
 
-ENTITY_TYPES = {"course", "subject", "student", "student_marks", "attendance"}
+ENTITY_TYPES = {"course", "subject", "student", "student_marks", "student_with_marks",
+                 "student_registration", "internal_marks", "attendance"}
 ACTIONS = {"create", "update", "delete"}
 
 
@@ -76,13 +78,68 @@ def _apply_change(cursor, entity_type, action, entity_id, institution_id, payloa
         if action == "create":
             return apply_create_subject(cursor, payload.get("courseId"), payload.get("subject"),
                                          payload.get("yearId"), payload.get("semId"),
-                                         payload.get("priority"), payload.get("status", "Active"), actor)
+                                         payload.get("priority"), payload.get("status", "Active"), actor,
+                                         payload.get("divisions"), payload.get("effectiveDate"),
+                                         payload.get("totalMarks", 100), payload.get("courseSubjectId"),
+                                         payload.get("signatureName"))
         if action == "update":
+            # Mark changes are approved via this path: apply_create_subject
+            # reuses the existing course_subject_id row, replaces its
+            # divisions, and writes the signed audit-trail entry.
+            if payload.get("divisions"):
+                return apply_create_subject(cursor, payload.get("courseId"), payload.get("subject"),
+                                             payload.get("yearId"), payload.get("semId"),
+                                             payload.get("priority"), payload.get("status", "Active"), actor,
+                                             payload.get("divisions"), payload.get("effectiveDate"),
+                                             payload.get("totalMarks", 100), entity_id,
+                                             payload.get("signatureName"))
             return apply_update_subject(cursor, entity_id, payload.get("subject"),
                                          payload.get("yearId"), payload.get("semId"),
                                          payload.get("priority"), payload.get("status", "Active"), actor)
         if action == "delete":
             return apply_delete_subject(cursor, entity_id)
+
+
+    if entity_type == "student_registration":
+        if action == "create":
+            return apply_create_student_registration(cursor, institution_id, payload, actor)
+        raise ValueError("unsupported action for student_registration")
+
+    if entity_type == "internal_marks":
+        if action == "create":
+            return apply_create_internal_marks(cursor, payload, actor)
+        raise ValueError("unsupported action for internal_marks")
+
+
+
+    if entity_type == "student_with_marks":
+        # Combined creation: make the student first, then attach the
+        # internal-marks row to the id it was just given - both apply
+        # atomically inside the same approval transaction.
+        if action == "create":
+            student_result = apply_create_student(
+                cursor,
+                institution_id,
+                payload.get("courseId"),
+                payload.get("name"),
+                payload.get("registerNo"),
+                payload.get("term"),
+                payload.get("status", "Active"),
+                actor,
+            )
+            new_student_id = student_result.get("id")
+            apply_create_marks(
+                cursor,
+                new_student_id,
+                payload.get("subjectId"),
+                payload.get("internal"),
+                payload.get("exam"),
+                payload.get("result"),
+                payload.get("status", "Active"),
+                actor,
+            )
+            return student_result
+        raise ValueError("unsupported action for student_with_marks")
 
     if entity_type == "student":
         if action == "create":
@@ -185,6 +242,45 @@ def create_pending_change():
         conn.close()
 
 
+@approvals_bp.route("/api/pending-changes/<int:change_id>", methods=["PUT"])
+def update_pending_change(change_id):
+    """Correct an existing Pending or Rejected request in place - replaces
+    its payload and resets it to Pending for re-review, instead of creating
+    a duplicate row. Approved requests cannot be edited this way."""
+    body = request.get_json(force=True) or {}
+    actor = actor_from_body(body)
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT status_ FROM tbl_pending_changes WHERE change_id = %s", (change_id,))
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            return jsonify({"error": "pending change not found"}), 404
+        if row[0] == "Approved":
+            cursor.close()
+            return jsonify({"error": "approved requests cannot be edited"}), 409
+
+        cursor.execute(
+            """
+            UPDATE tbl_pending_changes
+            SET payload_json = %s, status_ = 'Pending', requested_by = %s, requested_date = NOW(),
+                reviewed_by = NULL, reviewed_date = NULL, review_note = NULL
+            WHERE change_id = %s
+            """,
+            (json.dumps(body.get("payload") or {}), actor, change_id),
+        )
+        conn.commit()
+
+        cursor.execute(CHANGE_SELECT_SQL + " WHERE change_id = %s", (change_id,))
+        result = _change_row_to_dict(cursor.fetchone())
+        cursor.close()
+        return jsonify(result)
+    finally:
+        conn.close()
+
+
 @approvals_bp.route("/api/pending-changes/<int:change_id>/approve", methods=["POST"])
 def approve_pending_change(change_id):
     body = request.get_json(force=True) or {}
@@ -211,12 +307,30 @@ def approve_pending_change(change_id):
             conn.rollback()
             cursor.close()
             return jsonify({"error": str(exc)}), 400
+        except Exception as exc:
+            # Catches DB errors (foreign key violations, missing columns,
+            # etc.) so a bad or stale request returns a clean error instead
+            # of crashing the connection ("Failed to fetch" on the frontend).
+            conn.rollback()
+            cursor.close()
+            return jsonify({"error": f"Could not apply this change: {exc}"}), 400
 
         # For "create", the row didn't have a real entity_id yet - record the
         # one the apply_* function just created so later updates/deletes on
         # this same pending-change record (and anyone reading it back) know
         # what it actually became.
         new_entity_id = applied.get("id") if change["action"] == "create" and applied else change["entityId"]
+
+        # Student Registration's Register No is generated during apply - write
+        # it back into the stored payload so later views (My Requests, the
+        # Approver's table) show the real number instead of the blank/typed one.
+        if change["entityType"] == "student_registration" and applied and applied.get("registerNo"):
+            import json
+            merged_payload = {**change["payload"], "studentRegNo": applied["registerNo"]}
+            cursor.execute(
+                "UPDATE tbl_pending_changes SET payload_json = %s WHERE change_id = %s",
+                (json.dumps(merged_payload), change_id),
+            )
 
         cursor.execute(
             """
@@ -269,5 +383,29 @@ def reject_pending_change(change_id):
         result = _change_row_to_dict(cursor.fetchone())
         cursor.close()
         return jsonify(result)
+    finally:
+        conn.close()
+
+
+@approvals_bp.route("/api/pending-changes/<int:change_id>", methods=["DELETE"])
+def delete_pending_change(change_id):
+    """Lets the requester withdraw their own request. Approved changes are
+    already real records elsewhere and cannot be deleted from this queue."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT status_ FROM tbl_pending_changes WHERE change_id = %s", (change_id,))
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            return jsonify({"error": "pending change not found"}), 404
+        if row[0] == "Approved":
+            cursor.close()
+            return jsonify({"error": "approved requests cannot be deleted"}), 409
+
+        cursor.execute("DELETE FROM tbl_pending_changes WHERE change_id = %s", (change_id,))
+        conn.commit()
+        cursor.close()
+        return jsonify({"ok": True})
     finally:
         conn.close()

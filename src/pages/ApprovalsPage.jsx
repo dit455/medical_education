@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { CircleCheck, X } from "lucide-react";
 import StatusBadge from "../components/StatusBadge.jsx";
 import IconButton from "../components/IconButton.jsx";
+import AddSubjectModal from "../components/AddSubjectModal.jsx";
 import * as api from "../api.js";
 
 // Board-side inbox for reviewing changes Institution accounts have
@@ -9,13 +10,18 @@ import * as api from "../api.js";
 // tables (see backend/routes/approvals.py); rejecting never does.
 export default function ApprovalsPage({ role, username }) {
   const [institutions, setInstitutions] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [subjects, setSubjects] = useState([]);
   const [changes, setChanges] = useState([]);
   const [statusFilter, setStatusFilter] = useState("Pending");
   const [rejecting, setRejecting] = useState(null);
+  const [editingChange, setEditingChange] = useState(null);
   const [error, setError] = useState("");
 
   const refresh = useCallback(() => {
     api.getInstitutions(role).then(setInstitutions).catch(() => setInstitutions([]));
+    api.getListCourses().then(setCourses).catch(() => setCourses([]));
+    api.getListSubjects().then(setSubjects).catch(() => setSubjects([]));
     api
       .getPendingChanges(statusFilter === "All" ? {} : { status: statusFilter })
       .then(setChanges)
@@ -26,7 +32,28 @@ export default function ApprovalsPage({ role, username }) {
 
   const institutionIds = new Set(institutions.map((i) => i.id));
   const institutionName = (id) => institutions.find((i) => i.id === id)?.name || `Institution #${id}`;
-  const visibleChanges = changes.filter((c) => institutionIds.has(c.institutionId));
+  const courseName = (id) => courses.find((c) => c.id === id)?.name || (id ? `Course #${id}` : "-");
+  const subjectName = (id) => subjects.find((s) => s.id === id)?.name || (id ? `Subject #${id}` : "-");
+  const visibleChanges = changes.filter(
+    (c) =>
+      institutionIds.has(c.institutionId) &&
+      c.entityType !== "student_with_marks" &&
+      c.entityType !== "student" &&
+      c.entityType !== "student_marks" &&
+      c.entityType !== "student_registration" &&
+      c.entityType !== "internal_marks",
+  );
+
+  async function handleResubmit(change, payload) {
+    setError("");
+    try {
+      await api.updatePendingChange(change.id, payload, username);
+      setEditingChange(null);
+      refresh();
+    } catch (err) {
+      setError(err.message || "Could not resubmit this change.");
+    }
+  }
 
   async function handleApprove(change) {
     setError("");
@@ -80,8 +107,8 @@ export default function ApprovalsPage({ role, username }) {
             <thead>
               <tr>
                 <th>Institution</th>
-                <th>Type</th>
-                <th>Action</th>
+                <th>Course</th>
+                <th>Subject</th>
                 <th>Details</th>
                 <th>Requested By</th>
                 <th>Status</th>
@@ -101,22 +128,29 @@ export default function ApprovalsPage({ role, username }) {
                 visibleChanges.map((change) => (
                   <tr key={change.id}>
                     <td data-label="Institution">{institutionName(change.institutionId)}</td>
-                    <td data-label="Type">{change.entityType}</td>
-                    <td data-label="Action">{change.action}</td>
-                    <td data-label="Details">{summarizePayload(change.payload)}</td>
+                    <td data-label="Course">{courseName(change.payload?.courseId)}</td>
+                    <td data-label="Subject">{change.payload?.subject || subjectName(change.payload?.subjectId)}</td>
+                    <td data-label="Details">
+                      {change.entityType === "subject" && change.payload?.divisions ? (
+                        <MarksChangeSummary payload={change.payload} />
+                      ) : (
+                        summarizePayload(change.payload)
+                      )}
+                    </td>
                     <td data-label="Requested By">{change.requestedBy}</td>
                     <td data-label="Status">
                       <StatusBadge status={change.status} />
                     </td>
                     <td data-label="Actions">
-                      {change.status === "Pending" ? (
-                        <div className="action-group">
-                          <IconButton label="Approve" onClick={() => handleApprove(change)} icon={CircleCheck} />
-                          <IconButton label="Reject" onClick={() => setRejecting(change)} icon={X} tone="danger" />
-                        </div>
-                      ) : (
-                        <span>{change.reviewedBy}</span>
-                      )}
+                      <div className="action-group">
+                        {change.status === "Pending" && (
+                          <>
+                            <IconButton label="Approve" onClick={() => handleApprove(change)} icon={CircleCheck} />
+                            <IconButton label="Reject" onClick={() => setRejecting(change)} icon={X} tone="danger" />
+                          </>
+                        )}
+                        
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -132,7 +166,50 @@ export default function ApprovalsPage({ role, username }) {
           onConfirm={(note) => handleReject(rejecting, note)}
         />
       )}
-    </section>
+      {editingChange && (
+        <AddSubjectModal
+          editMode
+          username={username}
+          subjectOptions={[]}
+          initialSubject={{
+            id: editingChange.payload.subjectId,
+            name: editingChange.payload.subject,
+            divisions: editingChange.payload.divisions,
+            effectiveDate: editingChange.payload.effectiveDate,
+          }}
+          onClose={() => setEditingChange(null)}
+          onSave={(values) =>
+            handleResubmit(editingChange, {
+              ...editingChange.payload,
+              subject: values.subjectName,
+              divisions: values.divisions,
+              totalMarks: values.totalMarks,
+              effectiveDate: values.effectiveDate,
+              signatureName: values.signatureName,
+            })
+          }
+        />
+      )}
+
+      </section>
+  );
+}
+
+function MarksChangeSummary({ payload }) {
+  const typeLabel = { 1: "Internal Assessment", 2: "External Assessment", 3: "Theory / Practical" };
+  const divisions = (payload.divisions || []).filter((d) => d.maxMarks > 0 || d.passMarks > 0);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 220 }}>
+      {divisions.map((d) => (
+        <span key={d.examTypeId} style={{ fontSize: "0.82rem", color: "var(--ink)" }}>
+          <strong>{typeLabel[d.examTypeId] || d.examTypeId}:</strong> {d.maxMarks} / {d.passMarks}
+        </span>
+      ))}
+      <div style={{ fontSize: "0.76rem", color: "var(--muted)", marginTop: 2 }}>
+        Total {payload.totalMarks ?? 100} &middot; Effective {payload.effectiveDate || "-"} &middot; Signed{" "}
+        <strong style={{ color: "var(--ink)" }}>{payload.signatureName}</strong>
+      </div>
+    </div>
   );
 }
 

@@ -44,6 +44,15 @@ export function randomCaptcha() {
   return Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
+// Given scored marks and the pass-marks threshold configured on the subject
+// (by the Department, at Add Subject), returns "Pass"/"Fail", or null when
+// either value is missing/not yet known.
+export function passOrFail(scoredMarks, passMarks) {
+  if (scoredMarks === "" || scoredMarks === null || scoredMarks === undefined) return null;
+  if (passMarks === "" || passMarks === null || passMarks === undefined) return null;
+  return Number(scoredMarks) >= Number(passMarks) ? "Pass" : "Fail";
+}
+
 // Role-based permission checks used to gate the Verify/Approve row actions in DataTable.
 export function canVerify(role) {
   return ["Board Verifier", "BOME", "BOEN", "Super Admin"].includes(role);

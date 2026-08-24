@@ -7,6 +7,9 @@ import Dashboard from "./Dashboard.jsx";
 import CrudPage from "./CrudPage.jsx";
 import DepartmentAdminsPage from "./DepartmentAdminsPage.jsx";
 import InstitutionAdminsPage from "./InstitutionAdminsPage.jsx";
+import StudentRegistrationPage from "./StudentRegistrationPage.jsx";
+import StudentManagementPage from "./StudentManagementPage.jsx";
+import InternalMarksPage from "./InternalMarksPage.jsx";
 import InstitutionPortal from "./InstitutionPortal.jsx";
 import ApprovalsPage from "./ApprovalsPage.jsx";
 import { ROUTES } from "../routes.js";
@@ -16,6 +19,7 @@ export default function AppShell({
   role,
   username,
   institutionId,
+  institutionRole,
   data,
   activeRoute,
   setActiveRoute,
@@ -26,7 +30,15 @@ export default function AppShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dashboardView, setDashboardView] = useState("overview");
   const [dashboardViewCommand, setDashboardViewCommand] = useState(null);
-  const routesForRole = useMemo(() => ROUTES.filter((route) => route.roles.includes(role)), [role]);
+  const routesForRole = useMemo(
+    () =>
+      ROUTES.filter(
+        (route) =>
+          route.roles.includes(role) &&
+          (!route.institutionRoles || route.institutionRoles.includes(institutionRole)),
+      ),
+    [role, institutionRole],
+  );
   const currentRoute = routesForRole.find((route) => route.key === activeRoute) || routesForRole[0];
 
   function handleNavigate(routeKey, view) {
@@ -72,8 +84,14 @@ export default function AppShell({
             <DepartmentAdminsPage username={username} />
           ) : currentRoute.type === "institution-admins" ? (
             <InstitutionAdminsPage username={username} />
-          ) : currentRoute.type === "institution-portal" ? (
-            <InstitutionPortal institutionId={institutionId} username={username} />
+          ) : currentRoute.type === "student-registration" ? (
+            <StudentRegistrationPage institutionId={institutionId} username={username} />
+          ) : currentRoute.type === "student-management" ? (
+            <StudentManagementPage institutionId={institutionId} username={username} />
+          ) : currentRoute.type === "internal-marks" ? (
+            <InternalMarksPage institutionId={institutionId} username={username} />
+          ) : currentRoute.type === "institution-approvals-portal" ? (
+            <InstitutionPortal institutionId={institutionId} username={username} institutionRole={institutionRole} />
           ) : currentRoute.type === "approvals" ? (
             <ApprovalsPage role={role} username={username} />
           ) : (
