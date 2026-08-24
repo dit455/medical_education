@@ -118,6 +118,7 @@ export default function StudentRegistrationPage({ institutionId, username }) {
     <section className="content-stack" style={{ width: "100%", maxWidth: "none", padding: "0 32px" }}>
       <div className="page-heading">
         <div>
+          <br></br>
           <h2>Student Registration</h2>
         </div>
       </div>

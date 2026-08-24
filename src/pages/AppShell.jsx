@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import SiteHeader from "../components/SiteHeader.jsx";
+import StatusBadge from "../components/StatusBadge.jsx";
+import * as api from "../api.js";
 import SiteFooter from "../components/SiteFooter.jsx";
 import Sidebar from "./Sidebar.jsx";
 import Topbar from "./Topbar.jsx";
@@ -28,6 +30,28 @@ export default function AppShell({
   onBoardSwitch,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const [institution, setInstitution] = useState(null);
+
+  useEffect(() => {
+    if (role !== "Institution" || !institutionId) {
+      setInstitution(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .getInstitution(institutionId)
+      .then((inst) => {
+        if (!cancelled) setInstitution(inst || null);
+      })
+      .catch(() => {
+        if (!cancelled) setInstitution(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [role, institutionId]);
+
   const [dashboardView, setDashboardView] = useState("overview");
   const [dashboardViewCommand, setDashboardViewCommand] = useState(null);
   const routesForRole = useMemo(
@@ -68,6 +92,23 @@ export default function AppShell({
             route={currentRoute}
             onMenuClick={() => setSidebarOpen(true)}
           />
+          {institutionRole === "Creator" &&
+            ["student-registration", "student-management", "internal-marks"].includes(currentRoute.type) && (
+              <section className="content-stack institution-portal" style={{ padding: "0 32px" }}>
+                <section className="board-summary-card">
+                  <div className="board-summary-head">
+                    <div>
+                      <p className="eyebrow">Institution Portal</p>
+                      <h2>{institution?.name || "Loading..."}</h2>
+                      <span>Creator</span>
+                    </div>
+                    {institution && <StatusBadge status={institution.status} />}
+                  </div>
+                </section>
+              </section>
+            )}
+
+            
           {currentRoute.type === "dashboard" ? (
             <Dashboard
               data={data}
