@@ -37,10 +37,9 @@ const BOARD_MENU = [
   {
     label: "Approval Center",
     items: [
-      { label: "Student Verification", icon: UserCheck, routeKey: "student-verification" },
+      { label: "Registered Students", icon: UserCheck, routeKey: "student-verification" },
       { label: "Marks Approval", icon: CircleCheck, routeKey: "marks-approval" },
       { label: "Marksheet Approval", icon: FileCheck2, routeKey: "marksheet-approval" },
-      { label: "Institution Approvals", icon: CircleCheck, routeKey: "approvals" },
     ],
   },
   {

@@ -33,12 +33,6 @@ export default function CrudPage({ route, rows, columns, onChange, role }) {
 
   return (
     <section className="content-stack">
-      <div className="page-heading">
-        <div>
-          <p className="eyebrow">{route.group}</p>
-          <h2>{route.title}</h2>
-        </div>
-      </div>
       <DataTable
         title="Records"
         rows={rows}

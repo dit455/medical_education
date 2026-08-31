@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, CircleCheck } from "lucide-react";
 
 // Generic field-driven form modal used for add/edit/view of any entity row.
@@ -8,11 +9,17 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
   const [formValues, setFormValues] = useState(row);
   const isViewMode = mode === "view";
 
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   function setField(key, value) {
     setFormValues((prev) => ({ ...prev, [key]: value }));
   }
 
-  return (
+    return createPortal(
     <div className="modal-backdrop" role="presentation">
       <section className="modal" role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-heading">
@@ -117,7 +124,8 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
             </button>
           )}
         </div>
-      </section>
-    </div>
+            </section>
+    </div>,
+    document.body
   );
 }

@@ -1807,23 +1807,37 @@ tbody tr:last-child td {
   position: fixed;
   inset: 0;
   z-index: 60;
-  display: grid;
-  place-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
   padding: 18px;
+  overflow-y: auto;
   background: rgba(10, 27, 42, 0.58);
   backdrop-filter: blur(10px);
 }
 
 .modal {
   width: min(780px, 100%);
-  max-height: calc(100vh - 36px);
+  max-height: calc(100vh - 110px);
   overflow-y: auto;
+  margin: auto;
   border: 1px solid rgba(255, 255, 255, 0.64);
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: var(--shadow-strong);
   padding: 20px;
 }
+
+.modal > .modal-heading {
+  position: sticky;
+  top: -20px;
+  margin: -20px -20px 12px;
+  padding: 20px 20px 12px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--line);
+  z-index: 3;
+}
+
 
 .subject-details-modal {
   width: min(460px, 100%);
@@ -1855,6 +1869,7 @@ tbody tr:last-child td {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin-top: 18px;
+  align-items: start;
 }
 
 .form-grid input:disabled,
@@ -6406,6 +6421,45 @@ tbody tr.selected-row {
 .course-select-row input {
   width: auto;
 }
-/* The public homepage now lives in `src/styles/home.css` (loaded by
-   `src/pages/HomePage.jsx`); the old `.ems-*` single-screen dashboard rules
-   that used to sit here were removed with that redesign. */
+
+
+.dashboard-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.view-row .cell-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  background: #fff;
+}
+
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.password-field input {
+  width: 100%;
+  padding-right: 40px;
+}
+.password-toggle {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748B;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+}
+.password-toggle:hover {
+  color: var(--ink);
+}

@@ -106,6 +106,14 @@ export default function App() {
     setActiveRoute("dashboard");
   }
 
+  function handleChangePassword() {
+    setSession((prev) => ({ ...prev, screen: "change-password", voluntaryChange: true }));
+  }
+
+  function handleChangePasswordBack() {
+    setSession((prev) => ({ ...prev, screen: "app", voluntaryChange: false }));
+  }
+
   function handleDepartmentSelect(board) {
     setSession((prev) => ({ screen: "app", role: board, loginType: "department", username: prev.username }));
     setActiveRoute("dashboard");
@@ -138,7 +146,13 @@ export default function App() {
     return <DepartmentSelectPage onBack={handleLogout} onSelect={handleDepartmentSelect} />;
   }
   if (session.screen === "change-password") {
-    return <ChangePasswordPage username={session.username} onChanged={handlePasswordChanged} />;
+      return (
+      <ChangePasswordPage
+        username={session.username}
+        onChanged={handlePasswordChanged}
+        onBack={session.voluntaryChange ? handleChangePasswordBack : null}
+      />
+    );
   }
   return (
     <AppShell
@@ -152,6 +166,7 @@ export default function App() {
       updateEntity={updateEntity}
       onLogout={handleLogout}
       onBoardSwitch={session.loginType === "department" ? handleBoardSwitch : null}
+      onChangePassword={session.loginType === "institution" ? handleChangePassword : null}
     />
   );
 }

@@ -12,6 +12,13 @@ from db import get_connection
 from utils import actor_from_body
 from credentials import institution_initials
 
+import os
+import uuid
+from werkzeug.utils import secure_filename
+
+UPLOAD_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "student_photos")
+ALLOWED_PHOTO_EXT = {".jpg", ".jpeg", ".png", ".webp"}
+
 student_reg_bp = Blueprint("student_reg", __name__)
 
 INTERNAL_ASSESSMENT_EXAM_TYPE_ID = 1  # tbl_exam_type_master: 1 = Internal Assessment
@@ -19,7 +26,7 @@ INTERNAL_ASSESSMENT_EXAM_TYPE_ID = 1  # tbl_exam_type_master: 1 = Internal Asses
 
 def _student_row_to_dict(row):
     (student_id, reg_no, name, dob, father, address, email, mobile,
-     region_id, status_, course_id, year_id, inst_id) = row
+    gender, photo, region_id, status_, course_id, year_id, inst_id) = row
     return {
         "id": student_id,
         "registerNo": reg_no,
@@ -29,6 +36,8 @@ def _student_row_to_dict(row):
         "address": address,
         "email": email,
         "mobile": mobile,
+        "gender": gender,
+        "photo": photo,
         "regionId": region_id,
         "status": status_,
         "courseId": course_id,
@@ -39,9 +48,9 @@ def _student_row_to_dict(row):
 
 STUDENT_SELECT_SQL = """
     SELECT d.student_id, d.student_reg_no, d.student_name, d.student_dob,
-           d.student_father_name, d.student_address, d.student_email,
-           d.student_mobile, d.region_id, d.status_,
-           e.course_id, e.year_id, e.inst_id
+        d.student_father_name, d.student_address, d.student_email,
+        d.student_mobile, d.student_gender, d.student_photo, d.region_id, d.status_,
+        e.course_id, e.year_id, e.inst_id
     FROM tbl_student_det d
     JOIN tbl_student_enrol e ON e.student_id = d.student_id
 """
@@ -71,15 +80,17 @@ def apply_create_student_registration(cursor, institution_id, payload, actor="sy
     cursor.execute(
         """
         INSERT INTO tbl_student_det
-            (student_reg_no, student_name, student_dob, student_father_name,
-             student_address, student_email, student_mobile, region_id,
-             created_by, created_date, status_)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), 'Active')
+        (student_reg_no, student_name, student_dob, student_father_name,
+        student_address, student_email, student_mobile, student_gender, region_id,
+        student_other_state, created_by, created_date, status_)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), 'Active')
         """,
         (
             reg_no, payload.get("studentName"), payload.get("studentDob"),
             payload.get("studentFatherName"), payload.get("studentAddress"),
-            payload.get("studentEmail"), payload.get("studentMobile"), payload.get("regionId"),
+            payload.get("studentEmail"), payload.get("studentMobile"),
+            payload.get("studentGender"), payload.get("regionId"),
+            payload.get("otherState"),
             actor,
         ),
     )
@@ -100,11 +111,44 @@ def apply_create_student_registration(cursor, institution_id, payload, actor="sy
     return _student_row_to_dict(cursor.fetchone())
 
 
+
+def _normalize_exam_date(value):
+    """The UI now sends a month/year label like 'August 2026' or 'Feb-March 2026'.
+    Convert it to a real first-of-month DATE (YYYY-MM-01) so it fits the DATE
+    column. Falls back to the raw value if it already looks like a date."""
+    if not value:
+        return value
+    import re
+    from datetime import datetime
+    text = str(value).strip()
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", text):
+        return text
+    months = {m.lower(): i for i, m in enumerate(
+        ["January","February","March","April","May","June","July",
+         "August","September","October","November","December"], start=1)}
+    abbr = {m[:3].lower(): i for m, i in
+            {k.capitalize(): v for k, v in months.items()}.items()}
+    year_match = re.search(r"(\d{4})", text)
+    year = year_match.group(1) if year_match else str(datetime.now().year)
+    # first month token found in the string
+    first_month = None
+    for token in re.split(r"[^A-Za-z]+", text):
+        t = token.lower()
+        if t in months:
+            first_month = months[t]; break
+        if t in abbr:
+            first_month = abbr[t]; break
+    if not first_month:
+        return value
+    return f"{year}-{first_month:02d}-01"
+
+
 def _find_or_create_exam_schedule(cursor, payload, actor):
     """Reuses an existing schedule row for this exact
     course/subject/year/sem/session/category/date combination, or creates
     one - so repeated marks entry for the same exam doesn't spawn duplicate
     schedule rows."""
+    payload = {**payload, "examDate": _normalize_exam_date(payload.get("examDate"))}
     cursor.execute(
         """
         SELECT exam_sch_id FROM tbl_exam_schedule
@@ -143,6 +187,7 @@ def apply_create_internal_marks(cursor, payload, actor="system"):
     marks against it. exam_type_id is always forced to Internal regardless
     of what the caller sends, so External/Theory can never be written
     through this path."""
+    payload = {**payload, "examDate": _normalize_exam_date(payload.get("examDate"))}
     _find_or_create_exam_schedule(cursor, payload, actor)
 
     cursor.execute(
@@ -180,6 +225,19 @@ def get_students_for_institution(institution_id):
     try:
         cursor = conn.cursor()
         cursor.execute(STUDENT_SELECT_SQL + " WHERE e.inst_id = %s", (institution_id,))
+        rows = cursor.fetchall()
+        cursor.close()
+        return jsonify([_student_row_to_dict(r) for r in rows])
+    finally:
+        conn.close()
+
+
+@student_reg_bp.route("/api/students", methods=["GET"])
+def get_all_students():
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(STUDENT_SELECT_SQL)
         rows = cursor.fetchall()
         cursor.close()
         return jsonify([_student_row_to_dict(r) for r in rows])
@@ -246,26 +304,36 @@ def apply_update_student_registration(cursor, student_id, payload, actor="system
     cursor.execute(
         """
         UPDATE tbl_student_det
-        SET student_reg_no = %s, student_name = %s, student_dob = %s,
-            student_father_name = %s, student_address = %s, student_email = %s,
-            student_mobile = %s, region_id = %s, updated_by = %s, updated_date = NOW()
+        SET student_reg_no = COALESCE(%s, student_reg_no),
+            student_name = COALESCE(%s, student_name),
+            student_dob = COALESCE(%s, student_dob),
+            student_father_name = COALESCE(%s, student_father_name),
+            student_address = COALESCE(%s, student_address),
+            student_email = COALESCE(%s, student_email),
+            student_mobile = COALESCE(%s, student_mobile),
+            student_gender = COALESCE(%s, student_gender),
+            region_id = COALESCE(%s, region_id),
+            status_ = COALESCE(%s, status_)
         WHERE student_id = %s
         """,
         (
             payload.get("studentRegNo"), payload.get("studentName"), payload.get("studentDob"),
             payload.get("studentFatherName"), payload.get("studentAddress"),
-            payload.get("studentEmail"), payload.get("studentMobile"), payload.get("regionId"),
-            actor, student_id,
+            payload.get("studentEmail"), payload.get("studentMobile"),
+            payload.get("studentGender"), payload.get("regionId"),
+            payload.get("status"),
+            student_id,
         ),
     )
     cursor.execute(
         """
         UPDATE tbl_student_enrol
-        SET course_id = %s, year_id = %s, student_reg_no = %s,
-            updated_by = %s, updated_date = NOW()
+        SET course_id = COALESCE(%s, course_id),
+            year_id = COALESCE(%s, year_id),
+            student_reg_no = COALESCE(%s, student_reg_no)
         WHERE student_id = %s
         """,
-        (payload.get("courseId"), payload.get("yearId"), payload.get("studentRegNo"), actor, student_id),
+        (payload.get("courseId"), payload.get("yearId"), payload.get("studentRegNo"), student_id),
     )
     cursor.execute(STUDENT_SELECT_SQL + " WHERE d.student_id = %s", (student_id,))
     row = cursor.fetchone()
@@ -310,3 +378,44 @@ def delete_student(student_id):
         return jsonify({"ok": True})
     finally:
         conn.close()
+
+
+
+
+
+@student_reg_bp.route("/api/students/<int:student_id>/photo", methods=["POST"])
+def upload_student_photo(student_id):
+    if "photo" not in request.files:
+        return jsonify({"error": "No photo file provided"}), 400
+    file = request.files["photo"]
+    if not file or not file.filename:
+        return jsonify({"error": "Empty photo"}), 400
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_PHOTO_EXT:
+        return jsonify({"error": "Only JPG, PNG or WEBP images are allowed"}), 400
+
+    os.makedirs(UPLOAD_ROOT, exist_ok=True)
+    fname = f"student_{student_id}_{uuid.uuid4().hex[:8]}{ext}"
+    file.save(os.path.join(UPLOAD_ROOT, secure_filename(fname)))
+
+    rel_path = f"student_photos/{fname}"
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE tbl_student_det SET student_photo = %s WHERE student_id = %s",
+            (rel_path, student_id),
+        )
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "photo": rel_path})
+
+
+@student_reg_bp.route("/api/uploads/<path:subpath>", methods=["GET"])
+def serve_upload(subpath):
+    from flask import send_from_directory
+    base = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+    return send_from_directory(base, subpath)

@@ -170,8 +170,9 @@ export const ENTITY_FIELDS = {
     ["owner", "Owner"],
     ["status", "Status", ["Active", "Inactive"]],
   ],
-  institution: [
+    institution: [
     ["name", "Institution"],
+    ["email", "Email"],
     ["region", "Region"],
     ["category", "Category"],
     ["status", "Status", ["Active", "Inactive"]],

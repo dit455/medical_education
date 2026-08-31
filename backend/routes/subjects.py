@@ -119,6 +119,9 @@ def apply_create_subject(cursor, course_id, subject, year_id, sem_id, priority=N
                           divisions=None, effective_date=None, total_marks=100,
                           course_subject_id=None, signature_name=None):
     subject = (subject or "").strip()
+    # An empty effective date must become NULL, not '' — MySQL rejects '' for a DATE column.
+    if not effective_date:
+        effective_date = None
     status_ = label_to_status(status_label)
 
     if divisions:
@@ -366,10 +369,20 @@ def update_subject(course_subject_id):
     try:
         cursor = conn.cursor()
         try:
-            result = apply_update_subject(
-                cursor, course_subject_id, body.get("subject"), body.get("year_id"), body.get("sem_id"),
-                body.get("priority"), body.get("status", "Active"), actor_from_body(body),
-            )
+            if body.get("divisions"):
+                result = apply_create_subject(
+                    cursor, body.get("courseId"), body.get("subject"),
+                    body.get("yearId") or body.get("year_id"), body.get("semId") or body.get("sem_id"),
+                    body.get("priority"), body.get("status", "Active"), actor_from_body(body),
+                    body.get("divisions"), body.get("effectiveDate"),
+                    body.get("totalMarks", 100), course_subject_id,
+                    body.get("signatureName"),
+                )
+            else:
+                result = apply_update_subject(
+                    cursor, course_subject_id, body.get("subject"), body.get("year_id"), body.get("sem_id"),
+                    body.get("priority"), body.get("status", "Active"), actor_from_body(body),
+                )
         except ValueError as exc:
             cursor.close()
             return jsonify({"error": str(exc)}), 404

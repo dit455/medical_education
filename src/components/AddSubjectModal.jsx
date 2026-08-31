@@ -114,7 +114,13 @@ export default function AddSubjectModal({
       effectiveDate,
       signatureName: finalSignature,
       }),
-    ).then(() => setSubmitted(true));
+      ).then(() => {
+      if (editMode) {
+        onClose();
+      } else {
+        setSubmitted(true);
+      }
+    });
   }
 
   if (submitted) {
@@ -137,7 +143,7 @@ export default function AddSubjectModal({
               <CircleCheck size={30} color="var(--brand)" />
             </div>
             <h3 style={{ margin: "0 0 8px" }}>
-              {editMode ? "Submitted for Approval" : "Subject Added"}
+              {editMode ? "Changes Saved" : "Subject Added"}
             </h3>
             <p style={{ color: "var(--muted)", margin: "0 0 20px", fontSize: "0.9rem" }}>
               {editMode
@@ -335,7 +341,7 @@ export default function AddSubjectModal({
           </button>
           <button className="primary-btn" disabled={!canSave} onClick={handleSave}>
             <CircleCheck size={18} />
-            {editMode ? "Submit for Approval" : "Save"}
+              {editMode ? "Save Changes" : "Save"}
           </button>
         </div>
       </section>
