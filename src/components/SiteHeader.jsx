@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, LogOut, UserRound } from "lucide-react";
+import { ArrowLeft, LogOut, UserRound, KeyRound } from "lucide-react";
+
 
 // Top institute header bar shown on every screen (login, department select, app shell).
-export default function SiteHeader({ showSearch = true, compact = false, role, username, onLogout, onBoardSwitch }) {
+export default function SiteHeader({ showSearch = true, compact = false, role, username, onLogout, onBoardSwitch, onChangePassword }) {
   if (compact) {
     return (
       <header className="institute-header app-compact-header">
@@ -25,6 +26,12 @@ export default function SiteHeader({ showSearch = true, compact = false, role, u
               <button className="secondary-btn switch-board-btn" onClick={onBoardSwitch}>
                 <ArrowLeft size={17} />
                 Switch BOME/BOEN
+              </button>
+            )}
+            {onChangePassword && (
+              <button className="secondary-btn" onClick={onChangePassword}>
+                <KeyRound size={17} />
+                Change Password
               </button>
             )}
             <ProfileMenu role={role} username={username} />

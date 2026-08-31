@@ -63,7 +63,7 @@ export const ABOUT_STATEMENT = {
   eyebrow: "About the Organisation",
   title: "What we do",
   body:
-    "The Board of Medical Education (BOME) and the Board of Examinations in Nursing (BOEN) are autonomous bodies under the Health & Family Welfare Department, Government of Puducherry. They regulate admissions, conduct examinations, and issue certification for diploma courses in Medical, Nursing, Paramedical and Allied Health Sciences across affiliated institutions in the Union Territory.",
+    "The Board of Medical Education (BOME) and the Board of Examination for Nurses (BOEN) function under the Directorate of Health & Family Welfare Services, Government of Puducherry.\n\nThe Boards are responsible for the academic and examination-related functions of various diploma-level programmes in Nursing and Allied Health Sciences by affiliated institutions in the Union Territory of Puducherry.\n\nThe Boards oversee and regulate the admission process, academic requirements, conduct of examinations, evaluation, and issuance of certificates to eligible students. They strive to maintain uniform academic and examination standards and ensure the proper implementation of prescribed curricula and regulations across affiliated institutions.\n\nThrough these functions, BOME and BOEN contribute to maintaining the quality, credibility, and standards of education and professional training in the fields of Nursing and Allied Health Sciences in the Union Territory of Puducherry.",
   functions: [
     "Register students and issue unique registration numbers.",
     "Publish examination schedules and conduct term examinations.",
@@ -359,7 +359,6 @@ export const CONTACT_SECTION = {
 
 export const CONTACT_CHANNELS = [
   { id: "c1", label: "0413 – 2238306", href: "tel:04132238306", icon: Phone },
-  { id: "c2", label: "0413 – 2230756", href: "tel:04132230756", icon: Phone },
   { id: "c3", label: "helpdesk@mtpg-rihs.py.gov.in", href: "mailto:helpdesk@mtpg-rihs.py.gov.in", icon: Mail },
   { id: "c4", label: "IGGGH & PGI Campus, Puducherry", href: "#contact", icon: MapPin },
 ];

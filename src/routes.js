@@ -185,7 +185,7 @@ export const ROUTES = [
     group: "Board Workflows",
     entity: "students",
     fields: ENTITY_FIELDS.student,
-    title: "Student Verification and Approval",
+    title: "Registered Students — All Institutions",
     workflow: true,
   },
   {

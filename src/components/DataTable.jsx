@@ -6,6 +6,7 @@ import StatusBadge from "./StatusBadge.jsx";
 import IconButton from "./IconButton.jsx";
 import RecordModal from "./RecordModal.jsx";
 import ConfirmDialog from "./ConfirmDialog.jsx";
+import ExportMenu from "./ExportMenu.jsx";
 
 // Generic searchable / filterable / paginated table used everywhere in the app.
 // Opens RecordModal for add/edit/view, and renders per-row action buttons
@@ -184,10 +185,14 @@ export default function DataTable({
               ))}
             </select>
           </label>
-          <button className="secondary-btn compact-btn export-btn" type="button" onClick={handleExport} disabled={disabled}>
-            <Download size={15} />
-            Export
-          </button>
+            <ExportMenu
+            disabled={disabled}
+            getData={() => ({
+              title: title || "Records",
+              headers: columns.map((column) => FIELD_LABELS[column] || humanizeKey(column)),
+              rows: filteredRows.map((row) => columns.map((column) => row[column])),
+            })}
+          />
         </div>
       </div>
       <div className="table-wrap data-table-scroll">
@@ -239,16 +244,13 @@ export default function DataTable({
                     <div className="action-group">
                       {fields.length > 0 && (
                         <IconButton
-                          label="View"
-                          onClick={() => (onView ? onView(row) : setModalState({ mode: "view", row }))}
+                          label={canAdd ? "View / Edit" : "View"}
+                          onClick={() =>
+                            onView
+                              ? onView(row)
+                              : setModalState({ mode: canAdd ? "edit" : "view", row })
+                          }
                           icon={FileText}
-                        />
-                      )}
-                      {canAdd && (
-                        <IconButton
-                          label="Edit"
-                          onClick={() => setModalState({ mode: "edit", row })}
-                          icon={Pencil}
                         />
                       )}
                       {onToggle && (

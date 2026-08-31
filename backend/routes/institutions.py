@@ -6,6 +6,8 @@ from werkzeug.security import generate_password_hash
 from db import get_connection
 from utils import actor_from_body, board_column, label_to_status, status_to_label
 from credentials import generate_role_username, generate_password
+from mailer import send_credentials_email
+import threading
 
 institutions_bp = Blueprint("institutions", __name__)
 
@@ -69,6 +71,7 @@ def get_institution(institution_id):
 def create_institution():
     body = request.get_json(force=True) or {}
     name = body.get("name")
+    inst_email = body.get("email")
     region_id = body.get("region_id")
     cat_id = body.get("category_id")
     board = body.get("board")
@@ -87,11 +90,11 @@ def create_institution():
         cursor.execute(
             f"""
             INSERT INTO tbl_inst_master
-                (inst_id, inst_name, {column}, {other_column}, region_id, cat_id,
-                 created_by, created_date, status_)
-            VALUES (%s, %s, 1, 0, %s, %s, %s, NOW(), %s)
+            (inst_id, inst_name, inst_email, {column}, {other_column}, region_id, cat_id,
+            created_by, created_date, status_)
+            VALUES (%s, %s, %s, 1, 0, %s, %s, %s, NOW(), %s)
             """,
-            (new_id, name, region_id, cat_id, actor, status_),
+            (new_id, name, inst_email, region_id, cat_id, actor, status_),
         )
         conn.commit()
 
@@ -100,9 +103,9 @@ def create_institution():
         # password is returned exactly once in this response; after this,
         # only its hash exists in the DB.
         creator_username = generate_role_username("Creator", name, new_id)
-        creator_password = generate_password()
+        creator_password = f"{creator_username}@123"
         approver_username = generate_role_username("Approver", name, new_id)
-        approver_password = generate_password()
+        approver_password = f"{approver_username}@123"
 
         cursor.execute(
             """
@@ -126,6 +129,17 @@ def create_institution():
         result = _institution_row_to_dict(row)
         result["creatorLogin"] = {"username": creator_username, "password": creator_password}
         result["approverLogin"] = {"username": approver_username, "password": approver_password}
+        # Send the credentials email in the background so the response
+        # (and the credentials popup) returns immediately.
+        threading.Thread(
+            target=send_credentials_email,
+            args=(
+                inst_email, name,
+                {"username": creator_username, "password": creator_password},
+                {"username": approver_username, "password": approver_password},
+            ),
+            daemon=True,
+        ).start()
         return jsonify(result), 201
     finally:
         conn.close()
@@ -167,8 +181,40 @@ def delete_institution(institution_id):
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        # Remove this institution's auto-provisioned login account(s) first -
-        # tbl_inst_master can't be deleted while users.inst_id still points to it.
+
+        # Collect this institution's students so their dependent rows can be
+        # removed first (foreign keys block deleting the institution otherwise).
+        cursor.execute(
+            "SELECT student_id FROM tbl_student_enrol WHERE inst_id = %s", (institution_id,)
+        )
+        student_ids = [r[0] for r in cursor.fetchall()]
+
+        if student_ids:
+            fmt = ",".join(["%s"] * len(student_ids))
+            # Marks / internal marks tied to these students (ignore if tables absent).
+            for tbl in ("tbl_attendance", "tbl_student_marks", "tbl_student_master"):
+                try:
+                    cursor.execute(
+                        f"DELETE FROM {tbl} WHERE student_id IN ({fmt})", tuple(student_ids)
+                    )
+                except Exception:
+                    pass
+            cursor.execute(
+                f"DELETE FROM tbl_student_enrol WHERE student_id IN ({fmt})", tuple(student_ids)
+            )
+            cursor.execute(
+                f"DELETE FROM tbl_student_det WHERE student_id IN ({fmt})", tuple(student_ids)
+            )
+
+        # Any remaining enrolment rows for this institution.
+        cursor.execute(
+            "DELETE FROM tbl_student_enrol WHERE inst_id = %s", (institution_id,)
+        )
+        # tbl_student_master references inst_id directly.
+        cursor.execute(
+            "DELETE FROM tbl_student_master WHERE inst_id = %s", (institution_id,)
+        )
+        # Auto-provisioned login account(s).
         cursor.execute(
             "DELETE FROM users WHERE inst_id = %s", (institution_id,)
         )
@@ -181,5 +227,8 @@ def delete_institution(institution_id):
         conn.commit()
         cursor.close()
         return jsonify({"ok": True})
+    except Exception as exc:
+        conn.rollback()
+        return jsonify({"error": f"Could not delete this institution: {exc}"}), 400
     finally:
         conn.close()

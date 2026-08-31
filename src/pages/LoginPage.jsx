@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, RefreshCw, LockKeyhole } from "lucide-react";
+import { ArrowLeft, RefreshCw, LockKeyhole, Eye, EyeOff } from "lucide-react";
 import SiteHeader from "../components/SiteHeader.jsx";
 import SiteFooter from "../components/SiteFooter.jsx";
 import { randomCaptcha } from "../utils.js";
@@ -11,6 +11,7 @@ export default function LoginPage({ onLogin, onBackHome }) {
   const [captcha, setCaptcha] = useState(randomCaptcha());
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -115,15 +116,26 @@ export default function LoginPage({ onLogin, onBackHome }) {
                   autoComplete="username"
                 />
               </label>
-              <label>
+                <label>
                 <span>Password</span>
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => setField("password", e.target.value)}
-                  placeholder="Password"
-                  autoComplete="current-password"
-                />
+                <div className="password-field">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={(e) => setField("password", e.target.value)}
+                    placeholder="Password"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword((s) => !s)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    title={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+                  </button>
+                </div>
               </label>
               <div className="captcha-block">
                 <span>Captcha Verification</span>

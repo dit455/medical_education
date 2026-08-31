@@ -1,23 +1,26 @@
 import { useState, useEffect, useMemo } from "react";
-import { X, Pencil, FileText, Trash2 } from "lucide-react";
+import { FileText, Search, Download, ChevronLeft, ChevronRight, Filter, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
 import * as api from "../api.js";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
-import IconButton from "../components/IconButton.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
-import RecordModal from "../components/RecordModal.jsx";
+import StudentEditModal from "../components/StudentEditModal.jsx";
+import ExportMenu from "../components/ExportMenu.jsx";
 
-// Lists every student registered at this institution (tbl_student_det +
-// tbl_student_enrol, via api.getInstitutionStudents). Split out of Student
-// Registration so registering a new student and managing existing ones are
-// two separate menu items.
+const STATUS_FILTERS = ["Active", "Inactive", "Draft", "Submitted", "Verified", "Approved"];
+
+// Lists every student registered at this institution, with search, status
+// filter, rows selector, PDF export, pagination, and a merged view+edit modal.
 export default function StudentManagementPage({ institutionId, username }) {
   const [regions, setRegions] = useState([]);
   const [courses, setCourses] = useState([]);
   const [years, setYears] = useState([]);
   const [students, setStudents] = useState([]);
-  const [viewingStudent, setViewingStudent] = useState(null);
-  const [editingStudent, setEditingStudent] = useState(null);
-  const [deletingStudent, setDeletingStudent] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
 
   function refreshStudents() {
     api.getInstitutionStudents(institutionId).then(setStudents).catch(() => setStudents([]));
@@ -30,130 +33,160 @@ export default function StudentManagementPage({ institutionId, username }) {
     refreshStudents();
   }, [institutionId]);
 
-  function nameFor(list, id) {
-    return list.find((x) => String(x.id) === String(id))?.name || "-";
+  const nameFor = (list, id) => list.find((x) => String(x.id) === String(id))?.name || "-";
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return students.filter((s) => {
+      const matchSearch = !q ||
+        [s.registerNo, s.name, s.fatherName, s.mobile, s.status]
+          .filter(Boolean).join(" ").toLowerCase().includes(q);
+      const matchStatus = statusFilter === "All" || s.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [students, search, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+  const rangeStart = filtered.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
+  const rangeEnd = Math.min(currentPage * rowsPerPage, filtered.length);
+
+  async function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) return resolve();
+      const el = document.createElement("script");
+      el.src = src; el.onload = resolve; el.onerror = reject;
+      document.body.appendChild(el);
+    });
   }
 
-  const REG_EDIT_FIELDS = useMemo(
-    () => [
-      ["studentName", "Student Name"],
-      ["studentDob", "Date of Birth"],
-      ["studentFatherName", "Father's Name"],
-      ["studentAddress", "Address"],
-      ["studentEmail", "Email"],
-      ["studentMobile", "Mobile"],
-    ],
-    [courses],
-  );
-
-  function toFormShape(student) {
-    return {
-      studentRegNo: student.registerNo || "",
-      studentName: student.name || "",
-      studentDob: student.dob || "",
-      studentFatherName: student.fatherName || "",
-      studentAddress: student.address || "",
-      studentEmail: student.email || "",
-      studentMobile: student.mobile || "",
-      regionId: student.regionId || "",
-      courseId: student.courseId || "",
-      yearId: student.yearId || "",
-    };
+  async function handleExportPdf() {
+    try {
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFontSize(14);
+      doc.text("Registered Students", 14, 16);
+      doc.autoTable({
+        startY: 22,
+        head: [["S.No", "Reg No", "Student", "Course", "Year", "Region", "Status"]],
+        body: filtered.map((s, i) => [
+          i + 1, s.registerNo ?? "", s.name ?? "",
+          nameFor(courses, s.courseId), nameFor(years, s.yearId),
+          nameFor(regions, s.regionId), s.status ?? "",
+        ]),
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [15, 118, 110] },
+      });
+      doc.save("students.pdf");
+    } catch (err) {
+      alert("Could not generate PDF: " + err.message);
+    }
   }
 
-  async function handleUpdateStudent(student, values) {
+  async function toggleStatus(student) {
+    const next = String(student.status).toLowerCase() === "active" ? "Inactive" : "Active";
+    try {
+      await api.updateStudentDirect(student.id, { status: next, actor: username });
+      refreshStudents();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function handleUpdate(student, values) {
     try {
       await api.updateStudentDirect(student.id, { ...values, actor: username });
-      setEditingStudent(null);
+      setEditing(null);
       refreshStudents();
-    } catch (err) {
-      alert(err.message || "Could not update this student.");
-    }
+    } catch (err) { alert(err.message || "Could not update this student."); }
   }
 
-  async function handleDeleteStudent(student) {
+  async function handleDelete(student) {
     try {
       await api.deleteStudent(student.id);
-      setDeletingStudent(null);
+      setDeleting(null);
       refreshStudents();
-    } catch (err) {
-      alert(err.message || "Could not delete this student.");
-    }
+    } catch (err) { alert(err.message || "Could not delete this student."); }
   }
 
   return (
     <section className="content-stack" style={{ width: "100%", maxWidth: "none", padding: "0 32px" }}>
-      <div className="page-heading">
-        <div>
-          <h2>Student Management</h2>
-        </div>
-      </div>
+      <div className="page-heading"><div><br /><h2>Student Management</h2></div></div>
 
       <section className="data-table-card" style={{ width: "100%" }}>
         <div className="data-table-heading">
           <div>
             <h3>Registered Students</h3>
-            <span>Students registered at your institution, saved directly to the database.</span>
           </div>
         </div>
+
+        <div className="table-toolbar">
+          <label className="search-box small">
+            <Search size={15} />
+            <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search" />
+          </label>
+          <div className="table-toolbar-controls">
+            <label className="select-box small">
+              <Filter size={15} />
+              <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+                <option>All</option>
+                {STATUS_FILTERS.map((o) => <option key={o}>{o}</option>)}
+              </select>
+            </label>
+            <label className="select-box small rows-select">
+              Rows
+              <select value={rowsPerPage} onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}>
+                {[5, 10, 20].map((o) => <option key={o}>{o}</option>)}
+              </select>
+            </label>
+              <ExportMenu
+              disabled={filtered.length === 0}
+              getData={() => ({
+                title: "Registered Students",
+                headers: ["S.No", "Reg No", "Student", "Course", "Year", "Region", "Status"],
+                rows: filtered.map((s, i) => [i + 1, s.registerNo, s.name, nameFor(courses, s.courseId), nameFor(years, s.yearId), nameFor(regions, s.regionId), s.status]),
+              })}
+            />
+          </div>
+        </div>
+
         <div className="table-wrap data-table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Reg No</th>
-                <th>Student Name</th>
-                <th>Course</th>
-                <th>Year</th>
-                <th>Region</th>
-                <th>Details</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th>S.NO</th><th>STUDENT</th><th>STUDENT ID</th>
+                <th>COURSE</th><th>YEAR</th><th>REGION</th><th>STATUS</th><th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
-              {students.length === 0 ? (
+              {pageRows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="empty-state">
-                    <div className="table-empty">
-                      <span>No students registered yet</span>
-                    </div>
+                    <div className="table-empty"><span>No students registered yet</span></div>
                   </td>
                 </tr>
               ) : (
-                students.map((student) => (
+                pageRows.map((student, i) => (
                   <tr key={student.id}>
-                    <td data-label="Reg No">{student.registerNo}</td>
-                    <td data-label="Student Name">{student.name}</td>
+                    <td data-label="S.No">{(currentPage - 1) * rowsPerPage + i + 1}</td>
+                    <td data-label="Student">{student.name}</td>
+                    <td data-label="Student ID">{student.registerNo}</td>
                     <td data-label="Course">{nameFor(courses, student.courseId)}</td>
                     <td data-label="Year">{nameFor(years, student.yearId)}</td>
                     <td data-label="Region">{nameFor(regions, student.regionId)}</td>
-                    <td data-label="Details">
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: "0.82rem" }}>
-                        <span>DOB {student.dob}</span>
-                        <span>Father: {student.fatherName}</span>
-                        <span>{student.email}</span>
-                        <span>{student.mobile}</span>
-                      </div>
-                    </td>
-                    <td data-label="Status">
-                      <StatusBadge status={student.status} />
-                    </td>
+                    <td data-label="Status"><StatusBadge status={student.status} /></td>
                     <td data-label="Actions">
                       <div className="action-group">
-                        <IconButton label="View" icon={FileText} onClick={() => setViewingStudent(student)} />
-                        <IconButton
-                          label="Edit"
-                          icon={Pencil}
-                          title="Edit this student"
-                          onClick={() => setEditingStudent(student)}
-                        />
-                        <IconButton
-                          label="Delete"
-                          icon={Trash2}
-                          tone="danger"
-                          title="Remove this student"
-                          onClick={() => setDeletingStudent(student)}
-                        />
+                        <button type="button" className="icon-btn" title="View / Edit" onClick={() => setEditing(student)}>
+                          <FileText size={16} />
+                        </button>
+                        <button type="button" className="icon-btn" title={String(student.status).toLowerCase() === "active" ? "Set Inactive" : "Set Active"} onClick={() => toggleStatus(student)}>
+                          {String(student.status).toLowerCase() === "active" ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                        </button>
+                        <button type="button" className="icon-btn danger" title="Delete student" onClick={() => setDeleting(student)}>
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -162,58 +195,38 @@ export default function StudentManagementPage({ institutionId, username }) {
             </tbody>
           </table>
         </div>
+
+        <div className="pagination">
+          <span>{rangeStart}-{rangeEnd} of {filtered.length}</span>
+          <div>
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} aria-label="Previous page">
+              <ChevronLeft size={17} />
+            </button>
+            <strong>{currentPage} / {totalPages}</strong>
+            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} aria-label="Next page">
+              <ChevronRight size={17} />
+            </button>
+          </div>
+        </div>
       </section>
 
-      {viewingStudent && (
-        <div className="modal-backdrop" role="presentation">
-          <section className="modal" role="dialog" aria-modal="true" aria-label="Student Details">
-            <div className="modal-heading">
-              <div>
-                <p className="eyebrow">view</p>
-                <h3>{viewingStudent.name}</h3>
-              </div>
-              <button className="icon-btn" onClick={() => setViewingStudent(null)} aria-label="Close">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="preview-section-stack">
-              <section className="preview-section">
-                <dl>
-                  <div><dt>Register No</dt><dd>{viewingStudent.registerNo}</dd></div>
-                  <div><dt>Date of Birth</dt><dd>{viewingStudent.dob}</dd></div>
-                  <div><dt>Father's Name</dt><dd>{viewingStudent.fatherName}</dd></div>
-                  <div><dt>Address</dt><dd>{viewingStudent.address}</dd></div>
-                  <div><dt>Email</dt><dd>{viewingStudent.email}</dd></div>
-                  <div><dt>Mobile</dt><dd>{viewingStudent.mobile}</dd></div>
-                  <div><dt>Course</dt><dd>{nameFor(courses, viewingStudent.courseId)}</dd></div>
-                  <div><dt>Year</dt><dd>{nameFor(years, viewingStudent.yearId)}</dd></div>
-                  <div><dt>Region</dt><dd>{nameFor(regions, viewingStudent.regionId)}</dd></div>
-                  <div><dt>Status</dt><dd><StatusBadge status={viewingStudent.status} /></dd></div>
-                </dl>
-              </section>
-            </div>
-            <div className="modal-actions">
-              <button className="primary-btn" onClick={() => setViewingStudent(null)}>Close</button>
-            </div>
-          </section>
-        </div>
-      )}
-      {editingStudent && (
-        <RecordModal
-          mode="edit"
-          row={toFormShape(editingStudent)}
-          fields={REG_EDIT_FIELDS}
-          title="Edit Student"
-          onClose={() => setEditingStudent(null)}
-          onSave={(values) => handleUpdateStudent(editingStudent, values)}
+      {editing && (
+        <StudentEditModal
+          student={editing}
+          courses={courses}
+          years={years}
+          regions={regions}
+          username={username}
+          onClose={() => setEditing(null)}
+          onSave={(student, values) => handleUpdate(student, values)}
         />
       )}
-      {deletingStudent && (
+      {deleting && (
         <ConfirmDialog
           title="Delete this student?"
           message="This action cannot be undone."
-          onConfirm={() => handleDeleteStudent(deletingStudent)}
-          onCancel={() => setDeletingStudent(null)}
+          onConfirm={() => handleDelete(deleting)}
+          onCancel={() => setDeleting(null)}
         />
       )}
     </section>

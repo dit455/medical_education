@@ -20,9 +20,11 @@ import {
 import StatusBadge from "../components/StatusBadge.jsx";
 import DataTable from "../components/DataTable.jsx";
 import RecordModal from "../components/RecordModal.jsx";
+import SubjectEditModal from "../components/SubjectEditModal.jsx";
 import CourseSelectModal from "../components/CourseSelectModal.jsx";
 import RecordPickModal from "../components/RecordPickModal.jsx";
 import ListViewModal from "../components/ListViewModal.jsx";
+import ViewStudentsModal from "../components/ViewStudentsModal.jsx";
 import SubjectMapModal from "../components/SubjectMapModal.jsx";
 import AddSubjectModal from "../components/AddSubjectModal.jsx";
 import CascadeEditModal from "../components/CascadeEditModal.jsx";
@@ -106,6 +108,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   const [institutions, setInstitutions] = useState([]);
   const [coursesForInstitution, setCoursesForInstitution] = useState([]);
   const [subjectsForCourse, setSubjectsForCourse] = useState([]);
+  const [viewStudentsOpen, setViewStudentsOpen] = useState(false);
   const [regions, setRegions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [years, setYears] = useState([]);
@@ -293,6 +296,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   async function saveInstitution(values) {
     const payload = {
       name: values.name,
+      email: values.email,
       region_id: resolveRegionId(values.region),
       category_id: resolveCategoryId(values.category),
       status: values.status || "Active",
@@ -545,16 +549,17 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     try {
       const defaultYear = years[0]?.id || null;
       const defaultSem = examSems[0]?.id || null;
-      await api.createSubject(selectedCourseIdResolved, {
+      await api.updateSubject(editMarksSubject.id, {
+        courseId: selectedCourseIdResolved,
         subject: values.subjectName.trim(),
-        year_id: defaultYear,
-        sem_id: defaultSem,
-        priority: 1,
+        yearId: resolveYearId(editMarksSubject.year) || defaultYear,
+        semId: resolveSemId(editMarksSubject.semester) || defaultSem,
+        priority: editMarksSubject.priority || 1,
         status: "Active",
         divisions: values.divisions,
-        effective_date: values.effectiveDate,
+        effectiveDate: values.effectiveDate,
         totalMarks: values.totalMarks,
-        signature_name: values.signatureName,
+        signatureName: values.signatureName,
         actor: username,
       });
       refreshSubjects(selectedCourseIdResolved);
@@ -566,6 +571,33 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     }
   }
 
+
+   
+    async function handleMergedSubjectSave(values) {
+    if (!selectedCourseIdResolved || !selectedInstitutionIdResolved) {
+      alert("Please select a course first.");
+      return;
+    }
+    if (!selectedSubject) return;
+    try {
+      await api.updateSubject(selectedSubject.id, {
+        courseId: selectedCourseIdResolved,
+        subject: values.subjectName.trim(),
+        yearId: resolveYearId(values.year) || years[0]?.id || null,
+        semId: resolveSemId(values.semester) || examSems[0]?.id || null,
+        priority: values.priority || 1,
+        status: "Active",
+        divisions: values.divisions,
+        effectiveDate: values.effectiveDate,
+        totalMarks: values.totalMarks,
+        signatureName: values.signatureName,
+        actor: username,
+      });
+      refreshSubjects(selectedCourseIdResolved);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
   // Mark changes need approval by a competent official before they take
   // effect: this submits a pending-change instead of saving directly.
   // apply_create_subject (dispatched on approval) reuses the existing
@@ -578,26 +610,20 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     try {
       const defaultYear = years[0]?.id || null;
       const defaultSem = examSems[0]?.id || null;
-      await api.submitPendingChange({
-        entityType: "subject",
-        action: "update",
-        entityId: editMarksSubject.id,
-        institutionId: selectedInstitutionIdResolved,
+      await api.updateSubject(editMarksSubject.id, {
+        courseId: selectedCourseIdResolved,
+        subject: values.subjectName.trim(),
+        yearId: resolveYearId(editMarksSubject.year) || defaultYear,
+        semId: resolveSemId(editMarksSubject.semester) || defaultSem,
+        priority: editMarksSubject.priority || 1,
+        status: "Active",
+        divisions: values.divisions,
+        effectiveDate: values.effectiveDate,
+        totalMarks: values.totalMarks,
+        signatureName: values.signatureName,
         actor: username,
-        payload: {
-          courseId: selectedCourseIdResolved,
-          subject: values.subjectName.trim(),
-          yearId: resolveYearId(editMarksSubject.year) || defaultYear,
-          semId: resolveSemId(editMarksSubject.semester) || defaultSem,
-          priority: editMarksSubject.priority || 1,
-          status: "Active",
-          courseSubjectId: editMarksSubject.id,
-          divisions: values.divisions,
-          effectiveDate: values.effectiveDate,
-          totalMarks: values.totalMarks,
-          signatureName: values.signatureName,
-        },
       });
+      refreshSubjects(selectedCourseIdResolved);
     } catch (err) {
       console.error("Submit mark change failed:", err.message);
       alert(err.message);
@@ -890,6 +916,13 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
         title: subjects.length === 0 ? "No subjects to view" : "",
         onClick: () => setViewSubjectOpen(true),
       },
+      {
+        label: "View Student",
+        icon: FileText,
+        disabled: !selectedInstitutionIdResolved,
+        title: !selectedInstitutionIdResolved ? "Select an institution first" : "",
+        onClick: () => setViewStudentsOpen(true),
+      },
     ],
     
   }[view];
@@ -976,18 +1009,18 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       )}
 
       {view === "subjects" && isSubjectDetailsOpen && (
-        <SubjectDetailsModal
+        <SubjectEditModal
           course={selectedCourse}
           subject={selectedSubject}
           subjectCount={subjectsForCourse.length}
-          subjectFields={subjectFields}
+          yearOptions={years}
+          semOptions={examSems}
+          username={username}
           onClose={() => setIsSubjectDetailsOpen(false)}
-          onAdd={(row) => saveSubject(row)}
-          onEdit={(row) => saveSubject(row)}
           onDelete={(row) => deleteSubjectRow(row)}
-          onEditMarks={(subj) => {
+            onSave={async (values) => {
+            await handleMergedSubjectSave(values);
             setIsSubjectDetailsOpen(false);
-            setEditMarksSubject(subj);
           }}
         />
       )}
@@ -1114,6 +1147,13 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           username={username}
           onClose={() => setEditMarksSubject(null)}
           onSave={handleEditMarksSave}
+        />
+      )}
+      {viewStudentsOpen && (
+        <ViewStudentsModal
+          institutionId={selectedInstitutionIdResolved}
+          institutionName={selectedInstitution?.name}
+          onClose={() => setViewStudentsOpen(false)}
         />
       )}
       {mapSubjectOpen && (

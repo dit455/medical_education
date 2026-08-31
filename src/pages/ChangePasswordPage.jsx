@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { LockKeyhole } from "lucide-react";
+import { LockKeyhole, Eye, EyeOff } from "lucide-react";
 import SiteHeader from "../components/SiteHeader.jsx";
 import * as api from "../api.js";
 
 // Shown once, right after an Institution logs in for the first time with
 // the auto-generated temporary password. Must succeed before the portal
 // is reachable. Mirrors LoginPage.jsx's markup/classes for a consistent look.
-export default function ChangePasswordPage({ username, onChanged }) {
+export default function ChangePasswordPage({ username, onChanged, onBack }) {
   const [currentPassword, setCurrentPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -56,41 +59,61 @@ export default function ChangePasswordPage({ username, onChanged }) {
               <span>Required before you can continue - this happens only once.</span>
             </div>
             <form className="login-form" onSubmit={handleSubmit}>
-              <label>
+                            <label>
                 <span>Temporary Password</span>
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Temporary password"
-                  autoComplete="current-password"
-                />
+                <div className="password-field">
+                  <input
+                    type={showCurrent ? "text" : "password"}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Temporary password"
+                    autoComplete="current-password"
+                  />
+                  <button type="button" className="password-toggle" onClick={() => setShowCurrent((s) => !s)} aria-label={showCurrent ? "Hide password" : "Show password"}>
+                    {showCurrent ? <Eye size={16} /> : <EyeOff size={16} />}
+                  </button>
+                </div>
               </label>
               <label>
                 <span>New Password</span>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password"
-                  autoComplete="new-password"
-                />
+                <div className="password-field">
+                  <input
+                    type={showNew ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="New password"
+                    autoComplete="new-password"
+                  />
+                  <button type="button" className="password-toggle" onClick={() => setShowNew((s) => !s)} aria-label={showNew ? "Hide password" : "Show password"}>
+                    {showNew ? <Eye size={16} /> : <EyeOff size={16} />}
+                  </button>
+                </div>
               </label>
               <label>
                 <span>Confirm New Password</span>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  autoComplete="new-password"
-                />
+                <div className="password-field">
+                  <input
+                    type={showConfirm ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    autoComplete="new-password"
+                  />
+                  <button type="button" className="password-toggle" onClick={() => setShowConfirm((s) => !s)} aria-label={showConfirm ? "Hide password" : "Show password"}>
+                    {showConfirm ? <Eye size={16} /> : <EyeOff size={16} />}
+                  </button>
+                </div>
               </label>
               {error && <div className="login-error">{error}</div>}
-              <button className="primary-btn login-submit" type="submit" disabled={submitting}>
+                <button className="primary-btn login-submit" type="submit" disabled={submitting}>
                 <LockKeyhole size={18} />
                 {submitting ? "Updating..." : "Update Password"}
               </button>
+              {onBack && (
+                <button type="button" className="secondary-btn" style={{ width: "100%", marginTop: 8 }} onClick={onBack}>
+                  Back
+                </button>
+              )}
             </form>
           </section>
         </div>

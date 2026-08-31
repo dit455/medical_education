@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { CircleCheck, X, Pencil, FileText, Trash2 } from "lucide-react";
+import { CircleCheck, X, Pencil, FileText, Trash2, Search, Download, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import ExportMenu from "../components/ExportMenu.jsx";
 import { passOrFail } from "../utils.js";
 import DataTable from "../components/DataTable.jsx";
 import RecordModal from "../components/RecordModal.jsx";
@@ -196,6 +197,10 @@ export default function InstitutionPortal({ institutionId, username, institution
   // --- Approvals (Approver role) ------------------------------------------
   const [reviewError, setReviewError] = useState("");
   const [rejectingChange, setRejectingChange] = useState(null);
+  const [reviewSearch, setReviewSearch] = useState("");
+  const [reviewStatusFilter, setReviewStatusFilter] = useState("All");
+  const [reviewPage, setReviewPage] = useState(1);
+  const [reviewRowsPerPage, setReviewRowsPerPage] = useState(5);
   const [editingChange, setEditingChange] = useState(null);
 
   // Student registration is created directly (no approval step) - only
@@ -208,6 +213,27 @@ export default function InstitutionPortal({ institutionId, username, institution
   function studentById(id) {
     return students.find((s) => String(s.id) === String(id));
   }
+
+  const REVIEW_STATUS_FILTERS = ["Pending", "Approved", "Rejected"];
+
+  const filteredReviews = useMemo(() => {
+    const q = reviewSearch.trim().toLowerCase();
+    return reviewChanges.filter((c) => {
+      const v = rowView(c);
+      const matchSearch = !q ||
+        [v.regNo, v.name, v.scored, v.total, c.status]
+          .filter((x) => x !== undefined && x !== null)
+          .join(" ").toLowerCase().includes(q);
+      const matchStatus = reviewStatusFilter === "All" || c.status === reviewStatusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [reviewChanges, reviewSearch, reviewStatusFilter]);
+
+  const reviewTotalPages = Math.max(1, Math.ceil(filteredReviews.length / reviewRowsPerPage));
+  const reviewCurrentPage = Math.min(reviewPage, reviewTotalPages);
+  const reviewPageRows = filteredReviews.slice((reviewCurrentPage - 1) * reviewRowsPerPage, reviewCurrentPage * reviewRowsPerPage);
+  const reviewRangeStart = filteredReviews.length === 0 ? 0 : (reviewCurrentPage - 1) * reviewRowsPerPage + 1;
+  const reviewRangeEnd = Math.min(reviewCurrentPage * reviewRowsPerPage, filteredReviews.length);
 
   // Normalizes either entity type into the same display shape for the table.
   function rowView(change) {
@@ -324,7 +350,7 @@ export default function InstitutionPortal({ institutionId, username, institution
           <div>
             <p className="eyebrow">Institution Portal</p>
             <h2>{institution?.name || "Loading..."}</h2>
-            <span>{isApprover ? "Approver" : "Creator"}</span>
+            <span>{username}</span>
           </div>
           {institution && <StatusBadge status={institution.status} />}
         </div>
@@ -442,10 +468,43 @@ export default function InstitutionPortal({ institutionId, username, institution
           <div className="data-table-heading">
             <div>
               <h3>Marks Approvals</h3>
-              <span>Review internal marks requests submitted by Creators at your institution.</span>
             </div>
           </div>
           {reviewError && <div className="login-error">{reviewError}</div>}
+
+          <div className="table-toolbar">
+            <label className="search-box small">
+              <Search size={15} />
+              <input value={reviewSearch} onChange={(e) => { setReviewSearch(e.target.value); setReviewPage(1); }} placeholder="Search" />
+            </label>
+            <div className="table-toolbar-controls">
+              <label className="select-box small">
+                <Filter size={15} />
+                <select value={reviewStatusFilter} onChange={(e) => { setReviewStatusFilter(e.target.value); setReviewPage(1); }}>
+                  <option>All</option>
+                  {REVIEW_STATUS_FILTERS.map((o) => <option key={o}>{o}</option>)}
+                </select>
+              </label>
+              <label className="select-box small rows-select">
+                Rows
+                <select value={reviewRowsPerPage} onChange={(e) => { setReviewRowsPerPage(Number(e.target.value)); setReviewPage(1); }}>
+                  {[5, 10, 20].map((o) => <option key={o}>{o}</option>)}
+                </select>
+              </label>
+              <ExportMenu
+                disabled={filteredReviews.length === 0}
+                getData={() => ({
+                  title: "Marks Approvals",
+                  headers: ["Reg No", "Student", "Scored", "Total", "Result", "Status", "Uploaded"],
+                  rows: filteredReviews.map((c) => {
+                    const v = rowView(c);
+                    return [v.regNo, v.name, v.scored, v.total, v.result || "-", c.status, c.requestedDate?.slice(0, 10)];
+                  }),
+                })}
+              />
+            </div>
+          </div>
+
           <div className="table-wrap data-table-scroll">
             <table>
               <thead>
@@ -461,7 +520,7 @@ export default function InstitutionPortal({ institutionId, username, institution
                 </tr>
               </thead>
               <tbody>
-                {reviewChanges.length === 0 ? (
+                  {reviewPageRows.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="empty-state">
                       <div className="table-empty">
@@ -470,7 +529,7 @@ export default function InstitutionPortal({ institutionId, username, institution
                     </td>
                   </tr>
                 ) : (
-                  reviewChanges.map((change) => {
+                    reviewPageRows.map((change) => {
                     const v = rowView(change);
                     const isFinal = change.status === "Approved";
                     return (
@@ -515,7 +574,20 @@ export default function InstitutionPortal({ institutionId, username, institution
                   })
                 )}
               </tbody>
-            </table>
+              </table>
+          </div>
+
+          <div className="pagination">
+            <span>{reviewRangeStart}-{reviewRangeEnd} of {filteredReviews.length}</span>
+            <div>
+              <button onClick={() => setReviewPage((p) => Math.max(1, p - 1))} disabled={reviewCurrentPage === 1} aria-label="Previous page">
+                <ChevronLeft size={17} />
+              </button>
+              <strong>{reviewCurrentPage} / {reviewTotalPages}</strong>
+              <button onClick={() => setReviewPage((p) => Math.min(reviewTotalPages, p + 1))} disabled={reviewCurrentPage === reviewTotalPages} aria-label="Next page">
+                <ChevronRight size={17} />
+              </button>
+            </div>
           </div>
         </section>
       )}

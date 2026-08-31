@@ -228,10 +228,26 @@ export function getInstitutionStudents(institutionId) {
   return request(`/institutions/${institutionId}/students`);
 }
 
+export function getAllStudents() {
+  return request(`/students`);
+}
+
 export function createStudentDirect(institutionId, payload) {
   return request(`/institutions/${institutionId}/students`, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function uploadStudentPhoto(studentId, file) {
+  const fd = new FormData();
+  fd.append("photo", file);
+  return fetch(`${BASE_URL}/students/${studentId}/photo`, {
+    method: "POST",
+    body: fd,
+  }).then((r) => {
+    if (!r.ok) return r.json().then((e) => { throw new Error(e.error || "Upload failed"); });
+    return r.json();
   });
 }
 
