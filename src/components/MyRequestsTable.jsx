@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { FileText, Trash2, Search, Download, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import StatusBadge from "./StatusBadge.jsx";
 import IconButton from "./IconButton.jsx";
-import { passOrFail } from "../utils.js";
+import { passOrFail, formatDate } from "../utils.js";
 import ExportMenu from "./ExportMenu.jsx";
 
 const STATUS_FILTERS = ["Pending", "Approved", "Rejected", "Verified", "Submitted"];
@@ -10,7 +10,7 @@ const STATUS_FILTERS = ["Pending", "Approved", "Rejected", "Verified", "Submitte
 // Creator's own internal-marks submissions, with search, status filter,
 // rows selector, PDF export and pagination. View/Edit/Delete unchanged;
 // Approved rows stay locked (view only).
-export default function MyRequestsTable({ changes, students = [], onView, onEdit, onDelete, footer }) {
+export default function MyRequestsTable({ changes, students = [], onView, onEdit, onDelete, footer, institutionName = "", courseNameFor = () => "-", subjectNameFor = () => "-" }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [page, setPage] = useState(1);
@@ -67,7 +67,7 @@ export default function MyRequestsTable({ changes, students = [], onView, onEdit
             c.payload.totalMarks ?? "",
             result,
             c.status ?? "",
-            c.requestedDate?.slice(0, 10) ?? "",
+            formatDate(c.requestedDate?.slice(0, 10)) ?? "",
           ];
         }),
         styles: { fontSize: 9 },
@@ -112,7 +112,7 @@ export default function MyRequestsTable({ changes, students = [], onView, onEdit
               rows: rows.map((c) => {
                 const st = studentById(c.payload.studentId);
                 const result = c.payload.result || passOrFail(c.payload.scoredMarks, c.payload.passMarks) || "-";
-                return [st?.registerNo || "-", st?.name || `Student #${c.payload.studentId}`, c.payload.scoredMarks, c.payload.totalMarks, result, c.status, c.requestedDate?.slice(0, 10)];
+                return [st?.registerNo || "-", st?.name || `Student #${c.payload.studentId}`, c.payload.scoredMarks, c.payload.totalMarks, result, c.status, formatDate(c.requestedDate?.slice(0, 10))];
               }),
             })}
           />
@@ -123,36 +123,42 @@ export default function MyRequestsTable({ changes, students = [], onView, onEdit
         <table>
           <thead>
             <tr>
+              <th>S.No</th><th>Institution</th><th>Course</th><th>Subject</th>
               <th>Reg No</th><th>Student Name</th><th>Scored Marks</th>
-              <th>Total Marks</th><th>Result</th><th>Status</th>
+              <th>Total Marks</th><th>Pass Marks</th><th>Result</th><th>Status</th>
               <th>Uploaded on</th><th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="empty-state">
+                <td colSpan={13} className="empty-state">
                   <div className="table-empty"><span>Nothing submitted yet</span></div>
                 </td>
               </tr>
             ) : (
-              pageRows.map((change) => {
+                pageRows.map((change, i) => {
                 const student = studentById(change.payload.studentId);
                 const isFinal = change.status === "Approved";
                 const result = change.payload.result || passOrFail(change.payload.scoredMarks, change.payload.passMarks);
                 return (
                   <tr key={change.id}>
+                    <td data-label="S.No">{(currentPage - 1) * rowsPerPage + i + 1}</td>
+                    <td data-label="Institution">{(institutionName || "-").toUpperCase()}</td>
+                    <td data-label="Course">{courseNameFor(change.payload.courseId)}</td>
+                    <td data-label="Subject">{subjectNameFor(change.payload.subjectId)}</td>
                     <td data-label="Reg No">{student?.registerNo || "-"}</td>
                     <td data-label="Student Name">{student?.name || `Student #${change.payload.studentId}`}</td>
                     <td data-label="Scored Marks">{change.payload.scoredMarks}</td>
                     <td data-label="Total Marks">{change.payload.totalMarks}</td>
+                    <td data-label="Pass Marks">{change.payload.passMarks ?? "-"}</td>
                     <td data-label="Result">
                       {result ? (
                         <span style={{ fontWeight: 700, color: result === "Pass" ? "#1e7e34" : "#b00020" }}>{result}</span>
                       ) : "-"}
                     </td>
                     <td data-label="Status"><StatusBadge status={change.status} /></td>
-                    <td data-label="Uploaded on">{change.requestedDate?.slice(0, 10)}</td>
+                    <td data-label="Uploaded on">{formatDate(change.requestedDate?.slice(0, 10))}</td>
                     <td data-label="Actions">
                         <div className="action-group">
                         <IconButton

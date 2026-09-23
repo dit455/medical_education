@@ -4,6 +4,7 @@ import StatusBadge from "../components/StatusBadge.jsx";
 import IconButton from "../components/IconButton.jsx";
 import AddSubjectModal from "../components/AddSubjectModal.jsx";
 import * as api from "../api.js";
+import { formatDate, isDateField } from "../utils.js";
 
 // Board-side inbox for reviewing changes Institution accounts have
 // submitted (tbl_pending_changes). Approving applies the change to the real
@@ -206,7 +207,7 @@ function MarksChangeSummary({ payload }) {
         </span>
       ))}
       <div style={{ fontSize: "0.76rem", color: "var(--muted)", marginTop: 2 }}>
-        Total {payload.totalMarks ?? 100} &middot; Effective {payload.effectiveDate || "-"} &middot; Signed{" "}
+          Total {payload.totalMarks ?? 100} &middot; Effective {formatDate(payload.effectiveDate) || "-"} &middot; Signed{" "}
         <strong style={{ color: "var(--ink)" }}>{payload.signatureName}</strong>
       </div>
     </div>
@@ -216,7 +217,7 @@ function MarksChangeSummary({ payload }) {
 function summarizePayload(payload) {
   return Object.entries(payload || {})
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
-    .map(([key, value]) => `${key}: ${value}`)
+    .map(([key, value]) => `${key}: ${isDateField(key) ? formatDate(value) : value}`)
     .join(", ");
 }
 

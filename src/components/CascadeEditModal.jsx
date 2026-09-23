@@ -10,17 +10,23 @@ export default function CascadeEditModal({
   level = "course",
   title = "Course",
   instituteOptions = [],
+  fixedInstituteId = null,
+  fixedCourseId = null,
   onClose,
   onPick,
 }) {
-  const [instituteId, setInstituteId] = useState("");
-  const [courseId, setCourseId] = useState("");
+  const [instituteId, setInstituteId] = useState(
+    fixedInstituteId != null ? String(fixedInstituteId) : ""
+  );
+  const [courseId, setCourseId] = useState(
+    fixedCourseId != null ? String(fixedCourseId) : ""
+  );
   const [subjectId, setSubjectId] = useState("");
   const [courses, setCourses] = useState([]);
   const [subjects, setSubjects] = useState([]);
 
-  useEffect(() => {
-    setCourseId("");
+    useEffect(() => {
+    if (fixedCourseId == null) setCourseId("");
     setSubjects([]);
     setSubjectId("");
     if (!instituteId) {
@@ -28,7 +34,7 @@ export default function CascadeEditModal({
       return;
     }
     api.getCourses(Number(instituteId)).then(setCourses).catch(() => setCourses([]));
-  }, [instituteId]);
+  }, [instituteId, fixedCourseId]);
 
   useEffect(() => {
     setSubjectId("");
@@ -63,23 +69,26 @@ export default function CascadeEditModal({
         </div>
 
         <div className="form-grid">
-          <label>
-            <span>Institute</span>
-            <select
-              aria-label="Institute"
-              value={instituteId}
-              onChange={(e) => setInstituteId(e.target.value)}
-            >
-              <option value="" disabled>
-                Select institute
-              </option>
-              {instituteOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+            {fixedInstituteId == null && (
+            <label>
+              <span>Institute</span>
+              <select
+                aria-label="Institute"
+                value={instituteId}
+                onChange={(e) => setInstituteId(e.target.value)}
+              >
+                <option value="" disabled>
+                  Select institute
                 </option>
-              ))}
-            </select>
-          </label>
+                {instituteOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {fixedCourseId == null && (
           <label>
             <span>Course</span>
             <select
@@ -97,11 +106,12 @@ export default function CascadeEditModal({
               </option>
               {courses.map((course) => (
                 <option key={course.id} value={course.id}>
-                  {course.name}
+                  {String(course.name ?? "").toUpperCase()}
                 </option>
               ))}
             </select>
           </label>
+          )}
           {level === "subject" && (
             <label>
               <span>Subject</span>

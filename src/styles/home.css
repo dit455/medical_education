@@ -1926,6 +1926,7 @@
   font-size: 0.98rem;
   line-height: 1.85;
   color: var(--pub-muted);
+  text-align: justify;
 }
 
 .pub-about-band-list {

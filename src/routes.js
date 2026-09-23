@@ -39,6 +39,14 @@ export const ROUTES = [
     group: "Overview",
     type: "dashboard",
   },
+    {
+    key: "academic-master",
+    label: "Academic Master",
+    icon: BookOpen,
+    roles: BOARD_ROLES,
+    group: "Academic Master",
+    type: "academic-master",
+  },
   {
     key: "users",
     label: "User Creation",

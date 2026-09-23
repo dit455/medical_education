@@ -46,7 +46,7 @@ export default function RecordPickModal({
                 </option>
                 {rows.map((row) => (
                   <option key={row.id} value={row.id}>
-                    {getLabel(row)}
+                    {String(getLabel(row) ?? "").toUpperCase()}
                   </option>
                 ))}
               </select>

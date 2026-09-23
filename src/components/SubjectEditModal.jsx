@@ -113,7 +113,7 @@ export default function SubjectEditModal({
 
             <div className="view-row">
               <span className="view-label">Subject</span>
-              <input className="cell-input" value={subjectName} onChange={(e) => setSubjectName(e.target.value)} />
+              <input className="cell-input" value={subjectName} readOnly style={{ background: "var(--soft-gray)", cursor: "not-allowed", color: "var(--ink)", WebkitTextFillColor: "var(--ink)", opacity: 1 }} />
             </div>
             <div className="view-row">
               <span className="view-label">Year</span>
@@ -134,7 +134,7 @@ export default function SubjectEditModal({
               <input className="cell-input" type="number" value={priority} onChange={(e) => setPriority(e.target.value)} />
             </div>
 
-            {DIVISIONS.map((d) => (
+            {DIVISIONS.filter((d) => d.key !== "tp").map((d) => (
               <div className="view-row" key={d.key}>
                 <span className="view-label">{d.label} (Max / Pass)</span>
                 <div style={{ display: "flex", gap: 8 }}>
@@ -150,15 +150,15 @@ export default function SubjectEditModal({
               <span className="view-label">Total (Max / Pass)</span>
               <span className="view-value" style={{ fontWeight: 700 }}>{totalMax} / {totalPass}</span>
             </div>
-            <div className="view-row">
-              <span className="view-label">Effective Date</span>
-              <input className="cell-input" type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} />
-            </div>
           </div>
 
             <div className="modal-actions">
             <button type="button" className="secondary-btn" onClick={onClose}>Cancel</button>
-            <button type="button" className="primary-btn" onClick={handleSave}>
+            <button
+              type="button"
+              className="primary-btn"
+              onClick={handleSave}
+            >
               <CircleCheck size={18} /> Save
             </button>
           </div>

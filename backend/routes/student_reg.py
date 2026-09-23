@@ -18,6 +18,7 @@ from werkzeug.utils import secure_filename
 
 UPLOAD_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "student_photos")
 ALLOWED_PHOTO_EXT = {".jpg", ".jpeg", ".png", ".webp"}
+MAX_PHOTO_KB = 200
 
 student_reg_bp = Blueprint("student_reg", __name__)
 
@@ -25,13 +26,14 @@ INTERNAL_ASSESSMENT_EXAM_TYPE_ID = 1  # tbl_exam_type_master: 1 = Internal Asses
 
 
 def _student_row_to_dict(row):
-    (student_id, reg_no, name, dob, father, address, email, mobile,
+    (student_id, reg_no, name, dob, admission_year, father, address, email, mobile,
     gender, photo, region_id, status_, course_id, year_id, inst_id) = row
     return {
         "id": student_id,
         "registerNo": reg_no,
         "name": name,
         "dob": str(dob) if dob else None,
+        "admissionYear": str(admission_year) if admission_year else None,
         "fatherName": father,
         "address": address,
         "email": email,
@@ -48,6 +50,7 @@ def _student_row_to_dict(row):
 
 STUDENT_SELECT_SQL = """
     SELECT d.student_id, d.student_reg_no, d.student_name, d.student_dob,
+        d.admission_year,
         d.student_father_name, d.student_address, d.student_email,
         d.student_mobile, d.student_gender, d.student_photo, d.region_id, d.status_,
         e.course_id, e.year_id, e.inst_id
@@ -65,9 +68,34 @@ def _generate_register_no(cursor, institution_id):
     inst_name = row[0] if row else "Institution"
     prefix = institution_initials(inst_name)
 
-    cursor.execute("SELECT COUNT(*) FROM tbl_student_enrol WHERE inst_id = %s", (institution_id,))
-    count = cursor.fetchone()[0]
-    return f"{prefix}{str(count + 1).zfill(4)}"
+    # Base the sequence on the highest existing Register No for this prefix,
+    # not COUNT(*). COUNT breaks after a delete: removing one student lowers
+    # the count, so the next insert reuses a number that already exists.
+    cursor.execute(
+        "SELECT student_reg_no FROM tbl_student_det WHERE student_reg_no LIKE %s",
+        (f"{prefix}%",),
+    )
+    max_seq = 0
+    for (existing_reg,) in cursor.fetchall():
+        tail = str(existing_reg)[len(prefix):]
+        if tail.isdigit():
+            max_seq = max(max_seq, int(tail))
+
+    next_seq = max_seq + 1
+    reg_candidate = f"{prefix}{str(next_seq).zfill(4)}"
+
+    # Guard against any lingering duplicate before returning.
+    while True:
+        cursor.execute(
+            "SELECT 1 FROM tbl_student_det WHERE student_reg_no = %s LIMIT 1",
+            (reg_candidate,),
+        )
+        if cursor.fetchone() is None:
+            break
+        next_seq += 1
+        reg_candidate = f"{prefix}{str(next_seq).zfill(4)}"
+
+    return reg_candidate
 
 
 def apply_create_student_registration(cursor, institution_id, payload, actor="system"):
@@ -80,13 +108,14 @@ def apply_create_student_registration(cursor, institution_id, payload, actor="sy
     cursor.execute(
         """
         INSERT INTO tbl_student_det
-        (student_reg_no, student_name, student_dob, student_father_name,
+        (student_reg_no, student_name, student_dob, admission_year, student_father_name,
         student_address, student_email, student_mobile, student_gender, region_id,
         student_other_state, created_by, created_date, status_)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), 'Active')
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), 'Active')
         """,
         (
             reg_no, payload.get("studentName"), payload.get("studentDob"),
+            payload.get("admissionYear") or None,
             payload.get("studentFatherName"), payload.get("studentAddress"),
             payload.get("studentEmail"), payload.get("studentMobile"),
             payload.get("studentGender"), payload.get("regionId"),
@@ -307,6 +336,7 @@ def apply_update_student_registration(cursor, student_id, payload, actor="system
         SET student_reg_no = COALESCE(%s, student_reg_no),
             student_name = COALESCE(%s, student_name),
             student_dob = COALESCE(%s, student_dob),
+            admission_year = COALESCE(%s, admission_year),
             student_father_name = COALESCE(%s, student_father_name),
             student_address = COALESCE(%s, student_address),
             student_email = COALESCE(%s, student_email),
@@ -318,6 +348,7 @@ def apply_update_student_registration(cursor, student_id, payload, actor="system
         """,
         (
             payload.get("studentRegNo"), payload.get("studentName"), payload.get("studentDob"),
+            payload.get("admissionYear"),
             payload.get("studentFatherName"), payload.get("studentAddress"),
             payload.get("studentEmail"), payload.get("studentMobile"),
             payload.get("studentGender"), payload.get("regionId"),
@@ -350,6 +381,7 @@ def update_student_direct(student_id):
     conn = get_connection()
     try:
         cursor = conn.cursor()
+        body = {k: (None if v == "" else v) for k, v in body.items()}
         result = apply_update_student_registration(cursor, student_id, body, actor)
         conn.commit()
         cursor.close()
@@ -379,10 +411,6 @@ def delete_student(student_id):
     finally:
         conn.close()
 
-
-
-
-
 @student_reg_bp.route("/api/students/<int:student_id>/photo", methods=["POST"])
 def upload_student_photo(student_id):
     if "photo" not in request.files:
@@ -394,6 +422,12 @@ def upload_student_photo(student_id):
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_PHOTO_EXT:
         return jsonify({"error": "Only JPG, PNG or WEBP images are allowed"}), 400
+
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    if size > MAX_PHOTO_KB * 1024:
+        return jsonify({"error": f"Photo must not exceed {MAX_PHOTO_KB} KB"}), 400
 
     os.makedirs(UPLOAD_ROOT, exist_ok=True)
     fname = f"student_{student_id}_{uuid.uuid4().hex[:8]}{ext}"

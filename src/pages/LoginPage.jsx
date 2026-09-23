@@ -12,6 +12,9 @@ export default function LoginPage({ onLogin, onBackHome }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+const [forgotUsername, setForgotUsername] = useState("");
+const [forgotMessage, setForgotMessage] = useState("");
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -52,6 +55,19 @@ export default function LoginPage({ onLogin, onBackHome }) {
       setError(err.message || "Invalid username or password.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    if (!forgotUsername.trim()) {
+      setForgotMessage("Enter your username first.");
+      return;
+    }
+    try {
+      const res = await api.forgotPassword(forgotUsername.trim());
+      setForgotMessage(res.message || "If this account exists, a new password has been emailed to the registered institution email.");
+    } catch (err) {
+      setForgotMessage(err.message || "Could not process this request.");
     }
   }
 
@@ -137,6 +153,43 @@ export default function LoginPage({ onLogin, onBackHome }) {
                   </button>
                 </div>
               </label>
+
+                {loginType === "institution" && (
+                    <div style={{ margin: "-2px 0 10px" }}>
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        className="forgot-link"
+                        onClick={() => { setForgotOpen((o) => !o); setForgotMessage(""); }}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    {forgotOpen && (
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+                        <input
+                          value={forgotUsername}
+                          onChange={(e) => setForgotUsername(e.target.value)}
+                          placeholder="Enter your username"
+                          style={{ minHeight: 40, flex: 1 }}
+                        />
+                        <button
+                          type="button"
+                          className="primary-btn"
+                          style={{ padding: "0 18px", minHeight: 40, whiteSpace: "nowrap" }}
+                          onClick={handleForgotPassword}
+                        >
+                          Send
+                        </button>
+                      </div>
+                    )}
+                    {forgotMessage && (
+                      <small style={{ display: "block", marginTop: 8, color: "#64748b", lineHeight: 1.4 }}>
+                        {forgotMessage}
+                      </small>
+                    )}
+                  </div>
+              )}
               <div className="captcha-block">
                 <span>Captcha Verification</span>
                 <div className="captcha-row">

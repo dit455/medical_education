@@ -21,19 +21,42 @@ export default function StudentManagementPage({ institutionId, username }) {
   const [statusFilter, setStatusFilter] = useState("All");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [institutionName, setInstitutionName] = useState("");
+  const [subjectsByCourse, setSubjectsByCourse] = useState({});
 
   function refreshStudents() {
     api.getInstitutionStudents(institutionId).then(setStudents).catch(() => setStudents([]));
   }
 
-  useEffect(() => {
+    useEffect(() => {
     api.getRegions().then(setRegions).catch(() => setRegions([]));
-    api.getCourses(institutionId).then(setCourses).catch(() => setCourses([]));
+    api.getCourses(institutionId)
+      .then((list) => {
+        setCourses(list);
+        list.forEach((c) => {
+          api.getSubjects(c.id)
+            .then((subs) =>
+              setSubjectsByCourse((prev) => ({
+                ...prev,
+                [String(c.id)]: subs.map((s) => s.subject).filter(Boolean),
+              }))
+            )
+            .catch(() => {});
+        });
+      })
+      .catch(() => setCourses([]));
     api.getYears().then(setYears).catch(() => setYears([]));
+    api.getInstitution(institutionId)
+      .then((inst) => setInstitutionName(inst?.name || ""))
+      .catch(() => setInstitutionName(""));
     refreshStudents();
   }, [institutionId]);
 
   const nameFor = (list, id) => list.find((x) => String(x.id) === String(id))?.name || "-";
+  const subjectsFor = (courseId) => {
+    const subs = subjectsByCourse[String(courseId)];
+    return subs && subs.length ? subs.join(", ") : "-";
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -71,11 +94,10 @@ export default function StudentManagementPage({ institutionId, username }) {
       doc.text("Registered Students", 14, 16);
       doc.autoTable({
         startY: 22,
-        head: [["S.No", "Reg No", "Student", "Course", "Year", "Region", "Status"]],
+        head: [["S.No", "Reg No", "Student", "Course", "Status"]],
         body: filtered.map((s, i) => [
           i + 1, s.registerNo ?? "", s.name ?? "",
-          nameFor(courses, s.courseId), nameFor(years, s.yearId),
-          nameFor(regions, s.regionId), s.status ?? "",
+          nameFor(courses, s.courseId), s.status ?? "",
         ]),
         styles: { fontSize: 9 },
         headStyles: { fillColor: [15, 118, 110] },
@@ -144,8 +166,8 @@ export default function StudentManagementPage({ institutionId, username }) {
               disabled={filtered.length === 0}
               getData={() => ({
                 title: "Registered Students",
-                headers: ["S.No", "Reg No", "Student", "Course", "Year", "Region", "Status"],
-                rows: filtered.map((s, i) => [i + 1, s.registerNo, s.name, nameFor(courses, s.courseId), nameFor(years, s.yearId), nameFor(regions, s.regionId), s.status]),
+                headers: ["S.No", "Reg No", "Student", "Course", "Status"],
+                rows: filtered.map((s, i) => [i + 1, s.registerNo, s.name, nameFor(courses, s.courseId), s.status]),
               })}
             />
           </div>
@@ -155,8 +177,9 @@ export default function StudentManagementPage({ institutionId, username }) {
           <table>
             <thead>
               <tr>
-                <th>S.NO</th><th>STUDENT</th><th>STUDENT ID</th>
-                <th>COURSE</th><th>YEAR</th><th>REGION</th><th>STATUS</th><th>ACTIONS</th>
+                <th>S.NO</th><th>INSTITUTION</th><th>COURSE</th>
+                <th>REG NO</th><th>STUDENT NAME</th>
+                <th>STATUS</th><th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -170,11 +193,10 @@ export default function StudentManagementPage({ institutionId, username }) {
                 pageRows.map((student, i) => (
                   <tr key={student.id}>
                     <td data-label="S.No">{(currentPage - 1) * rowsPerPage + i + 1}</td>
-                    <td data-label="Student">{student.name}</td>
+                    <td data-label="Institution">{(institutionName || "-").toUpperCase()}</td>
+                    <td data-label="Course">{nameFor(courses, student.courseId).toUpperCase()}</td>
                     <td data-label="Student ID">{student.registerNo}</td>
-                    <td data-label="Course">{nameFor(courses, student.courseId)}</td>
-                    <td data-label="Year">{nameFor(years, student.yearId)}</td>
-                    <td data-label="Region">{nameFor(regions, student.regionId)}</td>
+                    <td data-label="Student Name">{student.name}</td>
                     <td data-label="Status"><StatusBadge status={student.status} /></td>
                     <td data-label="Actions">
                       <div className="action-group">

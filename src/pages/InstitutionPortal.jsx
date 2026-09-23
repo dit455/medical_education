@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { CircleCheck, X, Pencil, FileText, Trash2, Search, Download, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import ExportMenu from "../components/ExportMenu.jsx";
-import { passOrFail } from "../utils.js";
+import { passOrFail, formatDate } from "../utils.js";
 import DataTable from "../components/DataTable.jsx";
 import RecordModal from "../components/RecordModal.jsx";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
@@ -71,17 +71,27 @@ export default function InstitutionPortal({ institutionId, username, institution
   }, [refreshCourses, refreshStudents, refreshPendingChanges]);
 
   useEffect(() => {
-    Promise.all([
-      api.getListCourses().catch(() => []),
-      api.getListSubjects().catch(() => []),
-      api.getYears().catch(() => []),
-      api.getExamSems().catch(() => []),
-      api.getExamCategories().catch(() => []),
-      api.getExamSessions().catch(() => []),
-    ]).then(([courses, subjects, years, sems, examCats, examSessions]) =>
-      setLookups({ courses, subjects, years, sems, examCats, examSessions })
+  Promise.all([
+    api.getListCourses().catch(() => []),
+    api.getYears().catch(() => []),
+    api.getExamSems().catch(() => []),
+    api.getExamCategories().catch(() => []),
+    api.getExamSessions().catch(() => []),
+  ]).then(([courses, years, sems, examCats, examSessions]) =>
+    setLookups((prev) => ({ ...prev, courses, years, sems, examCats, examSessions }))
+  );
+}, []);
+
+useEffect(() => {
+  if (courses.length === 0) return;
+  Promise.all(courses.map((c) => api.getSubjects(c.id).catch(() => [])))
+    .then((lists) =>
+      setLookups((prev) => ({
+        ...prev,
+        subjects: lists.flat().map((s) => ({ id: s.id, name: s.subject })),
+      }))
     );
-  }, []);
+}, [courses]);
 
   const nameFrom = (list, id) => list.find((x) => String(x.id) === String(id))?.name ?? id;
   const PAYLOAD_LABELS = {
@@ -90,6 +100,13 @@ export default function InstitutionPortal({ institutionId, username, institution
     scoredMarks: "Scored Marks", totalMarks: "Total Marks", examDate: "Exam Date",
     passMarks: "Pass Marks", result: "Result",
   };
+    function toDMY(v) {
+    // Accepts an ISO date like "2026-09-01" (optionally with time) and returns
+    // "01/09/2026". Returns null if it isn't an ISO-style date.
+    const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    return `${m[3]}/${m[2]}/${m[1]}`;
+  }
   function renderPayloadValue(key, value) {
     if (key === "courseId") return nameFrom(lookups.courses, value);
     if (key === "subjectId") return nameFrom(lookups.subjects, value);
@@ -98,6 +115,8 @@ export default function InstitutionPortal({ institutionId, username, institution
     if (key === "examCatId") return nameFrom(lookups.examCats, value);
     if (key === "examSessionId") return nameFrom(lookups.examSessions, value);
     if (key === "studentId") return students.find((s) => String(s.id) === String(value))?.name ?? value;
+    const dmy = toDMY(value);
+    if (dmy) return dmy;
     return String(value);
   }
 
@@ -254,6 +273,9 @@ export default function InstitutionPortal({ institutionId, username, institution
         regNo: student?.registerNo || "-",
         scored: change.payload.scoredMarks,
         total: change.payload.totalMarks,
+        pass: change.payload.passMarks ?? "-",
+        course: String(nameFrom(lookups.courses, change.payload.courseId) || "-").toUpperCase(),
+        subject: nameFrom(lookups.subjects, change.payload.subjectId) || "-",
         result: change.payload.result || passOrFail(change.payload.scoredMarks, change.payload.passMarks),
         email: student?.email || "-",
         phone: student?.mobile || "-",
@@ -498,7 +520,7 @@ export default function InstitutionPortal({ institutionId, username, institution
                   headers: ["Reg No", "Student", "Scored", "Total", "Result", "Status", "Uploaded"],
                   rows: filteredReviews.map((c) => {
                     const v = rowView(c);
-                    return [v.regNo, v.name, v.scored, v.total, v.result || "-", c.status, c.requestedDate?.slice(0, 10)];
+                    return [v.regNo, v.name, v.scored, v.total, v.result || "-", c.status, formatDate(c.requestedDate?.slice(0, 10))];
                   }),
                 })}
               />
@@ -509,10 +531,15 @@ export default function InstitutionPortal({ institutionId, username, institution
             <table>
               <thead>
                 <tr>
+                  <th>S.No</th>
+                  <th>Institution</th>
+                  <th>Course</th>
+                  <th>Subject</th>
                   <th>Reg No</th>
                   <th>Student Name</th>
                   <th>Scored Marks</th>
                   <th>Total Marks</th>
+                  <th>Pass Marks</th>
                   <th>Result</th>
                   <th>Status</th>
                   <th>Uploaded on</th>
@@ -522,22 +549,27 @@ export default function InstitutionPortal({ institutionId, username, institution
               <tbody>
                   {reviewPageRows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="empty-state">
+                    <td colSpan={13} className="empty-state">
                       <div className="table-empty">
                         <span>No marks requests to review</span>
                       </div>
                     </td>
                   </tr>
                 ) : (
-                    reviewPageRows.map((change) => {
+                    reviewPageRows.map((change, i) => {
                     const v = rowView(change);
                     const isFinal = change.status === "Approved";
                     return (
                       <tr key={change.id}>
+                        <td data-label="S.No">{i + 1}</td>
+                        <td data-label="Institution">{(institution?.name || "-").toUpperCase()}</td>
+                        <td data-label="Course">{v.course || "-"}</td>
+                        <td data-label="Subject">{v.subject || "-"}</td>
                         <td data-label="Reg No">{v.regNo}</td>
                         <td data-label="Student Name">{v.name}</td>
                         <td data-label="Scored Marks">{v.scored}</td>
                         <td data-label="Total Marks">{v.total}</td>
+                        <td data-label="Pass Marks">{v.pass ?? "-"}</td>
                         <td data-label="Result">
                           {v.result ? (
                             <span style={{ fontWeight: 700, color: v.result === "Pass" ? "#1e7e34" : "#b00020" }}>{v.result}</span>
@@ -546,7 +578,7 @@ export default function InstitutionPortal({ institutionId, username, institution
                         <td data-label="Status">
                           <StatusBadge status={change.status} />
                         </td>
-                        <td data-label="Uploaded on">{change.requestedDate?.slice(0, 10)}</td>
+                        <td data-label="Uploaded on">{formatDate(change.requestedDate?.slice(0, 10))}</td>
                         <td data-label="Actions">
                           <div className="action-group">
                             {change.status === "Pending" && (

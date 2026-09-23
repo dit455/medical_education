@@ -17,9 +17,12 @@ function safeName(s, ext) {
 export function exportToPdf({ title = "Export", headers = [], rows = [], filename }) {
   const doc = new jsPDF();
   doc.setFontSize(14);
-  doc.text(title, 14, 16);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const titleLines = doc.splitTextToSize(title, pageWidth - 28);
+  doc.text(titleLines, 14, 16);
+  const startY = 16 + titleLines.length * 7 + 2;
   autoTable(doc, {
-    startY: 22,
+    startY,
     head: [headers],
     body: rows.map((r) => r.map((c) => (c == null ? "" : String(c)))),
     styles: { fontSize: 9 },

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   GraduationCap,
   Users,
@@ -7,6 +7,7 @@ import {
   Building2,
   Layers,
   BookOpen,
+  UserCheck,
   ClipboardCheck,
   Plus,
   Pencil,
@@ -32,7 +33,7 @@ import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import KpiCard from "../components/KpiCard.jsx";
 import Breadcrumb from "../components/Breadcrumb.jsx";
 import { BOARD_ROLES, ENTITY_FIELDS, ENTITY_COLUMNS } from "../data.js";
-import { isStatusVisibleForRole, emptyRowFromFields } from "../utils.js";
+import { isStatusVisibleForRole, emptyRowFromFields, formatDate } from "../utils.js";
 import * as api from "../api.js";
 
 export default function Dashboard({
@@ -44,6 +45,8 @@ export default function Dashboard({
   dashboardView,
   dashboardViewCommand,
   onDashboardViewChange,
+  onNavigateBack,
+  onOpenAcademicMaster,
 }) {
   if (BOARD_ROLES.includes(role)) {
     return (
@@ -55,6 +58,8 @@ export default function Dashboard({
         dashboardView={dashboardView}
         dashboardViewCommand={dashboardViewCommand}
         onDashboardViewChange={onDashboardViewChange}
+        onNavigateBack={onNavigateBack}
+        onOpenAcademicMaster={onOpenAcademicMaster}
       />
     );
   }
@@ -103,8 +108,10 @@ export default function Dashboard({
   );
 }
 
-function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, dashboardViewCommand, onDashboardViewChange }) {
-  const [view, setView] = useState(dashboardView || "overview");
+function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, dashboardViewCommand, onDashboardViewChange, onNavigateBack, onOpenAcademicMaster }) {
+  const [view, setView] = useState(
+    () => sessionStorage.getItem("ems_dash_view") || dashboardView || "overview"
+  );
   const [institutions, setInstitutions] = useState([]);
   const [coursesForInstitution, setCoursesForInstitution] = useState([]);
   const [subjectsForCourse, setSubjectsForCourse] = useState([]);
@@ -116,10 +123,34 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   const [courses, setCourses] = useState([]);
   const [subjects, setSubjects] = useState([]);
 
-  const [selectedInstitutionId, setSelectedInstitutionId] = useState(null);
-  const [selectedCourseId, setSelectedCourseId] = useState(null);
-  const [selectedSubjectId, setSelectedSubjectId] = useState(null);
+  const numOrNull = (v) => (v == null || v === "" ? null : Number(v));
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState(
+    () => numOrNull(sessionStorage.getItem("ems_dash_inst"))
+  );
+  const [selectedCourseId, setSelectedCourseId] = useState(
+    () => numOrNull(sessionStorage.getItem("ems_dash_course"))
+  );
+  const [selectedSubjectId, setSelectedSubjectId] = useState(
+    () => numOrNull(sessionStorage.getItem("ems_dash_subject"))
+  );
   const [addModal, setAddModal] = useState(null);
+
+  // Persist the current view + selection across reloads (per browser tab).
+  useEffect(() => {
+    if (view) sessionStorage.setItem("ems_dash_view", view);
+  }, [view]);
+  useEffect(() => {
+    if (selectedInstitutionId == null) sessionStorage.removeItem("ems_dash_inst");
+    else sessionStorage.setItem("ems_dash_inst", String(selectedInstitutionId));
+  }, [selectedInstitutionId]);
+  useEffect(() => {
+    if (selectedCourseId == null) sessionStorage.removeItem("ems_dash_course");
+    else sessionStorage.setItem("ems_dash_course", String(selectedCourseId));
+  }, [selectedCourseId]);
+  useEffect(() => {
+    if (selectedSubjectId == null) sessionStorage.removeItem("ems_dash_subject");
+    else sessionStorage.setItem("ems_dash_subject", String(selectedSubjectId));
+  }, [selectedSubjectId]);
   const [newInstitutionCredentials, setNewInstitutionCredentials] = useState(null);
   const [isSubjectDetailsOpen, setIsSubjectDetailsOpen] = useState(false);
 
@@ -149,11 +180,18 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     api.getSubjects(courseId).then(setSubjectsForCourse).catch(() => setSubjectsForCourse([]));
   }, []);
 
+  const didMountRef = useRef(false);
   useEffect(() => {
     refreshInstitutions();
-    setSelectedInstitutionId(null);
-    setSelectedCourseId(null);
-    setSelectedSubjectId(null);
+    // Don't wipe the restored selection on the initial mount — only clear
+    // when the role actually changes afterwards.
+    if (didMountRef.current) {
+      setSelectedInstitutionId(null);
+      setSelectedCourseId(null);
+      setSelectedSubjectId(null);
+    } else {
+      didMountRef.current = true;
+    }
   }, [role, refreshInstitutions]);
 
   useEffect(() => {
@@ -210,6 +248,9 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       setSelectedSubjectId(null);
       setIsSubjectDetailsOpen(false);
     }
+    if (dashboardViewCommand.add === "institution") openForm("institution", "add");
+    if (dashboardViewCommand.add === "course") setAddCourseOpen(true);
+    if (dashboardViewCommand.add === "subject") openAddModal("subject");
   }, [dashboardViewCommand]);
 
   const regionOptions = useMemo(
@@ -230,7 +271,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   );
 
   const institutionOptions = useMemo(
-    () => institutions.map((i) => ({ value: String(i.id), label: i.name })),
+    () => institutions.map((i) => ({ value: String(i.id), label: (i.name || "").toUpperCase() })),
     [institutions],
   );
   const courseOptions = useMemo(
@@ -244,11 +285,12 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
   const institutionFields = useMemo(
     () =>
-      ENTITY_FIELDS.institution.map(([key, label, options]) => {
-        if (key === "region") return [key, label, regionOptions];
-        if (key === "category") return [key, label, categoryOptions];
-        return [key, label, options];
-      }),
+      ENTITY_FIELDS.institution
+        .map(([key, label, options]) => {
+          if (key === "region") return [key, label, regionOptions];
+          if (key === "category") return [key, label, categoryOptions];
+          return [key, label, options];
+        }),
     [regionOptions, categoryOptions],
   );
   const subjectFields = useMemo(
@@ -293,10 +335,37 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     return byName ? byName.id : null;
   }
 
-  async function saveInstitution(values) {
+    async function saveInstitution(values) {
+    const email = (values.email || "").trim();
+    if (!/^[^\s@]+@gmail\.com$/i.test(email)) {
+      alert("Please enter a valid Gmail address ending in @gmail.com");
+      throw new Error("Invalid email");
+    }
+    const norm = (v) => (v || "").trim().toUpperCase();
+    const others = institutions.filter((i) => String(i.id) !== String(values.id));
+
+    // Email must be unique on its own.
+    const emailClash = others.some((i) => norm(i.email) === norm(values.email));
+    if (emailClash) {
+      alert("This email is already registered to another institution.");
+      throw new Error("Duplicate email");
+    }
+
+    // A full duplicate = same name, region and category.
+    const fullDuplicate = others.some(
+      (i) =>
+        norm(i.name) === norm(values.name) &&
+        norm(i.region) === norm(values.region) &&
+        norm(i.category) === norm(values.category)
+    );
+    if (fullDuplicate) {
+      alert("An institution with the same name, region and category already exists.");
+      throw new Error("Duplicate institution");
+    }
     const payload = {
-      name: values.name,
+      name: (values.name || "").toUpperCase(),
       email: values.email,
+      abbreviation: (values.abbreviation || "").trim(),
       region_id: resolveRegionId(values.region),
       category_id: resolveCategoryId(values.category),
       status: values.status || "Active",
@@ -344,7 +413,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   }
 
   async function saveCourse(values) {
-    const payload = { name: values.name, status: values.status || "Active", actor: username };
+    const payload = { name: (values.name || "").toUpperCase(), status: values.status || "Active", duration: values.duration || null, abbreviation: (values.abbreviation || "").trim(), actor: username };
     if (values.id) {
       await api.updateCourse(values.id, payload);
     } else {
@@ -372,7 +441,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
   async function saveSubject(values) {
     const payload = {
-      subject: values.subject,
+      subject: (values.subject || "").toUpperCase(),
       year_id: resolveYearId(values.year),
       sem_id: resolveSemId(values.semester),
       priority: values.priority || null,
@@ -413,12 +482,18 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
   const [courseSelectOpen, setCourseSelectOpen] = useState(false);
   const courseSelectOptions = courseOptions.filter(
-    (option) => !coursesForInstitution.some((c) => c.name === option.label),
+    (option) =>
+      !coursesForInstitution.some(
+        (c) => (c.name || "").trim().toLowerCase() === (option.label || "").trim().toLowerCase(),
+      ),
   );
 
   const [subjectSelectOpen, setSubjectSelectOpen] = useState(false);
   const subjectSelectOptions = subjectOptions.filter(
-    (option) => !subjectsForCourse.some((s) => s.subject === option.label),
+    (option) =>
+      !subjectsForCourse.some(
+        (s) => (s.subject || "").trim().toLowerCase() === (option.label || "").trim().toLowerCase(),
+      ),
   );
 
   // Unified add / edit / view modal driven by the action bar below the KPI
@@ -447,6 +522,8 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   // ---- Course dashboard action flows (Add / Map / View) -------------------
   const [addCourseOpen, setAddCourseOpen] = useState(false);
   const [mapCourseOpen, setMapCourseOpen] = useState(false);
+  const [mapCoursePreMapped, setMapCoursePreMapped] = useState([]);
+  const [mapCourseInstId, setMapCourseInstId] = useState(null);
   const [viewCourseOpen, setViewCourseOpen] = useState(false);
 
   // Add Course needs an Institute picker since the user may reach the Courses
@@ -454,10 +531,10 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   const addCourseFields = useMemo(
     () => [
       ["name", "Course"],
-      ["category", "Category", categoryOptions],
+      ["abbreviation", "Abbreviation"],
       ["status", "Status", ["Active", "Inactive"]],
     ],
-    [categoryOptions],
+    [],
   );
 
   // Maps the chosen course names to the chosen institute. Switches the table
@@ -477,29 +554,19 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   }
 
   async function handleAddCourseSave(values) {
-    const instId = selectedInstitutionIdResolved || institutions[0]?.id || null;
-    if (!instId) {
-      alert("No institution available.");
-      return;
-    }
     if (!values.name?.trim()) {
       alert("Course name is required.");
       return;
     }
     try {
-      const created = await api.createCourse(instId, {
-      name: values.name.trim(),
-      category_id: resolveCategoryId(values.category),
-      status: values.status || "Active",
-      actor: username,
-    });
-      setSelectedInstitutionId(instId);
-      setSelectedCourseId(created?.id || null);
-      setSelectedSubjectId(null);
-      setView("courses");
-      refreshCourses(instId);
-      refreshInstitutions();
+      await api.createMasterCourse({
+        name: values.name.trim(),
+        status: values.status || "Active",
+        abbreviation: (values.abbreviation || "").trim(),
+        actor: username,
+      });
       setAddCourseOpen(false);
+      if (typeof refreshCourseMaster === "function") refreshCourseMaster();
     } catch (err) {
       console.error("Add course failed:", err.message);
       alert(err.message);
@@ -507,8 +574,17 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   }
 
   async function handleMapCourseSave(names, extra) {
-    await mapCoursesToInstitute(extra.institute, names);
-    setMapCourseOpen(false);
+    try {
+      const instId = extra?.institute || mapCourseInstId || selectedInstitutionIdResolved;
+      if (!instId) {
+        alert("Please select an institution first.");
+        return;
+      }
+      await mapCoursesToInstitute(instId, names);
+      setMapCourseOpen(false);
+    } catch (err) {
+      alert(err.message || "Could not map courses.");
+    }
   }
 
   // When the user picks an institute inside the Map Course modal, fetch that
@@ -547,27 +623,24 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       return;
     }
     try {
-      const defaultYear = years[0]?.id || null;
-      const defaultSem = examSems[0]?.id || null;
-      await api.updateSubject(editMarksSubject.id, {
-        courseId: selectedCourseIdResolved,
+      await api.createSubject(selectedCourseIdResolved, {
         subject: values.subjectName.trim(),
-        yearId: resolveYearId(editMarksSubject.year) || defaultYear,
-        semId: resolveSemId(editMarksSubject.semester) || defaultSem,
-        priority: editMarksSubject.priority || 1,
+        year_id: years[0]?.id || null,
+        sem_id: examSems[0]?.id || null,
+        priority: subjectsForCourse.length + 1,
         status: "Active",
         divisions: values.divisions,
-        effectiveDate: values.effectiveDate,
+        effective_date: values.effectiveDate || null,
         totalMarks: values.totalMarks,
-        signatureName: values.signatureName,
+        signature_name: values.signatureName,
         actor: username,
       });
       refreshSubjects(selectedCourseIdResolved);
       refreshSubjectMaster();
-      setAddSubjectOpen(false);
     } catch (err) {
       console.error("Add subject failed:", err.message);
       alert(err.message);
+      throw err;
     }
   }
 
@@ -651,6 +724,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     setSelectedSubjectId(null);
     setView("subjects");
     refreshSubjectMaster();
+    refreshSubjects(courseId);
     setMapSubjectOpen(false);
   }
 
@@ -668,13 +742,18 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   }
 
   async function handleAddModalSave(values) {
-    if (addModal.type === "institution") await saveInstitution(values);
-    setAddModal(null);
+    try {
+      if (addModal.type === "institution") await saveInstitution(values);
+      setAddModal(null);
+    } catch (err) {
+      alert(err.message || "Could not save institution.");
+      // keep the modal open so the user can correct and retry
+    }
   }
 
-  async function handleCourseSelectSave(names) {
+  async function handleCourseSelectSave(names, extraValues) {
     for (const name of names) {
-      await saveCourse({ name });
+      await saveCourse({ name, duration: extraValues?.duration });
     }
     setCourseSelectOpen(false);
   }
@@ -714,7 +793,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   }
 
   const metrics = [
-    {
+    /*{
       label: "Institutions",
       value: institutions.length,
       meta: "Board master",
@@ -737,11 +816,12 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       value: pendingApprovals.length,
       meta: `${role} queue`,
       icon: ClipboardCheck,
-    },
+    },*/
   ];
 
   const breadcrumbs = [
-    { label: "Dashboard", onClick: view !== "overview" ? () => setView("overview") : null },
+    { label: "Dashboard", onClick: view !== "overview" ? () => { setView("overview"); setSelectedInstitutionId(null); setSelectedCourseId(null); setSelectedSubjectId(null); setIsSubjectDetailsOpen(false); } : null },
+    view !== "overview" && { label: "Academic Mapping", onClick: goToInstitutions },
     view === "institutions" && { label: "Institutions" },
     view === "courses" && !selectedInstitution && { label: "Courses" },
     view === "subjects" && !selectedCourse && { label: "Subjects" },
@@ -781,11 +861,13 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       disabled: !selectedInstitutionIdResolved,
       disabledHint: "Select an institution from Institution Master",
       emptyHint: selectedInstitutionIdResolved ? "No courses mapped" : "Select an institution from Institution Master",
-      emptyActionLabel: "Add Course",
+      emptyActionLabel: "Map Course to this Institute",
       onEmptyAction: () => openAddModal("course"),
       addLabel: "Add New Course",
       secondaryAddLabel: "Add Existing Course",
       onSecondaryAdd: () => setCourseSelectOpen(true),
+      toolbarActionLabel: "Map Course to this Institute",
+      onToolbarAction: () => setCourseSelectOpen(true),
       onSelect: (row) => {
         setSelectedCourseId(row.id);
         setSelectedSubjectId(null);
@@ -796,7 +878,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       onToggle: toggleCourseRow,
     },
     subjects: {
-      title: `Subject Master${selectedCourse ? ` - ${selectedCourse.name}` : ""}`,
+      title: `Subject Master${selectedInstitution ? ` - ${selectedInstitution.name}` : ""}${selectedCourse ? ` - ${selectedCourse.name}` : ""}`,
       rows: selectedCourseIdResolved ? subjectsForCourse : [],
       columns: ENTITY_COLUMNS.boardSubjects,
       fields: subjectFields,
@@ -809,6 +891,8 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       addLabel: "Add New Subject",
       secondaryAddLabel: "Add Existing Subject",
       onSecondaryAdd: () => setSubjectSelectOpen(true),
+      toolbarActionLabel: "Map Subject to this Institute",
+      onToolbarAction: () => setSubjectSelectOpen(true),
       onSelect: openSubjectDetails,
       onView: openSubjectDetails,
       onSave: saveSubject,
@@ -823,18 +907,18 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
     
     institutions: [
-      { label: "Add Institute", icon: Plus, primary: true, onClick: () => openForm("institution", "add") },
-      {
+     /* { label: "Add Institute", icon: Plus, primary: true, onClick: () => openForm("institution", "add") },*/
+      /*{
         label: "Edit Institute",
         icon: Pencil,
         disabled: institutions.length === 0,
         title: institutions.length === 0 ? "No institutions to edit" : "",
         onClick: () => setEditPick("institution"),
-      },
+      },*/
       
     ],
     courses: [
-      {
+      /*{
         label: "Add Course",
         icon: Plus,
         primary: true,
@@ -852,7 +936,19 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
             : courses.length === 0
               ? "No existing courses to map"
               : "",
-        onClick: () => setMapCourseOpen(true),
+          onClick: async () => {
+          const instId =
+            selectedInstitutionIdResolved ||
+            (sessionStorage.getItem("ems_dash_inst")
+              ? Number(sessionStorage.getItem("ems_dash_inst"))
+              : null);
+          setMapCourseInstId(instId);
+          if (instId) {
+            const mapped = await handleMapCourseInstituteChange(instId);
+            setMapCoursePreMapped(mapped);
+          }
+          setMapCourseOpen(true);
+        },
       },
       {
         label: "Edit Course",
@@ -867,7 +963,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
         disabled: courses.length === 0,
         title: courses.length === 0 ? "No courses to view" : "",
         onClick: () => setViewCourseOpen(true),
-      },
+      },*/
     ],
     subjects: [
       {
@@ -882,7 +978,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
             : "",
         onClick: () => setAddSubjectOpen(true),
       },
-      {
+      /*{
         label: "Add Subject",
         icon: Plus,
         disabled: !selectedCourseIdResolved,
@@ -922,7 +1018,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
         disabled: !selectedInstitutionIdResolved,
         title: !selectedInstitutionIdResolved ? "Select an institution first" : "",
         onClick: () => setViewStudentsOpen(true),
-      },
+      },*/
     ],
     
   }[view];
@@ -947,7 +1043,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
             </button>
           )}
           <Breadcrumb items={breadcrumbs} />
-          <h2>Academic Command Center</h2>
+          
         </div>
         <StatusBadge status={role} />
       </div>
@@ -957,6 +1053,63 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           <KpiCard key={metric.label} {...metric} />
         ))}
       </div>
+
+      {view === "overview" && (
+        <div className="overview-modules">
+          <div className="overview-group">
+            <p className="eyebrow">Academic Master</p>
+            <div className="overview-module-grid">
+              <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => onOpenAcademicMaster("institutions")}>
+                <span className="overview-module-icon"><Building2 size={26} /></span>
+                <span>Institution Master</span>
+               
+              </button>
+              <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => onOpenAcademicMaster("courses")}>
+                <span className="overview-module-icon"><Layers size={26} /></span>
+                <span>Course Master</span>
+           
+              </button>
+              <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => onOpenAcademicMaster("subjects")}>
+                <span className="overview-module-icon"><BookOpen size={26} /></span>
+                <span>Subject Master</span>
+             
+              </button>
+            </div>
+          </div>
+
+          <div className="overview-group">
+            <p className="eyebrow">Academic Mapping</p>
+            <div className="overview-module-grid">
+              <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={goToInstitutions}>
+                <span className="overview-module-icon"><Building2 size={26} /></span>
+                <span>Institutions</span>
+         
+              </button>
+              <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => setView("courses")}>
+                <span className="overview-module-icon"><Layers size={26} /></span>
+                <span>Courses</span>
+           
+              </button>
+              <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => setView("subjects")}>
+                <span className="overview-module-icon"><BookOpen size={26} /></span>
+                <span>Subjects</span>
+             
+              </button>
+            </div>
+          </div>
+
+          <div className="overview-group">
+            <p className="eyebrow">Approval Center</p>
+            <div className="overview-module-grid">
+              <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => setActiveRoute("student-verification")}>
+                <span className="overview-module-icon"><UserCheck size={26} /></span>
+                <span>Registered Students</span>
+              
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {view !== "overview" && actionBar && (
         <div className="dashboard-action-bar">
@@ -996,6 +1149,8 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
             addLabel={tableConfig.addLabel}
             secondaryAddLabel={tableConfig.secondaryAddLabel}
             onSecondaryAdd={tableConfig.onSecondaryAdd}
+            toolbarActionLabel={tableConfig.toolbarActionLabel}
+            onToolbarAction={tableConfig.onToolbarAction}
             onSelect={tableConfig.onSelect}
             onView={tableConfig.onView}
             onSave={tableConfig.onSave}
@@ -1041,7 +1196,15 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           row={formModal.row}
           fields={entityForm[formModal.entity].fields}
           title={entityForm[formModal.entity].title}
-          onClose={() => setFormModal(null)}
+          onClose={() => {
+            const wasInstitutionAdd = formModal.entity === "institution" && formModal.mode === "add";
+            setFormModal(null);
+            // Add Institute is launched from the Academic Master page via a
+            // route switch (not a same-page modal), so closing it should
+            // send the user back there instead of leaving them stranded on
+            // Academic Mapping.
+            if (wasInstitutionAdd && onNavigateBack) onNavigateBack();
+          }}
           onSave={handleFormSave}
         />
       )}
@@ -1117,7 +1280,12 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           title="Course"
           emptyMessage="No courses available to map."
           options={courseOptions}
-          extraFields={[["institute", "Institute", institutionOptions]]}
+            extraFields={
+            mapCourseInstId
+              ? []
+              : [["institute", "Institute", institutionOptions]]
+          }
+          initialMapped={mapCourseInstId ? mapCoursePreMapped : []}
           onClose={() => setMapCourseOpen(false)}
           onSave={handleMapCourseSave}
           onInstituteChange={handleMapCourseInstituteChange}
@@ -1162,6 +1330,8 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           subjectOptions={subjectOptions}
           yearOptions={yearOptions}
           semOptions={semOptions}
+          fixedInstituteId={selectedInstitutionIdResolved}
+          fixedCourseId={selectedCourseIdResolved}
           onClose={() => setMapSubjectOpen(false)}
           onSave={handleMapSubjectSave}
         />
@@ -1179,6 +1349,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           level="course"
           title="Course"
           instituteOptions={institutionOptions}
+          fixedInstituteId={selectedInstitutionIdResolved}
           onClose={() => setEditCourseOpen(false)}
           onPick={(row, ctx) => {
             setEditCourseOpen(false);
@@ -1195,6 +1366,8 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           level="subject"
           title="Subject"
           instituteOptions={institutionOptions}
+          fixedInstituteId={selectedInstitutionIdResolved}
+          fixedCourseId={selectedCourseIdResolved}
           onClose={() => setEditSubjectOpen(false)}
           onPick={(row, ctx) => {
             setEditSubjectOpen(false);
@@ -1232,6 +1405,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           title="Course"
           emptyMessage="No more courses available to add."
           options={courseSelectOptions}
+          extraFields={[["duration", "Duration", []]]}
           onClose={() => setCourseSelectOpen(false)}
           onSave={handleCourseSelectSave}
         />
@@ -1326,7 +1500,7 @@ function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onC
         ["Priority", subject.priority],
         ["Total Max", subject.totalMax],
         ["Total Pass", subject.totalPass],
-        ["Effective Date", subject.effectiveDate],
+        ["Effective Date", formatDate(subject.effectiveDate)],
         ...(subject.divisions || []).map((d) => [
           DIV_LABEL[d.type] || `${d.type} (Max / Pass)`,
           `${d.maxMarks} / ${d.passMarks}`,

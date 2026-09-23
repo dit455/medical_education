@@ -170,8 +170,9 @@ export const ENTITY_FIELDS = {
     ["owner", "Owner"],
     ["status", "Status", ["Active", "Inactive"]],
   ],
-    institution: [
+  institution: [
     ["name", "Institution"],
+    ["abbreviation", "Abbreviation"],
     ["email", "Email"],
     ["region", "Region"],
     ["category", "Category"],
@@ -179,6 +180,7 @@ export const ENTITY_FIELDS = {
   ],
   course: [
     ["name", "Course"],
+    ["abbreviation", "Abbreviation"],
     ["status", "Status", ["Active", "Inactive"]],
   ],
   boardSubject: [
@@ -271,7 +273,7 @@ export const ENTITY_COLUMNS = {
   ],
   reports: ["name", "module", "frequency", "owner", "status"],
   institutions: ["name", "region", "category", "status"],
-  courses: ["name", "status"],
+  courses: ["name", "duration", "status"],
   boardSubjects: ["subject", "totalMax", "totalPass", "year", "semester", "priority", "status"],
   institutionStudents: ["name", "registerNo", "term", "status"],
   institutionMarks: ["subject", "internal", "exam", "result", "status"],

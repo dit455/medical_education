@@ -116,14 +116,14 @@ def update_student(student_id):
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        try:
-            result = apply_update_student(
-                cursor, student_id, body.get("name"), body.get("registerNo"), body.get("term"),
-                body.get("status", "Active"), actor_from_body(body),
-            )
-        except ValueError as exc:
-            cursor.close()
-            return jsonify({"error": str(exc)}), 404
+        result = apply_update_student(
+            cursor, student_id,
+            name=body.get("name"),
+            register_no=body.get("registerNo"),
+            term=body.get("term"),
+            status_label=body.get("status", "Active"),
+            actor=actor_from_body(body),
+        )
         conn.commit()
         cursor.close()
         return jsonify(result)

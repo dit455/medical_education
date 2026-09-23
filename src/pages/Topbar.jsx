@@ -1,9 +1,10 @@
 import { Menu } from "lucide-react";
 
 export default function Topbar({ route, onMenuClick }) {
-  const HEADERLESS_TYPES = ["dashboard", "student-registration", "internal-marks", "institution-approvals-portal", "student-management"];
+  const HEADERLESS_TYPES = ["dashboard", "academic-master", "student-registration", "internal-marks", "institution-approvals-portal", "student-management"];
+  const HEADERLESS_KEYS = ["student-verification"];
   const title = route?.type === "dashboard" ? "Dashboard" : route?.title || "Dashboard";
-  if (HEADERLESS_TYPES.includes(route?.type)) {
+  if (HEADERLESS_TYPES.includes(route?.type) || HEADERLESS_KEYS.includes(route?.key)) {
     return (
       <button className="icon-btn mobile-menu-btn dashboard-mobile-menu" type="button" onClick={onMenuClick} aria-label="Open menu">
         <Menu size={18} />

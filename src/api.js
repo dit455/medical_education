@@ -42,12 +42,19 @@ export function getExamSems() {
   return request("/exam-sems");
 }
 
-export function getListCourses() {
-  return request("/courses");
+export function getListCourses(includeInactive) {
+  return request(`/courses${includeInactive ? "?include_inactive=1" : ""}`);
 }
 
-export function getListSubjects() {
-  return request("/subjects");
+export function getListSubjects(includeInactive) {
+  return request(`/subjects${includeInactive ? "?include_inactive=1" : ""}`);
+}
+
+export function createMasterSubject(payload) {
+  return request("/subjects", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function getInstitutions(board) {
@@ -92,6 +99,13 @@ export function createCourse(institutionId, payload) {
   });
 }
 
+export function createMasterCourse(payload) {
+  return request("/courses", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function updateCourse(courseId, payload) {
   return request(`/courses/${courseId}`, {
     method: "PUT",
@@ -121,6 +135,28 @@ export function updateSubject(courseSubjectId, payload) {
   });
 }
 
+
+export function setInstitutionStatus(id, status, actor) {
+  return request(`/institutions/${id}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status, actor }),
+  });
+}
+
+export function setCourseStatus(id, status, actor) {
+  return request(`/courses/${id}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status, actor }),
+  });
+}
+
+export function setMasterSubjectStatus(id, status, actor) {
+  return request(`/subject-master/${id}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status, actor }),
+  });
+}
+
 export function deleteSubject(courseSubjectId) {
   return request(`/subjects/${courseSubjectId}`, { method: "DELETE" });
 }
@@ -129,6 +165,13 @@ export function login(username, password) {
   return request("/login", {
     method: "POST",
     body: JSON.stringify({ username, password }),
+  });
+}
+
+export function forgotPassword(username) {
+  return request("/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ username }),
   });
 }
 

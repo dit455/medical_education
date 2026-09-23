@@ -150,8 +150,6 @@ def apply_create_subject(cursor, course_id, subject, year_id, sem_id, priority=N
     )
     existing = cursor.fetchone()
 
-    cursor.fetchall()
-
     if existing:
         subject_id = existing[0]
         cursor.execute(
@@ -187,6 +185,9 @@ def apply_create_subject(cursor, course_id, subject, year_id, sem_id, priority=N
             (course_id, subject_id, year_id, sem_id),
         )
     existing_map = cursor.fetchone()
+
+    if existing_map and course_subject_id is None:
+        raise ValueError("This subject is already added for the selected course, year and semester.")
 
     if existing_map:
         map_id = existing_map[0]
@@ -278,6 +279,34 @@ def apply_create_subject(cursor, course_id, subject, year_id, sem_id, priority=N
     return _subject_row_to_dict(cursor.fetchone(), cursor)
 
 
+def apply_create_master_subject(cursor, subject, status_label="Active", actor="system"):
+    """Create a subject in tbl_subject_master only, with NO course mapping."""
+    subject = (subject or "").strip()
+    if not subject:
+        raise ValueError("Subject name is required.")
+    status_ = label_to_status(status_label)
+
+    cursor.execute(
+        "SELECT subject_id FROM tbl_subject_master WHERE LOWER(TRIM(subject_desc)) = LOWER(TRIM(%s))",
+        (subject,),
+    )
+    if cursor.fetchone() is not None:
+        raise ValueError("A subject with this name already exists.")
+
+    cursor.execute("SELECT COALESCE(MAX(subject_id), 0) + 1 FROM tbl_subject_master")
+    subject_id = cursor.fetchone()[0]
+    cursor.execute(
+        """
+        INSERT INTO tbl_subject_master
+            (subject_id, subject_desc, bome_status, boen_status,
+             created_by, created_date, status_)
+        VALUES (%s, %s, 0, 0, %s, NOW(), %s)
+        """,
+        (subject_id, subject, actor, status_),
+    )
+    return {"id": subject_id, "name": subject, "status": status_to_label(status_)}
+
+
 def apply_update_subject(cursor, course_subject_id, subject, year_id, sem_id,
                           priority=None, status_label="Active", actor="system"):
     status_ = label_to_status(status_label)
@@ -354,7 +383,30 @@ def create_subject_for_course(course_id):
             )
         except ValueError as exc:
             cursor.close()
-            return jsonify({"error": str(exc)}), 404
+            status = 409 if "already added" in str(exc) else 404
+            return jsonify({"error": str(exc)}), status
+        conn.commit()
+        cursor.close()
+        return jsonify(result), 201
+    finally:
+        conn.close()
+
+
+@subjects_bp.route("/api/subjects", methods=["POST"])
+def create_master_subject():
+    body = request.get_json(force=True) or {}
+    conn = get_connection()
+    try:
+        cursor = conn.cursor(buffered=True)
+        try:
+            result = apply_create_master_subject(
+                cursor, body.get("name") or body.get("subject"),
+                body.get("status", "Active"), actor_from_body(body),
+            )
+        except ValueError as exc:
+            cursor.close()
+            status = 409 if "already exists" in str(exc) else 400
+            return jsonify({"error": str(exc)}), status
         conn.commit()
         cursor.close()
         return jsonify(result), 201
@@ -389,6 +441,30 @@ def update_subject(course_subject_id):
         conn.commit()
         cursor.close()
         return jsonify(result)
+    finally:
+        conn.close()
+
+
+@subjects_bp.route("/api/subject-master/<int:subject_id>/status", methods=["PUT"])
+def update_master_subject_status(subject_id):
+    body = request.get_json(force=True) or {}
+    status_ = label_to_status(body.get("status", "Active"))
+    actor = actor_from_body(body)
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE tbl_subject_master SET status_ = %s, updated_by = %s, updated_date = NOW() WHERE subject_id = %s",
+            (status_, actor, subject_id),
+        )
+        # Cascade to every course mapping so Academic Mapping shows the same status.
+        cursor.execute(
+            "UPDATE tbl_course_subject_map SET status_ = %s, updated_by = %s, updated_date = NOW() WHERE subject_id = %s",
+            (status_, actor, subject_id),
+        )
+        conn.commit()
+        cursor.close()
+        return jsonify({"id": subject_id, "status": status_to_label(status_)})
     finally:
         conn.close()
 

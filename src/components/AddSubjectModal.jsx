@@ -12,7 +12,6 @@ import { X, CircleCheck } from "lucide-react";
 const DIVISIONS = [
   { key: "ia", examTypeId: 1, label: "Internal Assessment" },
   { key: "ea", examTypeId: 2, label: "External Assessment" },
-  { key: "tp", examTypeId: 3, label: "Theory / Practical" },
 ];
 
 export default function AddSubjectModal({
@@ -86,9 +85,8 @@ export default function AddSubjectModal({
     }
     if (totalMax !== 100)
       return `Total maximum must equal 100 (currently ${totalMax}).`;
-    if (!effectiveDate) return "Select an effective start date.";
     return null;
-  }, [subjectId, marks, totalMax, effectiveDate]);
+  }, [subjectId, marks, totalMax]);
 
   const selectedSubject = subjectOptions.find((o) => String(o.value) === String(subjectId));
   const canSave = subjectId && !error;
@@ -307,16 +305,6 @@ export default function AddSubjectModal({
             </div>
 
             <div className="form-grid" style={{ marginTop: 12 }}>
-              <label>
-                <span>Effective Start Date</span>
-                <input
-                  type="date"
-                  aria-label="Effective Start Date"
-                  value={effectiveDate}
-                  max={new Date().toISOString().slice(0, 10)}
-                  onChange={(e) => setEffectiveDate(e.target.value)}
-                />
-              </label>
               <label>
                 <span>Digital Signature</span>
                 <input

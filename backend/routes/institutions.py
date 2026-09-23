@@ -12,7 +12,7 @@ import threading
 institutions_bp = Blueprint("institutions", __name__)
 
 INSTITUTION_SELECT_SQL = """
-    SELECT i.inst_id, i.inst_name, i.status_, r.region_desc, c.cat_desc
+    SELECT i.inst_id, i.inst_name, i.inst_abbr, i.status_, r.region_desc, c.cat_desc
     FROM tbl_inst_master i
     LEFT JOIN tbl_region_master r ON r.region_id = i.region_id
     LEFT JOIN tbl_category_master c ON c.cat_id = i.cat_id
@@ -20,10 +20,11 @@ INSTITUTION_SELECT_SQL = """
 
 
 def _institution_row_to_dict(row):
-    inst_id, inst_name, status_, region_desc, cat_desc = row
+    inst_id, inst_name, inst_abbr, status_, region_desc, cat_desc = row
     return {
         "id": inst_id,
         "name": inst_name,
+        "abbreviation": inst_abbr,
         "region": region_desc,
         "category": cat_desc,
         "status": status_to_label(status_),
@@ -72,6 +73,7 @@ def create_institution():
     body = request.get_json(force=True) or {}
     name = body.get("name")
     inst_email = body.get("email")
+    abbreviation = body.get("abbreviation")
     region_id = body.get("region_id")
     cat_id = body.get("category_id")
     board = body.get("board")
@@ -83,6 +85,30 @@ def create_institution():
     conn = get_connection()
     try:
         cursor = conn.cursor()
+
+        # Email must be globally unique.
+        cursor.execute(
+            "SELECT inst_id FROM tbl_inst_master WHERE UPPER(TRIM(inst_email)) = UPPER(TRIM(%s)) LIMIT 1",
+            (inst_email or "",),
+        )
+        if cursor.fetchone():
+            cursor.close()
+            return jsonify({"error": "An institution with this email already exists."}), 409
+
+        # Name must be unique unless region OR category differs.
+        cursor.execute(
+            """
+            SELECT inst_id FROM tbl_inst_master
+            WHERE UPPER(TRIM(inst_name)) = UPPER(TRIM(%s))
+              AND region_id = %s AND cat_id = %s
+            LIMIT 1
+            """,
+            (name or "", region_id, cat_id),
+        )
+        if cursor.fetchone():
+            cursor.close()
+            return jsonify({"error": "An institution with the same name, region and category already exists."}), 409
+
         cursor.execute("SELECT COALESCE(MAX(inst_id), 0) + 1 FROM tbl_inst_master")
         new_id = cursor.fetchone()[0]
 
@@ -90,11 +116,11 @@ def create_institution():
         cursor.execute(
             f"""
             INSERT INTO tbl_inst_master
-            (inst_id, inst_name, inst_email, {column}, {other_column}, region_id, cat_id,
+            (inst_id, inst_name, inst_email, inst_abbr, {column}, {other_column}, region_id, cat_id,
             created_by, created_date, status_)
-            VALUES (%s, %s, %s, 1, 0, %s, %s, %s, NOW(), %s)
+            VALUES (%s, %s, %s, %s, 1, 0, %s, %s, %s, NOW(), %s)
             """,
-            (new_id, name, inst_email, region_id, cat_id, actor, status_),
+            (new_id, name, inst_email, abbreviation, region_id, cat_id, actor, status_),
         )
         conn.commit()
 
@@ -149,6 +175,7 @@ def create_institution():
 def update_institution(institution_id):
     body = request.get_json(force=True) or {}
     name = body.get("name")
+    abbreviation = body.get("abbreviation")
     region_id = body.get("region_id")
     cat_id = body.get("category_id")
     status_ = label_to_status(body.get("status", "Active"))
@@ -160,11 +187,11 @@ def update_institution(institution_id):
         cursor.execute(
             """
             UPDATE tbl_inst_master
-            SET inst_name = %s, region_id = %s, cat_id = %s, status_ = %s,
+            SET inst_name = %s, inst_abbr = %s, region_id = %s, cat_id = %s, status_ = %s,
                 updated_by = %s, updated_date = NOW()
             WHERE inst_id = %s
             """,
-            (name, region_id, cat_id, status_, actor, institution_id),
+            (name, abbreviation, region_id, cat_id, status_, actor, institution_id),
         )
         conn.commit()
 
@@ -172,6 +199,25 @@ def update_institution(institution_id):
         row = cursor.fetchone()
         cursor.close()
         return jsonify(_institution_row_to_dict(row))
+    finally:
+        conn.close()
+
+
+@institutions_bp.route("/api/institutions/<int:institution_id>/status", methods=["PUT"])
+def update_institution_status(institution_id):
+    body = request.get_json(force=True) or {}
+    status_ = label_to_status(body.get("status", "Active"))
+    actor = actor_from_body(body)
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE tbl_inst_master SET status_ = %s, updated_by = %s, updated_date = NOW() WHERE inst_id = %s",
+            (status_, actor, institution_id),
+        )
+        conn.commit()
+        cursor.close()
+        return jsonify({"id": institution_id, "status": status_to_label(status_)})
     finally:
         conn.close()
 

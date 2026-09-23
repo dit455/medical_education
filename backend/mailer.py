@@ -63,3 +63,45 @@ Medical Education Board, Government of Puducherry
     except Exception as exc:
         print(f"[mailer] Failed to send credentials email: {exc}")
         return False
+
+
+
+def send_password_reset_email(to_email, institution_name, role_label, username, new_password):
+    """Sends a freshly generated password after a Forgot Password request.
+    Returns True on success, False if not configured or on failure."""
+    cfg = _smtp_config()
+    if not cfg["host"] or not to_email:
+        return False
+
+    msg = EmailMessage()
+    msg["Subject"] = f"EMS password reset — {institution_name}"
+    msg["From"] = cfg["sender"]
+    msg["To"] = to_email
+    msg.set_content(
+        f"""Dear {institution_name},
+
+A password reset was requested for your {role_label} login on the EMS portal.
+
+  Username: {username}
+  New Password: {new_password}
+
+You will be asked to change this password on your next login.
+If you did not request this, please contact your Board administrator immediately.
+
+Regards,
+BOME & BOEN — EMS
+Medical Education Board, Government of Puducherry
+"""
+    )
+
+    try:
+        with smtplib.SMTP(cfg["host"], cfg["port"], timeout=20) as server:
+            if cfg["use_tls"]:
+                server.starttls()
+            if cfg["user"]:
+                server.login(cfg["user"], cfg["password"])
+            server.send_message(msg)
+        return True
+    except Exception as exc:
+        print(f"[mailer] Failed to send password reset email: {exc}")
+        return False

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import { CircleCheck, X } from "lucide-react";
+import { CircleCheck, X, FileText, Trash2 } from "lucide-react";
 import * as api from "../api.js";
-import { passOrFail } from "../utils.js";
+import { passOrFail, formatDate } from "../utils.js";
 import MyRequestsTable from "../components/MyRequestsTable.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
 
@@ -14,21 +14,40 @@ import StatusBadge from "../components/StatusBadge.jsx";
 export default function InternalMarksPage({ institutionId, username }) {
   const [courses, setCourses] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [allSubjects, setAllSubjects] = useState([]);
+  const [institutionName, setInstitutionName] = useState("");
   const [years, setYears] = useState([]);
   const [sems, setSems] = useState([]);
   const [examCategories, setExamCategories] = useState([]);
   const [examSessions, setExamSessions] = useState([]);
   const [students, setStudents] = useState([]);
 
-  const [schedule, setSchedule] = useState({
-    courseId: "", admissionYear: "", yearId: "", semId: "", examCatId: "", examSessionId: "", examDate: "",
-  });
+  const loadSchedule = () => {
+    try {
+      const raw = localStorage.getItem("ems_im_schedule");
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return {
+      courseId: "", admissionYear: "", yearId: "", semId: "", examCatId: "", examSessionId: "", examDate: "",
+    };
+  };
+  const [schedule, setSchedule] = useState(loadSchedule);
   const [activeSubjectId, setActiveSubjectId] = useState("");
   const [rowScored, setRowScored] = useState({});
   const [rowState, setRowState] = useState({});
   const [shownStudentIds, setShownStudentIds] = useState([]);
-  const [populatedIds, setPopulatedIds] = useState([]);
-  const [absentIds, setAbsentIds] = useState([]);
+  const persistKey = (cid, sid) => `ems_im_${cid || "x"}_${sid || "x"}`;
+  const loadPersisted = (cid, sid) => {
+    try {
+      const raw = localStorage.getItem(persistKey(cid, sid));
+      if (!raw) return { populated: [], absent: [] };
+      const p = JSON.parse(raw);
+      return { populated: p.populated || [], absent: p.absent || [] };
+    } catch {
+      return { populated: [], absent: [] };
+    }
+  };
+
   const [addRegNo, setAddRegNo] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [absentOpen, setAbsentOpen] = useState(false);
@@ -74,6 +93,7 @@ export default function InternalMarksPage({ institutionId, username }) {
 
   useEffect(() => {
     api.getCourses(institutionId).then(setCourses).catch(() => setCourses([]));
+    api.getInstitution(institutionId).then((inst) => setInstitutionName(inst?.name || "")).catch(() => setInstitutionName(""));
     refreshStudents();
     api.getYears().then(setYears).catch(() => setYears([]));
     api.getExamSems().then(setSems).catch(() => setSems([]));
@@ -81,6 +101,12 @@ export default function InternalMarksPage({ institutionId, username }) {
     api.getExamSessions().then(setExamSessions).catch(() => setExamSessions([]));
     refreshMyRequests();
   }, [institutionId]);
+
+    useEffect(() => {
+    if (courses.length === 0) return;
+    Promise.all(courses.map((c) => api.getSubjects(c.id).catch(() => [])))
+      .then((lists) => setAllSubjects(lists.flat()));
+  }, [courses]);
 
   useEffect(() => {
     if (!schedule.courseId) {
@@ -91,8 +117,15 @@ export default function InternalMarksPage({ institutionId, username }) {
     api
       .getSubjects(schedule.courseId)
       .then((list) => {
-        setSubjects(list);
-        setActiveSubjectId(list.length ? String(list[0].id) : "");
+        // Only Active subjects should be selectable for marks entry — an
+        // Inactive subject shouldn't appear as a tab here even though it
+        // still exists in the course's subject mapping.
+        const activeList = list.filter((s) => s.status !== "Inactive");
+        setSubjects(activeList);
+        let saved = "";
+        try { saved = localStorage.getItem("ems_im_subject") || ""; } catch {}
+        const match = activeList.find((s) => String(s.id) === String(saved));
+        setActiveSubjectId(match ? String(saved) : (activeList.length ? String(activeList[0].id) : ""));
       })
       .catch(() => {
         setSubjects([]);
@@ -100,8 +133,6 @@ export default function InternalMarksPage({ institutionId, username }) {
       });
     setRowScored({});
     setShownStudentIds([]);
-    setPopulatedIds([]);
-    setAbsentIds([]);
     setAddRegNo("");
     setAbsentRegNo("");
     setAddError("");
@@ -112,12 +143,16 @@ export default function InternalMarksPage({ institutionId, username }) {
 
     useEffect(() => {
     if (activeSubjectId) refreshMyRequests();
+    try { localStorage.setItem("ems_im_subject", activeSubjectId || ""); } catch {}
     }, [activeSubjectId]);
 
   const activeSubject = useMemo(
     () => subjects.find((s) => String(s.id) === String(activeSubjectId)),
     [subjects, activeSubjectId],
   );
+  const courseNameFor = (id) => (courses.find((c) => String(c.id) === String(id))?.name || "-").toUpperCase();
+  const subjectNameFor = (id) => subjects.find((s) => String(s.id) === String(id))?.subject || "-";
+  const subjectNameForAny = (id) => allSubjects.find((s) => String(s.id) === String(id))?.subject || "-";
     const examPeriodLabel = useMemo(() => {
     const d = activeSubject?.effectiveDate;
     if (!d) return "";
@@ -126,9 +161,6 @@ export default function InternalMarksPage({ institutionId, username }) {
     return dt.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   }, [activeSubject]);
 
-  useEffect(() => {
-    setScheduleField("examDate", examPeriodLabel);
-  }, [examPeriodLabel]);
       const internalDivision = useMemo(
         () => activeSubject?.divisions?.find((d) => Number(d.examTypeId) === 1),
         [activeSubject],
@@ -136,8 +168,36 @@ export default function InternalMarksPage({ institutionId, username }) {
   const configuredTotalMarks = internalDivision ? internalDivision.maxMarks : null;
   const configuredPassMarks = internalDivision ? internalDivision.passMarks : null;
 
+
+
+  // Derive Year (1/2/3/4) from Year of Admission: current year − admission year.
+  // Matches the computed number against the year options (by the digit in the
+  // option name, e.g. "Year 3") and sets yearId automatically.
+  useEffect(() => {
+    if (!schedule.admissionYear || years.length === 0) return;
+    const admitYear = new Date(schedule.admissionYear).getFullYear();
+    if (!admitYear || Number.isNaN(admitYear)) return;
+    const computed = new Date().getFullYear() - admitYear + 1;
+    const match = years.find((y) => {
+      const n = parseInt(String(y.name).replace(/\D/g, ""), 10);
+      return n === computed;
+    });
+    setSchedule((prev) => {
+      const next = { ...prev, yearId: match ? String(match.id) : "" };
+      try { localStorage.setItem("ems_im_schedule", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedule.admissionYear, years]);
+
+
+
   function setScheduleField(key, value) {
-    setSchedule((prev) => ({ ...prev, [key]: value }));
+    setSchedule((prev) => {
+      const next = { ...prev, [key]: value };
+      try { localStorage.setItem("ems_im_schedule", JSON.stringify(next)); } catch {}
+      return next;
+    });
   }
 
   const scheduleErrors = {
@@ -158,10 +218,91 @@ export default function InternalMarksPage({ institutionId, username }) {
 
   const shownStudents = courseStudents;
 
+  // When a course is selected, auto-fill Year of Admission from that course's
+  // registered students. Uses the most recent batch's admission year if the
+  // course has students from multiple years.
+  useEffect(() => {
+    if (!schedule.courseId) return;
+    const withYear = courseStudents
+      .map((s) => s.admissionYear)
+      .filter(Boolean);
+    // Pick the latest admission date among THIS course's students; if the course
+    // has no students, clear the field instead of keeping the previous course's value.
+    let iso = "";
+    if (withYear.length > 0) {
+      const latest = withYear
+        .map((d) => ({ raw: d, t: new Date(d).getTime() }))
+        .filter((x) => !Number.isNaN(x.t))
+        .sort((a, b) => b.t - a.t)[0];
+      if (latest) iso = String(latest.raw).slice(0, 10);
+    }
+    setSchedule((prev) => {
+      if (prev.admissionYear === iso) return prev;
+      const next = { ...prev, admissionYear: iso, yearId: iso ? prev.yearId : "" };
+      try { localStorage.setItem("ems_im_schedule", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedule.courseId, courseStudents]);
+
+    // Added / Absentees is derived entirely from tbl_pending_changes (myRequests)
+  // for the active course+subject. No localStorage — so deleting/truncating rows
+  // in the DB clears this table too.
+  const [manuallyAdded, setManuallyAdded] = useState([]);
+
+  const requestsForActive = useMemo(
+    () => myRequests.filter(
+      (c) =>
+        String(c.payload.courseId) === String(schedule.courseId) &&
+        String(c.payload.subjectId) === String(activeSubjectId)
+    ),
+    [myRequests, schedule.courseId, activeSubjectId],
+  );
+
+  useEffect(() => {
+    setManuallyAdded([]);
+  }, [schedule.courseId, activeSubjectId]);
+
+  const absentIds = useMemo(
+    () =>
+      requestsForActive
+        .filter((c) => c.payload?.isAbsent || c.payload?.result === "Absent")
+        .map((c) => String(c.payload.studentId)),
+    [requestsForActive],
+  );
+
+  // Added / Absentees shows ONLY students brought in via −Absentees or +Add.
+  // Normal marks submissions stay in My Requests.
+  const populatedIds = useMemo(
+    () => Array.from(new Set([...absentIds, ...manuallyAdded])),
+    [absentIds, manuallyAdded],
+  );
+
   const populatedStudents = useMemo(
     () => courseStudents.filter((s) => populatedIds.includes(String(s.id))),
     [courseStudents, populatedIds],
   );
+
+  const requestForStudent = (sid) => {  
+  const exact = myRequests.find(
+        (c) =>
+          c.status !== "Rejected" &&
+          String(c.payload.courseId) === String(schedule.courseId) &&
+          String(c.payload.subjectId) === String(activeSubjectId) &&
+          String(c.payload.studentId) === String(sid)
+      );
+      if (exact) return exact;
+      // Fallback: same course + student, any subject — catches requests saved
+      // under a differently-numbered subject entry that shows the same name.
+      return (
+        myRequests.find(
+          (c) =>
+            c.status !== "Rejected" &&
+            String(c.payload.courseId) === String(schedule.courseId) &&
+            String(c.payload.studentId) === String(sid)
+        ) || null
+      );
+    };
 
   const lockedForSubject = useMemo(() => {
     const map = {};
@@ -236,16 +377,35 @@ export default function InternalMarksPage({ institutionId, username }) {
     const el = document.getElementById(`marks-row-${sid}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     setTimeout(() => setHighlightId(""), 2500);
-  }
+   }
 
-  function handleAddStudent() {
+    function handleAddStudent() {
     setAddError("");
+    if (!scheduleValid) {
+      setTouched({
+        courseId: true, admissionYear: true, yearId: true, semId: true,
+        examCatId: true, examSessionId: true, examDate: true,
+      });
+      setAddError("Complete the Exam Schedule first.");
+      return;
+    }
     if (!addRegNo.trim()) { setAddError("Enter a register number."); return; }
     const student = findByRegNo(addRegNo);
     if (!student) { setAddError("No student with that register number in this course."); return; }
     const sid = String(student.id);
-    if (!populatedIds.includes(sid)) setPopulatedIds((p) => [...p, sid]);
-    setAbsentIds((p) => p.filter((x) => x !== sid));
+    const isApproved = myRequests.some(
+      (c) =>
+        c.status === "Approved" &&
+        String(c.payload?.courseId) === String(schedule.courseId) &&
+        Number(c.payload?.subjectId) === Number(activeSubjectId) &&
+        String(c.payload?.studentId) === sid,
+    );
+    if (!isApproved) {
+      setAddError("Only students with an approved entry can be added.");
+      return;
+    }
+    setManuallyAdded((p) => (p.includes(sid) ? p : [...p, sid]));
+    focusRow(sid);
     setAddRegNo("");
     setAddOpen(false);
   }
@@ -255,7 +415,7 @@ export default function InternalMarksPage({ institutionId, username }) {
     if (!scheduleValid) {
       setTouched({
         courseId: true, admissionYear: true, yearId: true, semId: true,
-        examCatId: true, examSessionId: true, examDate: true,
+        examCatId: true, examDate: true,
       });
       setAbsentError("Complete the Exam Schedule first.");
       return;
@@ -264,8 +424,22 @@ export default function InternalMarksPage({ institutionId, username }) {
     const student = findByRegNo(absentRegNo);
     if (!student) { setAbsentError("No student with that register number in this course."); return; }
     const sid = String(student.id);
-    const key = rowKey(activeSubjectId, sid);
+    const alreadyApproved = myRequests.some(
+      (c) =>
+        c.status === "Approved" &&
+        Number(c.payload?.subjectId) === Number(activeSubjectId) &&
+        String(c.payload?.studentId) === sid
+    );
+    if (alreadyApproved) {
+      setAbsentError("This student already has an approved entry and cannot be marked absent.");
+      return;
+    }
     focusRow(sid);
+    setAbsentRegNo("");
+    setAbsentOpen(false);
+
+    const key = rowKey(activeSubjectId, sid);
+    setRowState((p) => ({ ...p, [key]: "submitting" }));
     try {
       await api.submitPendingChange({
         entityType: "internal_marks",
@@ -280,22 +454,22 @@ export default function InternalMarksPage({ institutionId, username }) {
           yearId: Number(schedule.yearId),
           semId: Number(schedule.semId),
           examCatId: Number(schedule.examCatId),
-          examSessionId: Number(schedule.examSessionId),
+          examSessionId: schedule.examSessionId ? Number(schedule.examSessionId) : null,
           examDate: schedule.examDate,
           studentId: Number(student.id),
-          scoredMarks: 0,
+          scoredMarks: null,
           totalMarks: configuredTotalMarks != null ? Number(configuredTotalMarks) : null,
           passMarks: configuredPassMarks != null ? Number(configuredPassMarks) : null,
           result: "Absent",
+          isAbsent: true,
         },
       });
-      setOptimisticLocks((p) => ({ ...p, [key]: { status: "Pending", scoredMarks: 0 } }));
-      if (!populatedIds.includes(sid)) setPopulatedIds((p) => [...p, sid]);
-      if (!absentIds.includes(sid)) setAbsentIds((p) => [...p, sid]);
-      setAbsentRegNo("");
-      setAbsentOpen(false);
+      setOptimisticLocks((p) => ({ ...p, [key]: { status: "Pending", scoredMarks: null, isAbsent: true } }));
+      setRowState((p) => ({ ...p, [key]: "" }));
+      refreshMyRequests();
     } catch (err) {
-      setAbsentError(err.message || "Could not mark absentee.");
+      setAbsentError(err.message || "Could not submit absentee.");
+      setAbsentIds((p) => p.filter((id) => id !== sid));
     }
   }
 
@@ -304,7 +478,7 @@ export default function InternalMarksPage({ institutionId, username }) {
     if (!scheduleValid) {
       setTouched({
         courseId: true, admissionYear: true, yearId: true, semId: true,
-        examCatId: true, examSessionId: true, examDate: true,
+        examCatId: true, examDate: true,
       });
       setError("Please complete the Exam Schedule before submitting marks.");
       return;
@@ -344,7 +518,6 @@ export default function InternalMarksPage({ institutionId, username }) {
           yearId: Number(schedule.yearId),
           semId: Number(schedule.semId),
           examCatId: Number(schedule.examCatId),
-          examSessionId: Number(schedule.examSessionId),
           examDate: schedule.examDate,
           studentId: Number(student.id),
           scoredMarks: Number(scored),
@@ -389,7 +562,7 @@ export default function InternalMarksPage({ institutionId, username }) {
               >
                 <option value="">Select course</option>
                 {courses.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>{(c.name || "").toUpperCase()}</option>
                 ))}
               </select>
             </label>
@@ -398,20 +571,20 @@ export default function InternalMarksPage({ institutionId, username }) {
               <input value="Internal Assessment" readOnly style={{ background: "var(--soft-gray)", cursor: "not-allowed" }} />
             </label>
               <label>
-              <span>Year of Admission *</span>
+              <span>Year of Admission * (auto from students)</span>
               <input
                 type="date"
-                max={new Date().toISOString().slice(0, 10)}
                 value={schedule.admissionYear}
-                onBlur={() => markTouched("admissionYear")}
-                onChange={(e) => setScheduleField("admissionYear", e.target.value)}
+                readOnly
+                disabled
+                style={{ background: "var(--soft-gray)", cursor: "not-allowed" }}
               />
               {fieldError("admissionYear", scheduleErrors) && <small style={{ color: "#b00020" }}>{scheduleErrors.admissionYear}</small>}
             </label>
             <label>
-              <span>Year *</span>
-              <select value={schedule.yearId} onBlur={() => markTouched("yearId")} onChange={(e) => setScheduleField("yearId", e.target.value)}>
-                <option value="">Select year</option>
+              <span>Year * (auto from admission year)</span>
+              <select value={schedule.yearId} disabled onChange={() => {}}>
+                <option value="">Auto from admission year</option>
                 {years.map((y) => (
                   <option key={y.id} value={y.id}>{y.name}</option>
                 ))}
@@ -438,23 +611,26 @@ export default function InternalMarksPage({ institutionId, username }) {
               </select>
               {fieldError("examCatId", scheduleErrors) && <small style={{ color: "#b00020" }}>{scheduleErrors.examCatId}</small>}
             </label>
+
             <label>
               <span>Exam Session *</span>
               <select value={schedule.examSessionId} onBlur={() => markTouched("examSessionId")} onChange={(e) => setScheduleField("examSessionId", e.target.value)}>
-                <option value="">Select exam session</option>
+                <option value="">Select session (FN/AN)</option>
                 {examSessions.map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
               {fieldError("examSessionId", scheduleErrors) && <small style={{ color: "#b00020" }}>{scheduleErrors.examSessionId}</small>}
             </label>
+
             <label>
-              <span>Month & Year of Exam</span>
+              <span>Month & Year of Exam *</span>
               <input
                 type="text"
-                readOnly
-                placeholder="Set by department"
-                value={examPeriodLabel || ""}
+                placeholder="e.g. Jan-Feb 2026"
+                value={schedule.examDate}
+                onBlur={() => markTouched("examDate")}
+                onChange={(e) => setScheduleField("examDate", e.target.value)}
               />
               {fieldError("examDate", scheduleErrors) && <small style={{ color: "#b00020" }}>{scheduleErrors.examDate}</small>}
             </label>
@@ -472,10 +648,38 @@ export default function InternalMarksPage({ institutionId, username }) {
             <div className="table-empty" style={{ padding: "24px 8px" }}>
               <span>Select a course to see its subjects and students.</span>
             </div>
-          ) : subjects.length === 0 ? (
-            <div className="table-empty" style={{ padding: "24px 8px" }}>
-              <span>No subjects added for this course yet.</span>
-            </div>
+            ) : subjects.length === 0 ? (
+            <>
+              <div style={{ marginBottom: 12, color: "var(--muted)", fontSize: "0.8rem" }}>
+                No subjects mapped for this course yet — map subjects to enter marks.
+              </div>
+              <div className="table-wrap data-table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Reg No</th>
+                      <th>List of Students</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {courseStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={2} className="empty-state">
+                          <div className="table-empty"><span>No students registered for this course.</span></div>
+                        </td>
+                      </tr>
+                    ) : (
+                      courseStudents.map((s) => (
+                        <tr key={s.id}>
+                          <td>{s.regNo}</td>
+                          <td>{s.name}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : (
             <>
               <div
@@ -530,7 +734,7 @@ export default function InternalMarksPage({ institutionId, username }) {
                   <tbody>
                       {shownStudents.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="empty-state">
+                        <td colSpan={11} className="empty-state">
                           <div className="table-empty"><span>Add a student by register number using the buttons below.</span></div>
                         </td>
                       </tr>
@@ -639,9 +843,12 @@ export default function InternalMarksPage({ institutionId, username }) {
         </section>
       </div>
 
-            <MyRequestsTable
-        changes={myRequests}
+        <MyRequestsTable
+        changes={myRequests.filter((c) => !c.payload?.isAbsent && c.payload?.result !== "Absent")}
         students={students}
+        institutionName={institutionName}
+        courseNameFor={courseNameFor}
+        subjectNameFor={subjectNameForAny}
         onView={setViewingRequest}
         onEdit={setEditingRequest}
         onDelete={async (change) => {
@@ -715,25 +922,30 @@ export default function InternalMarksPage({ institutionId, username }) {
         <div className="data-table-wrap">
           <table>
             <thead>
-              <tr>
+                <tr>
+                <th>S.No</th>
+                <th>Institution</th>
+                <th>Course</th>
+                <th>Subject</th>
                 <th>Reg No</th>
-                <th>List of Students</th>
+                <th>Student Name</th>
                 <th>Scored Marks</th>
                 <th>Total Marks</th>
                 <th>Pass Marks</th>
                 <th>Result</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {populatedStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="empty-state">
+                  <td colSpan={13} className="empty-state">
                     <div className="table-empty"><span>Use + Add or − Absentees above to populate students here.</span></div>
                   </td>
                 </tr>
               ) : (
-                populatedStudents.map((student) => {
+                populatedStudents.map((student, i) => {
                   const sid = String(student.id);
                   const key = rowKey(activeSubjectId, sid);
                   const isAbsent = absentIds.includes(sid);
@@ -746,24 +958,14 @@ export default function InternalMarksPage({ institutionId, username }) {
                   const lockedResult = lockStatus ? passOrFail(lockedReq.scoredMarks, configuredPassMarks) : null;
                   return (
                     <tr key={student.id} id={`pop-row-${sid}`}>
+                      <td data-label="S.No">{i + 1}</td>
+                      <td data-label="Institution">{(institutionName || "-").toUpperCase()}</td>
+                      <td data-label="Course">{courseNameFor(schedule.courseId)}</td>
+                      <td data-label="Subject">{subjectNameFor(activeSubjectId)}</td>
                       <td data-label="Reg No">{student.registerNo}</td>
-                      <td data-label="List of Students">{student.name}</td>
+                      <td data-label="Student Name">{student.name}</td>
                       <td data-label="Scored Marks">
-                        {isAbsent ? (
-                          "-"
-                        ) : lockStatus ? (
-                          <input type="number" value={lockedReq.scoredMarks ?? ""} readOnly disabled
-                            style={{ width: 110, minHeight: 38, background: "var(--soft-gray)", cursor: "not-allowed" }} />
-                        ) : (
-                          <input type="number" step="0.01" min="0" max={configuredTotalMarks ?? undefined}
-                            value={scored}
-                            onChange={(e) => setRowScored((p) => ({ ...p, [key]: e.target.value }))}
-                            onWheel={(e) => e.currentTarget.blur()}
-                            style={{ width: 110, minHeight: 38 }} />
-                        )}
-                        {!isAbsent && exceeds && (
-                          <div style={{ color: "#b00020", fontSize: "0.72rem" }}>Cannot exceed {configuredTotalMarks}</div>
-                        )}
+                        {isAbsent ? "-" : (lockedReq?.scoredMarks ?? scored ?? "-")}
                       </td>
                       <td data-label="Total Marks">{configuredTotalMarks ?? "-"}</td>
                       <td data-label="Pass Marks">{configuredPassMarks ?? "-"}</td>
@@ -778,21 +980,35 @@ export default function InternalMarksPage({ institutionId, username }) {
                           <span style={{ fontWeight: 700, color: r === "Pass" ? "#1e7e34" : "#b00020" }}>{r}</span>
                         ) : "-"}
                       </td>
-                      <td data-label="Actions">
-                        {isAbsent ? (
-                          <StatusBadge status={lockStatus || "Pending"} />
-                        ) : lockStatus ? (
-                          <StatusBadge status={lockStatus} />
-                        ) : (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            <button className="primary-btn" style={{ padding: "6px 12px", fontSize: "0.8rem" }}
-                              disabled={st === "submitting" || scored === "" || exceeds || configuredTotalMarks == null}
-                              onClick={() => handleRowSubmit(student)}>
-                              {st === "submitting" ? "Submitting…" : "Submit"}
-                            </button>
-                            {st && st !== "submitting" && <small style={{ color: "#b00020" }}>{st}</small>}
-                          </div>
-                        )}
+                      <td data-label="Status">
+                        <StatusBadge status={lockStatus || "Pending"} />
+                      </td>
+                        <td data-label="Actions">
+                        {(() => {
+                          const req = requestForStudent(sid);
+                          if (!req) return "-";
+                          const isApproved = req.status === "Approved";
+                          return (
+                            <div className="action-group" style={{ display: "flex", flexWrap: "nowrap", gap: 6 }}>
+                              <button type="button" className="icon-btn" title="View" onClick={() => setViewingRequest(req)}>
+                                <FileText size={16} />
+                              </button>
+                              {!isApproved && (
+                                <button type="button" className="icon-btn danger" title="Delete"
+                                  onClick={async () => {
+                                    try {
+                                      await api.deletePendingChange(req.id);
+                                      refreshMyRequests();
+                                    } catch (err) {
+                                      alert(err.message || "Could not delete this request.");
+                                    }
+                                  }}>
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
@@ -832,7 +1048,7 @@ export default function InternalMarksPage({ institutionId, username }) {
                       })()}
                     </dd>
                   </div>
-                  <div><dt>Exam Date</dt><dd>{viewingRequest.payload.examDate}</dd></div>
+                  <div><dt>Exam Date</dt><dd>{formatDate(viewingRequest.payload.examDate)}</dd></div>
                   <div><dt>Status</dt><dd><StatusBadge status={viewingRequest.status} /></dd></div>
                   {viewingRequest.reviewNote && <div><dt>Note</dt><dd>{viewingRequest.reviewNote}</dd></div>}
                 </dl>
@@ -875,7 +1091,7 @@ function ResubmitMarksModal({ change, onClose, onSave }) {
       ? passOrFail(scoredNum, passMarks)
       : null;
 
-  const canSave = scoredMarks !== "" && !exceeds && !negative && examDate !== "";
+  const canSave = scoredMarks !== "" && !exceeds && !negative;
 
   function handleSave() {
     if (!canSave) return;
@@ -927,14 +1143,7 @@ function ResubmitMarksModal({ change, onClose, onSave }) {
             <small style={{ color: "#64748B" }}>Set by the Department — cannot be changed.</small>
           </label>
 
-          <label>
-            <span>Exam Date</span>
-            <input
-              type="date"
-              value={examDate}
-              onChange={(e) => setExamDate(e.target.value)}
-            />
-          </label>
+          
 
             <label>
             <span>Result</span>

@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Plus, Search, Filter, ChevronLeft, ChevronRight, FileText, Pencil, ToggleLeft, CircleCheck, BadgeCheck, Trash2, Download } from "lucide-react";
 import { FIELD_LABELS, STATUS_OPTIONS } from "../data.js";
-import { emptyRowFromFields, humanizeKey, canVerify, canApprove } from "../utils.js";
+import { emptyRowFromFields, humanizeKey, canVerify, canApprove, formatDate, isDateField } from "../utils.js";
 import StatusBadge from "./StatusBadge.jsx";
+import StatusToggle from "./StatusToggle.jsx";
 import IconButton from "./IconButton.jsx";
 import RecordModal from "./RecordModal.jsx";
 import ConfirmDialog from "./ConfirmDialog.jsx";
@@ -27,6 +28,8 @@ export default function DataTable({
   addLabel = "Add",
   secondaryAddLabel = "",
   onSecondaryAdd,
+  toolbarActionLabel = "",
+  onToolbarAction,
   hideHeaderAdd = false,
   onSelect,
   onView,
@@ -43,6 +46,7 @@ export default function DataTable({
   const [modalState, setModalState] = useState(null);
   const [deleteCandidate, setDeleteCandidate] = useState(null);
   const prevRowCount = useRef(rows.length);
+  const didInitialLoad = useRef(false);
 
   const filteredRows = useMemo(
     () =>
@@ -67,10 +71,20 @@ export default function DataTable({
   const rangeEnd = Math.min(currentPage * rowsPerPage, filteredRows.length);
   const canAdd = !!(onSave && fields.length);
 
+  // Reset to the first page whenever a different table/view is shown.
   useEffect(() => {
-    if (rows.length > prevRowCount.current) {
+    setPage(1);
+    prevRowCount.current = rows.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title]);
+
+    useEffect(() => {
+    // Ignore the first population of rows (0 -> N on load); only jump to the
+    // last page when a record is actually added after the table is showing.
+    if (didInitialLoad.current && rows.length > prevRowCount.current) {
       setPage(Math.max(1, Math.ceil(rows.length / rowsPerPage)));
     }
+    if (rows.length > 0) didInitialLoad.current = true;
     prevRowCount.current = rows.length;
   }, [rows.length, rowsPerPage]);
 
@@ -106,7 +120,9 @@ export default function DataTable({
     const escapeCsv = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
     const csv = [
       headers.map(escapeCsv).join(","),
-      ...filteredRows.map((row) => columns.map((column) => escapeCsv(row[column])).join(",")),
+        ...filteredRows.map((row) =>
+        columns.map((column) => escapeCsv(isDateField(column) ? formatDate(row[column]) : row[column])).join(","),
+      ),
     ].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -185,12 +201,24 @@ export default function DataTable({
               ))}
             </select>
           </label>
+            {toolbarActionLabel && onToolbarAction && (
+              <button
+                className="primary-btn compact-btn"
+                disabled={disabled}
+                onClick={onToolbarAction}
+              >
+                <Plus size={16} />
+                {toolbarActionLabel}
+              </button>
+            )}
             <ExportMenu
             disabled={disabled}
             getData={() => ({
               title: title || "Records",
               headers: columns.map((column) => FIELD_LABELS[column] || humanizeKey(column)),
-              rows: filteredRows.map((row) => columns.map((column) => row[column])),
+                rows: filteredRows.map((row) =>
+                columns.map((column) => (isDateField(column) ? formatDate(row[column]) : row[column])),
+              ),
             })}
           />
         </div>
@@ -203,7 +231,7 @@ export default function DataTable({
               {columns.map((column) => (
                 <th key={column}>{FIELD_LABELS[column] || humanizeKey(column)}</th>
               ))}
-              <th>Actions</th>
+              {/* <th>Actions</th> */}
             </tr>
           </thead>
           <tbody>
@@ -212,7 +240,7 @@ export default function DataTable({
                 <td colSpan={columns.length + 2} className="empty-state">
                   <div className="table-empty">
                     <span>{disabled && disabledHint ? disabledHint : emptyHint}</span>
-                    {!disabled && emptyActionLabel && (
+                      {/* {!disabled && emptyActionLabel && (
                       <button
                         className="secondary-btn compact-action"
                         onClick={
@@ -223,7 +251,7 @@ export default function DataTable({
                         <Plus size={15} />
                         {emptyActionLabel}
                       </button>
-                    )}
+                    )} */}
                   </div>
                 </td>
               </tr>
@@ -237,10 +265,22 @@ export default function DataTable({
                   <td data-label="S.No">{(currentPage - 1) * rowsPerPage + index + 1}</td>
                   {columns.map((column) => (
                     <td key={column} data-label={FIELD_LABELS[column] || humanizeKey(column)}>
-                      {column === "status" ? <StatusBadge status={row[column]} /> : row[column]}
+                        {column === "status" ? (
+                        onToggle ? (
+                          <StatusToggle status={row[column]} onToggle={() => onToggle(row)} />
+                        ) : (
+                          <StatusBadge status={row[column]} />
+                        )
+                      ) : isDateField(column) ? (
+                        formatDate(row[column])
+                      ) : (column === "name" || column === "subject") && typeof row[column] === "string" ? (
+                        row[column].toUpperCase()
+                      ) : (
+                        row[column]
+                      )}
                     </td>
                   ))}
-                  <td data-label="Actions" onClick={(e) => e.stopPropagation()}>
+                   {/* <td data-label="Actions" onClick={(e) => e.stopPropagation()}>
                     <div className="action-group">
                       {fields.length > 0 && (
                         <IconButton
@@ -282,8 +322,8 @@ export default function DataTable({
                           tone="danger"
                         />
                       )}
-                    </div>
-                  </td>
+                      </div>
+                  </td> */}
                 </tr>
               ))
             )}

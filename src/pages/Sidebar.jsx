@@ -22,30 +22,38 @@ const BOARD_MENU = [
   {
     label: "Academic Master",
     items: [
+      { label: "Institution Master", icon: Building2, routeKey: "academic-master", view: "institutions" },
+      { label: "Course Master", icon: Layers, routeKey: "academic-master", view: "courses" },
+      { label: "Subject Master", icon: BookOpen, routeKey: "academic-master", view: "subjects" },
+    ],
+  },
+  {
+    label: "Academic Mapping",
+    items: [
       { label: "Institutions", icon: Building2, routeKey: "dashboard", view: "institutions" },
       { label: "Courses", icon: Layers, routeKey: "dashboard", view: "courses" },
       { label: "Subjects", icon: BookOpen, routeKey: "dashboard", view: "subjects" },
     ],
   },
-  {
+  /*{
     label: "Examination",
     items: [
       { label: "Exam Schedule", icon: CalendarCheck, routeKey: "schedule-approval" },
       { label: "Subject Marks", icon: BadgeCheck, routeKey: "subject-marks" },
     ],
-  },
+  },*/
   {
     label: "Approval Center",
     items: [
       { label: "Registered Students", icon: UserCheck, routeKey: "student-verification" },
-      { label: "Marks Approval", icon: CircleCheck, routeKey: "marks-approval" },
-      { label: "Marksheet Approval", icon: FileCheck2, routeKey: "marksheet-approval" },
+      //{ label: "Marks Approval", icon: CircleCheck, routeKey: "marks-approval" },
+      //{ label: "Marksheet Approval", icon: FileCheck2, routeKey: "marksheet-approval" },
     ],
   },
-  {
+  /*{
     label: "Reports",
     items: [{ label: "MIS Reports", icon: FileText, routeKey: "reports" }],
-  },
+  },*/
   {
     label: "Administration",
     items: [
@@ -101,7 +109,7 @@ function getActiveGroup(menuGroups, activeRoute, activeDashboardView) {
   return menuGroups.find((group) =>
     group.items.some((item) => {
       if (item.routeKey !== activeRoute) return false;
-      if (item.routeKey === "dashboard" && item.view) return activeDashboardView === item.view;
+      if (item.view) return activeDashboardView === item.view;
       return true;
     }),
   )?.label;
@@ -134,7 +142,7 @@ export default function Sidebar({ role, routes, activeRoute, activeDashboardView
 
   function isActive(item) {
     if (item.routeKey !== activeRoute) return false;
-    if (item.routeKey === "dashboard" && item.view) return activeDashboardView === item.view;
+    if (item.view) return activeDashboardView === item.view;
     return true;
   }
 

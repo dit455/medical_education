@@ -9,6 +9,11 @@ import { SEED_DATA } from "./data.js";
 const DEFAULT_SESSION = { screen: "home", role: null, loginType: null, username: null, institutionId: null, institutionRole: null };
 const SESSION_STORAGE_KEY = "ems-session";
 const ACTIVE_ROUTE_STORAGE_KEY = "ems-active-route";
+const DASHBOARD_VIEW_STORAGE_KEYS = ["ems_dash_view", "ems_dash_inst", "ems_dash_course", "ems_dash_subject"];
+
+function clearDashboardViewStorage() {
+  DASHBOARD_VIEW_STORAGE_KEYS.forEach((key) => sessionStorage.removeItem(key));
+}
 
 function readStoredSession() {
   try {
@@ -30,17 +35,11 @@ function readStoredSession() {
   }
 }
 
-function readStoredActiveRoute() {
-  try {
-    return sessionStorage.getItem(ACTIVE_ROUTE_STORAGE_KEY) || "dashboard";
-  } catch {
-    return "dashboard";
-  }
-}
+// Always land on the dashboard on entry; the last route is no longer restored.
 
 export default function App() {
   const [session, setSession] = useState(readStoredSession);
-  const [activeRoute, setActiveRoute] = useState(readStoredActiveRoute);
+  const [activeRoute, setActiveRoute] = useState("dashboard");
   const [data, setData] = useState(SEED_DATA);
 
   useEffect(() => {
@@ -54,9 +53,10 @@ export default function App() {
 
   useEffect(() => {
     if (session.screen === "app") {
-      sessionStorage.setItem(ACTIVE_ROUTE_STORAGE_KEY, activeRoute);
+      setActiveRoute("dashboard");
     }
-  }, [activeRoute, session.screen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.screen]);
 
   function handleLoginEntry() {
     setSession({ screen: "login", role: null, loginType: null });
@@ -75,6 +75,10 @@ export default function App() {
   // (and any other non department-admin role) goes straight into the app;
   // a department-admin account still has to pick BOME or BOEN afterwards.
   function handleLogin(user) {
+    // Fresh login should always land on the dashboard overview, not
+    // whichever Academic Mapping tab (Institutions/Courses/Subjects) was
+    // last open in a previous session.
+    clearDashboardViewStorage();
     if (user.role === "department-admin") {
       setSession({ screen: "department-select", role: null, loginType: "department", username: user.username });
       return;
@@ -115,6 +119,7 @@ export default function App() {
   }
 
   function handleDepartmentSelect(board) {
+    clearDashboardViewStorage();
     setSession((prev) => ({ screen: "app", role: board, loginType: "department", username: prev.username }));
     setActiveRoute("dashboard");
   }
@@ -128,6 +133,7 @@ export default function App() {
   function handleLogout() {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     sessionStorage.removeItem(ACTIVE_ROUTE_STORAGE_KEY);
+    clearDashboardViewStorage();
     setSession(DEFAULT_SESSION);
     setActiveRoute("dashboard");
   }

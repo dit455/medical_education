@@ -1,8 +1,9 @@
 """Read-only lookup tables (regions, years, exam sems, course/subject masters)."""
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from db import get_connection
+from utils import status_to_label
 
 lookups_bp = Blueprint("lookups", __name__)
 
@@ -67,29 +68,43 @@ def get_exam_sems():
 
 @lookups_bp.route("/api/courses", methods=["GET"])
 def get_courses():
+    # Dropdowns/pickers elsewhere want Active-only (the default). The Course
+    # Master admin screen passes include_inactive=1 so it can show every
+    # course, Inactive ones included, with their real status.
+    include_inactive = request.args.get("include_inactive") == "1"
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT course_id, course_desc FROM tbl_course_master WHERE status_ = 1"
-        )
+        query = "SELECT course_id, course_desc, course_abbr, status_ FROM tbl_course_master"
+        if not include_inactive:
+            query += " WHERE status_ = 1"
+        cursor.execute(query)
         rows = cursor.fetchall()
         cursor.close()
-        return jsonify([{"id": r[0], "name": r[1]} for r in rows])
+        return jsonify([
+            {"id": r[0], "name": r[1], "abbreviation": r[2], "status": status_to_label(r[3])}
+            for r in rows
+        ])
     finally:
         conn.close()
 
 
 @lookups_bp.route("/api/subjects", methods=["GET"])
 def get_all_subjects():
+    # Same include_inactive convention as /api/courses above.
+    include_inactive = request.args.get("include_inactive") == "1"
     conn = get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT subject_id, subject_desc FROM tbl_subject_master WHERE status_ = 1"
-        )
+        query = "SELECT subject_id, subject_desc, status_ FROM tbl_subject_master"
+        if not include_inactive:
+            query += " WHERE status_ = 1"
+        cursor.execute(query)
         rows = cursor.fetchall()
         cursor.close()
-        return jsonify([{"id": r[0], "name": r[1]} for r in rows])
+        return jsonify([
+            {"id": r[0], "name": r[1], "status": status_to_label(r[2])}
+            for r in rows
+        ])
     finally:
         conn.close()

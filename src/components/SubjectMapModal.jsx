@@ -13,11 +13,17 @@ export default function SubjectMapModal({
   subjectOptions = [],
   yearOptions = [],
   semOptions = [],
+  fixedInstituteId = null,
+  fixedCourseId = null,
   onClose,
   onSave,
 }) {
-  const [instituteId, setInstituteId] = useState("");
-  const [courseId, setCourseId] = useState("");
+  const [instituteId, setInstituteId] = useState(
+    fixedInstituteId != null ? String(fixedInstituteId) : ""
+  );
+  const [courseId, setCourseId] = useState(
+    fixedCourseId != null ? String(fixedCourseId) : ""
+  );
   const [courses, setCourses] = useState([]);
   const [selected, setSelected] = useState([]);
   const [year, setYear] = useState("");
@@ -33,7 +39,7 @@ export default function SubjectMapModal({
       setFilteredSubjects(subjectOptions);
       return;
     }
-    setCourseId("");
+    if (fixedCourseId == null) setCourseId("");
     setSelected([]);
     setFilteredSubjects(subjectOptions);
     api.getCourses(Number(instituteId)).then(setCourses).catch(() => setCourses([]));
@@ -103,6 +109,7 @@ export default function SubjectMapModal({
         </div>
 
         <div className="form-grid">
+          {fixedInstituteId == null && (
           <label>
             <span>Institute</span>
             <select
@@ -120,6 +127,9 @@ export default function SubjectMapModal({
               ))}
             </select>
           </label>
+          )}
+          
+          {fixedCourseId == null && (
           <label>
             <span>Course</span>
             <select
@@ -136,12 +146,13 @@ export default function SubjectMapModal({
                   : "Select institute first"}
               </option>
               {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.name}
+                  <option key={course.id} value={course.id}>
+                  {String(course.name ?? "").toUpperCase()}
                 </option>
               ))}
             </select>
           </label>
+          )}
           <label>
             <span>Year</span>
             <select aria-label="Year" value={year} onChange={(e) => setYear(e.target.value)}>
@@ -185,6 +196,15 @@ export default function SubjectMapModal({
             ))}
         </div>
 
+          {!canSave && (
+          <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "8px 0 0" }}>
+            {selected.length === 0
+              ? "Select at least one subject."
+              : !year || !semester
+              ? "Please select Year and Semester."
+              : ""}
+          </p>
+        )}
         <div className="modal-actions">
           <button className="secondary-btn" onClick={onClose}>
             Cancel

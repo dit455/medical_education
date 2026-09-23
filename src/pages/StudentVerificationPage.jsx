@@ -6,11 +6,12 @@ import RecordModal from "../components/RecordModal.jsx";
 import StudentEditModal from "../components/StudentEditModal.jsx";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import ExportMenu from "../components/ExportMenu.jsx";
+import Breadcrumb from "../components/Breadcrumb.jsx";
 
 
 const STATUS_FILTERS = ["Active", "Inactive", "Draft", "Submitted", "Verified", "Approved"];
 
-export default function StudentVerificationPage({ username }) {
+export default function StudentVerificationPage({ username, onNavigate }) {
   const [students, setStudents] = useState([]);
   const [regions, setRegions] = useState([]);
   const [years, setYears] = useState([]);
@@ -21,6 +22,7 @@ export default function StudentVerificationPage({ username }) {
   const [deleting, setDeleting] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [institutionFilter, setInstitutionFilter] = useState("All");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
 
@@ -38,16 +40,20 @@ export default function StudentVerificationPage({ username }) {
 
   const nameFor = (list, id) => list.find((x) => x.id === id)?.name ?? "—";
 
-  const filtered = useMemo(() => {
+    const filtered = useMemo(() => {
+    // Show nothing until a specific institution is selected.
+    if (institutionFilter === "All") return [];
     const q = search.trim().toLowerCase();
     return students.filter((s) => {
       const matchSearch = !q ||
         [s.registerNo, s.name, s.fatherName, s.mobile, s.status]
           .filter(Boolean).join(" ").toLowerCase().includes(q);
       const matchStatus = statusFilter === "All" || s.status === statusFilter;
-      return matchSearch && matchStatus;
+      const matchInstitution =
+        institutionFilter === "All" || String(s.institutionId) === String(institutionFilter);
+      return matchSearch && matchStatus && matchInstitution;
     });
-  }, [students, search, statusFilter]);
+  }, [students, search, statusFilter, institutionFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const currentPage = Math.min(page, totalPages);
@@ -146,161 +152,179 @@ export default function StudentVerificationPage({ username }) {
   ];
 
   return (
-    <section className="data-table-card" style={{ width: "100%" }}>
-      <div className="data-table-heading">
-        <div>
-          <h2>Records</h2>
+    <section className="content-stack" style={{ padding: "0 32px" }}>
+      <Breadcrumb
+        items={[
+          { label: "Dashboard", onClick: () => onNavigate && onNavigate("dashboard", "overview") },
+          { label: "Approval Center", onClick: () => onNavigate && onNavigate("student-verification") },
+          { label: "Registered Students" },
+        ]}
+      />
+      <section className="data-table-card" style={{ width: "100%" }}>
+        <div className="data-table-heading">
+          <div>
+            <h2>Records</h2>
+          </div>
+          <button className="primary-btn compact-btn" type="button" onClick={openAdd}>
+            <Plus size={16} /> Add
+          </button>
         </div>
-        <button className="primary-btn compact-btn" type="button" onClick={openAdd}>
-          <Plus size={16} /> Add
-        </button>
-      </div>
 
-      <div className="table-toolbar">
-        <label className="search-box small">
-          <Search size={15} />
-          <input
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search"
-          />
-        </label>
-        <div className="table-toolbar-controls">
-          <label className="select-box small">
-            <Filter size={15} />
-            <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
-              <option>All</option>
-              {STATUS_FILTERS.map((o) => <option key={o}>{o}</option>)}
-            </select>
+        <div className="table-toolbar">
+          <label className="search-box small">
+            <Search size={15} />
+            <input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Search"
+            />
           </label>
-          <label className="select-box small rows-select">
-            Rows
-            <select value={rowsPerPage} onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}>
-              {[5, 10, 20].map((o) => <option key={o}>{o}</option>)}
-            </select>
-          </label>
+          <div className="table-toolbar-controls">
+            <label className="select-box small">
+              <Filter size={15} />
+              <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+                <option>All</option>
+                {STATUS_FILTERS.map((o) => <option key={o}>{o}</option>)}
+              </select>
+            </label>
+            <label className="select-box small">
+              <Filter size={15} />
+              <select value={institutionFilter} onChange={(e) => { setInstitutionFilter(e.target.value); setPage(1); }}>
+                <option value="All">All Institutions</option>
+                {institutions.map((i) => (
+                  <option key={i.id} value={String(i.id)}>{(i.name || "").toUpperCase()}</option>
+                ))}
+              </select>
+            </label>
+            <label className="select-box small rows-select">
+              Rows
+              <select value={rowsPerPage} onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}>
+                {[5, 10, 20].map((o) => <option key={o}>{o}</option>)}
+              </select>
+            </label>
             <ExportMenu
-            disabled={filtered.length === 0}
-            getData={() => ({
-              title: "Registered Students — All Institutions",
-              headers: ["S.No", "Reg No", "Student", "Father", "Mobile", "Status"],
-              rows: filtered.map((s, i) => [i + 1, s.registerNo, s.name, s.fatherName, s.mobile, s.status]),
-            })}
-          />
+              disabled={filtered.length === 0}
+              getData={() => ({
+                title: "Registered Students — All Institutions",
+                headers: ["S.No", "Reg No", "Student", "Father", "Mobile", "Status"],
+                rows: filtered.map((s, i) => [i + 1, s.registerNo, s.name, s.fatherName, s.mobile, s.status]),
+              })}
+            />
+          </div>
         </div>
-      </div>
 
-      <div className="table-wrap data-table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>S.NO</th><th>STUDENT</th><th>STUDENT ID</th>
-              <th>FATHER</th><th>MOBILE</th><th>STATUS</th><th>ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageRows.length === 0 ? (
+        <div className="table-wrap data-table-scroll">
+          <table>
+            <thead>
               <tr>
-                <td colSpan={7} className="empty-state">
-                  <div className="table-empty"><span>No students found</span></div>
-                </td>
+                <th>S.NO</th><th>STUDENT</th><th>STUDENT ID</th>
+                <th>FATHER</th><th>MOBILE</th><th>STATUS</th><th>ACTIONS</th>
               </tr>
-            ) : (
-              pageRows.map((student, i) => (
-                <tr key={student.id}>
-                  <td data-label="S.No">{(currentPage - 1) * rowsPerPage + i + 1}</td>
-                  <td data-label="Student">{student.name}</td>
-                  <td data-label="Student ID">{student.registerNo}</td>
-                  <td data-label="Father">{student.fatherName}</td>
-                  <td data-label="Mobile">{student.mobile}</td>
-                  <td data-label="Status"><StatusBadge status={student.status} /></td>
-                  <td data-label="Actions">
-                    <div className="action-group">
+            </thead>
+            <tbody>
+              {pageRows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="empty-state">
+                    <div className="table-empty"><span>No students found</span></div>
+                  </td>
+                </tr>
+              ) : (
+                pageRows.map((student, i) => (
+                  <tr key={student.id}>
+                    <td data-label="S.No">{(currentPage - 1) * rowsPerPage + i + 1}</td>
+                    <td data-label="Student">{student.name}</td>
+                    <td data-label="Student ID">{student.registerNo}</td>
+                    <td data-label="Father">{student.fatherName}</td>
+                    <td data-label="Mobile">{student.mobile}</td>
+                    <td data-label="Status"><StatusBadge status={student.status} /></td>
+                    <td data-label="Actions">
+                      <div className="action-group">
                         <button
-                            type="button" className="icon-btn" aria-label="View"
-                            title="View student" onClick={() => setViewing(student)}>
-                            <FileText size={16} />
+                          type="button" className="icon-btn" aria-label="View"
+                          title="View student" onClick={() => setViewing(student)}>
+                          <FileText size={16} />
                         </button>
                         <button
-                            type="button" className="icon-btn"
-                            aria-label="Toggle status"
-                            title={String(student.status).toLowerCase() === "active" ? "Set Inactive" : "Set Active"}
-                            onClick={() => toggleStatus(student)}>
-                            {String(student.status).toLowerCase() === "active"
+                          type="button" className="icon-btn"
+                          aria-label="Toggle status"
+                          title={String(student.status).toLowerCase() === "active" ? "Set Inactive" : "Set Active"}
+                          onClick={() => toggleStatus(student)}>
+                          {String(student.status).toLowerCase() === "active"
                             ? <ToggleRight size={16} />
                             : <ToggleLeft size={16} />}
                         </button>
                         <button
-                            type="button" className="icon-btn danger"
-                            aria-label="Delete"
-                            title="Delete student"
-                            onClick={() => removeStudent(student)}>
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="pagination">
-        <span>{rangeStart}-{rangeEnd} of {filtered.length}</span>
-        <div>
-          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} aria-label="Previous page">
-            <ChevronLeft size={17} />
-          </button>
-          <strong>{currentPage} / {totalPages}</strong>
-          <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} aria-label="Next page">
-            <ChevronRight size={17} />
-          </button>
+                          type="button" className="icon-btn danger"
+                          aria-label="Delete"
+                          title="Delete student"
+                          onClick={() => removeStudent(student)}>
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-      </div>
 
-    {viewing && (
-        <StudentEditModal
-          student={viewing}
-          institutions={institutions}
-          courses={courses}
-          years={years}
-          regions={regions}
-          onClose={() => setViewing(null)}
-          onSave={async (student, values) => {
-            try {
-              await api.updateStudentDirect(student.id, { ...values, actor: username });
-              setViewing(null);
-              refresh();
-            } catch (err) { alert(err.message); }
-          }}
-          onDelete={async (student) => {
-            if (!window.confirm(`Delete ${student.name}? This cannot be undone.`)) return;
-            try {
-              await api.deleteStudent(student.id);
-              setViewing(null);
-              refresh();
-            } catch (err) { alert(err.message); }
-          }}
-        />
-      )}
+        <div className="pagination">
+          <span>{rangeStart}-{rangeEnd} of {filtered.length}</span>
+          <div>
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} aria-label="Previous page">
+              <ChevronLeft size={17} />
+            </button>
+            <strong>{currentPage} / {totalPages}</strong>
+            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} aria-label="Next page">
+              <ChevronRight size={17} />
+            </button>
+          </div>
+        </div>
 
-      {adding && (
-        <RecordModal
-          mode="add" title="Add Student" fields={addFields} row={adding}
-          onClose={() => setAdding(null)}
-          onSave={handleAddSave}
-        />
-      )}
+        {viewing && (
+          <StudentEditModal
+            student={viewing}
+            institutions={institutions}
+            courses={courses}
+            years={years}
+            regions={regions}
+            onClose={() => setViewing(null)}
+            onSave={async (student, values) => {
+              try {
+                await api.updateStudentDirect(student.id, { ...values, actor: username });
+                setViewing(null);
+                refresh();
+              } catch (err) { alert(err.message); }
+            }}
+            onDelete={async (student) => {
+              if (!window.confirm(`Delete ${student.name}? This cannot be undone.`)) return;
+              try {
+                await api.deleteStudent(student.id);
+                setViewing(null);
+                refresh();
+              } catch (err) { alert(err.message); }
+            }}
+          />
+        )}
 
-    {deleting && (
-        <ConfirmDialog
-          title={`Delete ${deleting.name}?`}
-          message="This action cannot be undone."
-          onConfirm={confirmDelete}
-          onCancel={() => setDeleting(null)}
-        />
-      )}
+        {adding && (
+          <RecordModal
+            mode="add" title="Add Student" fields={addFields} row={adding}
+            onClose={() => setAdding(null)}
+            onSave={handleAddSave}
+          />
+        )}
+
+        {deleting && (
+          <ConfirmDialog
+            title={`Delete ${deleting.name}?`}
+            message="This action cannot be undone."
+            onConfirm={confirmDelete}
+            onCancel={() => setDeleting(null)}
+          />
+        )}
+      </section>
     </section>
   );
 }

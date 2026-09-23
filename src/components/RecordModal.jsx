@@ -1,12 +1,25 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, CircleCheck } from "lucide-react";
+import { formatDate, isDateField, parseDisplayDate } from "../utils.js";
 
 // Generic field-driven form modal used for add/edit/view of any entity row.
 // `fields` is an array of [key, label, options?] tuples; an `options` array
 // renders a <select>, otherwise a plain text <input>.
 export default function RecordModal({ mode, row, fields, title, onClose, onSave }) {
-  const [formValues, setFormValues] = useState(row);
+  // In add/edit mode, date-like fields ("examDate", "studentDob", plain
+  // "date", etc.) are shown to the user as DD/MM/YYYY, so pre-format any
+  // incoming ISO values here. View mode formats separately, at display time.
+  const [formValues, setFormValues] = useState(() => {
+    if (mode === "view") return row;
+    const initial = { ...row };
+    fields.forEach(([key, , options]) => {
+      if (!options && isDateField(key) && initial[key]) {
+        initial[key] = formatDate(initial[key]);
+      }
+    });
+    return initial;
+  });
   const isViewMode = mode === "view";
 
   useEffect(() => {
@@ -47,8 +60,10 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
                 ? normalizedOptions.find(
                     (o) => o.value === raw || o.label === raw,
                   )?.label ?? raw ?? "—"
-                : raw ?? "—";
-              return (
+                : isDateField(key)
+                  ? formatDate(raw) ?? "—"
+                  : raw ?? "—";
+                  return (
                 <div className="view-row" key={key}>
                   <span className="view-label">{label}</span>
                   <span className="view-value">{display === "" ? "—" : display}</span>
@@ -97,13 +112,22 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
                       ))}
                     </select>
                   ) : (
-                    <input
+                      <input
                       type={key === "password" ? "password" : "text"}
                       aria-label={label}
                       data-field={key}
                       name={key}
+                      placeholder={key === "email" ? "name@gmail.com" : undefined}
                       value={formValues[key] || ""}
-                      onChange={(e) => setField(key, e.target.value)}
+                      onChange={(e) =>
+                        setField(
+                          key,
+                          key === "name" || key === "subject" || key === "abbreviation"
+                            ? e.target.value.toUpperCase()
+                            : e.target.value
+                        )
+                      }
+                      style={key === "name" || key === "subject" || key === "abbreviation" ? { textTransform: "uppercase" } : undefined}
                       disabled={isViewMode}
                     />
                   )}
@@ -117,8 +141,23 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
           <button className="secondary-btn" onClick={onClose}>
             Cancel
           </button>
-          {!isViewMode && (
-            <button className="primary-btn" onClick={() => onSave(formValues)}>
+            {!isViewMode && (
+            <button
+              className="primary-btn"
+                onClick={async () => {
+                const payload = { ...formValues };
+                fields.forEach(([key, , options]) => {
+                  if (!options && isDateField(key)) {
+                    payload[key] = parseDisplayDate(payload[key]);
+                  }
+                });
+                try {
+                  await onSave(payload);
+                } catch (err) {
+                  alert(err.message || "Could not save.");
+                }
+              }}
+            >
               <CircleCheck size={18} />
               Save
             </button>

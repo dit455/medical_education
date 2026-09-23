@@ -28,7 +28,7 @@ export default function ListViewModal({
           <ol className="list-view">
   {items.map((item, index) => (
     <li key={item.id ?? index} className="list-view-row">
-      <span className="list-view-label">{item.label}</span>
+      <span className="list-view-label">{String(item.label ?? "").toUpperCase()}</span>
       {item.status && <StatusBadge status={item.status} />}
     </li>
   ))}

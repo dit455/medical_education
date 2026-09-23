@@ -7,6 +7,7 @@ import Sidebar from "./Sidebar.jsx";
 import Topbar from "./Topbar.jsx";
 import Dashboard from "./Dashboard.jsx";
 import CrudPage from "./CrudPage.jsx";
+import AcademicMasterPage from "./AcademicMasterPage.jsx";
 import StudentVerificationPage from "./StudentVerificationPage.jsx";
 import DepartmentAdminsPage from "./DepartmentAdminsPage.jsx";
 import InstitutionAdminsPage from "./InstitutionAdminsPage.jsx";
@@ -57,6 +58,23 @@ export default function AppShell({
 
   const [dashboardView, setDashboardView] = useState("overview");
   const [dashboardViewCommand, setDashboardViewCommand] = useState(null);
+  // Remembers where the user was when a cross-page "add" action (e.g. Add
+  // Institute from Academic Master) forced a route switch, so closing that
+  // form can send them back instead of stranding them on the new route.
+  const [returnRoute, setReturnRoute] = useState(null);
+
+  const [academicTab, setAcademicTab] = useState(null);
+
+  function openAcademicMaster(tab) {
+    setAcademicTab({ tab, id: Date.now() });
+    setActiveRoute("academic-master");
+  }
+
+  // Force the dashboard's inner view back to the overview whenever the app
+  // (re)mounts, so login/reload always lands on the dashboard, not a sub-view.
+  useEffect(() => {
+    setDashboardView("overview");
+  }, []);
   const routesForRole = useMemo(
     () =>
       ROUTES.filter(
@@ -68,13 +86,27 @@ export default function AppShell({
   );
   const currentRoute = routesForRole.find((route) => route.key === activeRoute) || routesForRole[0];
 
-  function handleNavigate(routeKey, view) {
+  function handleNavigate(routeKey, view, add) {
+    setAcademicTab(null);
+    // If this is an "add" action that's jumping to a different route than
+    // where the user currently is, remember the origin so we can return
+    // them there once the add form is closed.
+    if (add && routeKey !== activeRoute) {
+      setReturnRoute(activeRoute);
+    }
     setActiveRoute(routeKey);
     if (view) {
       setDashboardView(view);
-      setDashboardViewCommand({ view, id: Date.now() });
+      setDashboardViewCommand({ view, add, id: Date.now() });
     }
     setSidebarOpen(false);
+  }
+
+  function handleReturnNavigate() {
+    if (returnRoute) {
+      setActiveRoute(returnRoute);
+      setReturnRoute(null);
+    }
   }
 
   return (
@@ -121,6 +153,8 @@ export default function AppShell({
               dashboardView={dashboardView}
               dashboardViewCommand={dashboardViewCommand}
               onDashboardViewChange={setDashboardView}
+              onNavigateBack={handleReturnNavigate}
+              onOpenAcademicMaster={openAcademicMaster}
             />
           ) : currentRoute.type === "department-admins" ? (
             <DepartmentAdminsPage username={username} />
@@ -134,10 +168,17 @@ export default function AppShell({
             <InternalMarksPage institutionId={institutionId} username={username} />
           ) : currentRoute.type === "institution-approvals-portal" ? (
             <InstitutionPortal institutionId={institutionId} username={username} institutionRole={institutionRole} />
+          ) : currentRoute.type === "academic-master" ? (
+            <AcademicMasterPage
+              initialTab={academicTab?.tab || dashboardView}
+              tabCommand={academicTab || dashboardViewCommand}
+              onNavigate={handleNavigate}
+              username={username}
+            />
           ) : currentRoute.type === "approvals" ? (
             <ApprovalsPage role={role} username={username} />
           ) : currentRoute.key === "student-verification" ? (
-            <StudentVerificationPage username={username} />
+            <StudentVerificationPage username={username} onNavigate={handleNavigate} />
           ) : (
             <CrudPage
               route={currentRoute}

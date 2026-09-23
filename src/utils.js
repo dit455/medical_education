@@ -53,6 +53,44 @@ export function passOrFail(scoredMarks, passMarks) {
   return Number(scoredMarks) >= Number(passMarks) ? "Pass" : "Fail";
 }
 
+// Formats a date for display as "DD/MM/YYYY". Accepts a date-only string
+// ("YYYY-MM-DD"), a full ISO timestamp ("YYYY-MM-DDTHH:mm:ss..."), or anything
+// else the Date constructor can parse. Non-date values (empty, "-", already
+// unparsable) are returned unchanged so callers don't need to special-case them.
+export function formatDate(value) {
+  if (value === null || value === undefined || value === "") return value;
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${day}/${month}/${year}`;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${date.getFullYear()}`;
+}
+
+// Field keys that hold a date value (by naming convention: "date"/"dob"
+// exactly, or a camelCase key ending in "Date"/"Dob", e.g. examDate,
+// effectiveDate, requestedDate, studentDob). Used to auto-format date
+// columns/fields in generic, field-driven components like DataTable and
+// RecordModal.
+export function isDateField(key) {
+  return /^date$|^dob$|(Date|Dob)$/i.test(key);
+}
+
+// Converts a "DD/MM/YYYY" display string back to "YYYY-MM-DD" for storage.
+// Returns the value unchanged if it isn't in that display format (e.g. it's
+// already ISO, or empty) so it's always safe to call before saving.
+export function parseDisplayDate(value) {
+  if (!value) return value;
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(value).trim());
+  if (!match) return value;
+  const [, day, month, year] = match;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
 // Role-based permission checks used to gate the Verify/Approve row actions in DataTable.
 export function canVerify(role) {
   return ["Board Verifier", "BOME", "BOEN", "Super Admin"].includes(role);

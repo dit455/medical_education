@@ -13,6 +13,9 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from db import get_connection
 from utils import actor_from_body
+from credentials import generate_password
+from mailer import send_password_reset_email
+import threading
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -110,6 +113,52 @@ def change_password():
         conn.commit()
         cursor.close()
         return jsonify({"ok": True})
+    finally:
+        conn.close()
+
+
+@auth_bp.route("/api/forgot-password", methods=["POST"])
+def forgot_password():
+    body = request.get_json(force=True) or {}
+    username = (body.get("username") or "").strip()
+    if not username:
+        return jsonify({"error": "Username is required"}), 400
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT u.id, u.institution_role, m.inst_name, m.inst_email
+            FROM users u
+            JOIN tbl_inst_master m ON m.inst_id = u.inst_id
+            WHERE u.username = %s AND u.role = 'Institution'
+            """,
+            (username,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            cursor.close()
+            # Same message either way, so no one can use this to find out
+            # which usernames exist.
+            return jsonify({"ok": True, "message": "If this account exists, a new password has been emailed to the registered institution email."})
+
+        user_id, role_label, inst_name, inst_email = row
+        new_password = generate_password()
+        cursor.execute(
+            "UPDATE users SET password = %s, must_change_password = 1 WHERE id = %s",
+            (generate_password_hash(new_password), user_id),
+        )
+        conn.commit()
+        cursor.close()
+
+        threading.Thread(
+            target=send_password_reset_email,
+            args=(inst_email, inst_name, role_label or "Institution", username, new_password),
+            daemon=True,
+        ).start()
+
+        return jsonify({"ok": True, "message": "If this account exists, a new password has been emailed to the registered institution email."})
     finally:
         conn.close()
 

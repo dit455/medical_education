@@ -4,13 +4,15 @@ import { X, CircleCheck } from "lucide-react";
 // Lets the user tick multiple master records at once instead of picking one
 // at a time, then maps all of them on Save. Used for both "Add Existing
 // Course" and "Add Existing Subject". `extraFields` (optional [key, label,
-// options] tuples) renders dropdowns applied to every selected record - e.g.
-// subjects also need a Year/Semester to satisfy the mapping table's NOT NULL
-// columns, which a plain name checklist can't supply on its own.
+// options] tuples) renders inputs applied to every selected record. A tuple
+// whose options array is empty renders a free-text input (e.g. Duration);
+// otherwise it renders a dropdown (e.g. Year/Semester).
 //
-// NEW: Pass `onInstituteChange` to dynamically filter out already-mapped
-// courses when the user picks an institute in the modal. The callback receives
-// the selected institute id and must return (or resolve to) an array of course
+// A search box filters the visible checklist by any word in the record name.
+//
+// Pass `onInstituteChange` to dynamically filter out already-mapped courses
+// when the user picks an institute in the modal. The callback receives the
+// selected institute id and must return (or resolve to) an array of course
 // name strings that are ALREADY mapped to that institute.
 export default function CourseSelectModal({
   title = "Course",
@@ -19,25 +21,24 @@ export default function CourseSelectModal({
   extraFields = [],
   onClose,
   onSave,
-  onInstituteChange,   // NEW: async (instituteId) => string[]  (already-mapped course names)
+  onInstituteChange,
+  initialMapped = [],
 }) {
   const [selected, setSelected] = useState([]);
   const [extraValues, setExtraValues] = useState({});
   const [filteredOptions, setFilteredOptions] = useState(options);
   const [loadingCourses, setLoadingCourses] = useState(false);
+  const [search, setSearch] = useState("");
 
-  // When the institute dropdown changes, fetch already-mapped courses and
-  // remove them from the visible checklist so the user only sees what's
-  // available to map.
   async function handleExtraChange(key, value) {
     const next = { ...extraValues, [key]: value };
     setExtraValues(next);
 
     if (key === "institute" && onInstituteChange) {
       setLoadingCourses(true);
-      setSelected([]); // reset checkboxes when institute switches
+      setSelected([]);
       try {
-        const mappedNames = await onInstituteChange(value); // string[]
+        const mappedNames = await onInstituteChange(value);
         const available = options.filter(
           (opt) => !mappedNames.some(
             (name) => name.trim().toLowerCase() === opt.label.trim().toLowerCase()
@@ -45,20 +46,31 @@ export default function CourseSelectModal({
         );
         setFilteredOptions(available);
       } catch {
-        setFilteredOptions(options); // on error fall back to all options
+        setFilteredOptions(options);
       } finally {
         setLoadingCourses(false);
       }
     }
   }
 
-  // Keep filteredOptions in sync if parent updates options (e.g. after a save)
   useEffect(() => {
-    // Only reset if no institute is currently selected (i.e. fresh open)
     if (!extraValues["institute"]) {
-      setFilteredOptions(options);
+      if (initialMapped && initialMapped.length) {
+        const available = options.filter(
+          (opt) => !initialMapped.some(
+            (name) => name.trim().toLowerCase() === opt.label.trim().toLowerCase()
+          )
+        );
+        setFilteredOptions(available);
+      } else {
+        setFilteredOptions(options);
+      }
     }
-  }, [options]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [options, initialMapped]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const visibleOptions = filteredOptions.filter((opt) =>
+    String(opt.label ?? "").toLowerCase().includes(search.trim().toLowerCase())
+  );
 
   function toggle(value) {
     setSelected((prev) =>
@@ -88,41 +100,63 @@ export default function CourseSelectModal({
             <X size={18} />
           </button>
         </div>
+        <div className="course-select-search" style={{ padding: "0 0 12px" }}>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={`Search ${title.toLowerCase()}...`}
+            style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db" }}
+          />
+        </div>
         {extraFields.length > 0 && (
           <div className="form-grid">
-            {extraFields.map(([key, label, fieldOptions]) => (
-              <label key={key}>
-                <span>{label}</span>
-                <select
-                  aria-label={label}
-                  value={extraValues[key] || ""}
-                  onChange={(e) => handleExtraChange(key, e.target.value)}
-                >
-                  <option value="" disabled>
-                    Select {label}
-                  </option>
-                  {fieldOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
+            {extraFields.map(([key, label, fieldOptions]) => {
+              const isText = !fieldOptions || fieldOptions.length === 0;
+              return (
+                <label key={key}>
+                  <span>{label}</span>
+                  {isText ? (
+                    <input
+                      type="text"
+                      aria-label={label}
+                      value={extraValues[key] || ""}
+                      onChange={(e) => handleExtraChange(key, e.target.value)}
+                      placeholder={`Enter ${label.toLowerCase()}`}
+                    />
+                  ) : (
+                    <select
+                      aria-label={label}
+                      value={extraValues[key] || ""}
+                      onChange={(e) => handleExtraChange(key, e.target.value)}
+                    >
+                      <option value="" disabled>
+                        Select {label}
+                      </option>
+                      {fieldOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {String(option.label ?? "").toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </label>
+              );
+            })}
           </div>
         )}
         <div className="course-select-list">
           {loadingCourses && <p>Loading available courses…</p>}
-          {!loadingCourses && filteredOptions.length === 0 && <p>{emptyMessage}</p>}
+          {!loadingCourses && visibleOptions.length === 0 && <p>{emptyMessage}</p>}
           {!loadingCourses &&
-            filteredOptions.map((option) => (
+            visibleOptions.map((option) => (
               <label key={option.value} className="course-select-row">
                 <input
                   type="checkbox"
                   checked={selected.includes(option.value)}
                   onChange={() => toggle(option.value)}
                 />
-                <span>{option.label}</span>
+                <span>{String(option.label ?? "").toUpperCase()}</span>
               </label>
             ))}
         </div>

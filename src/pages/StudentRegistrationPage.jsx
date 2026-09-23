@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { ChevronLeft, ChevronRight, CircleCheck } from "lucide-react";
 import * as api from "../api.js";
+import { formatDate } from "../utils.js";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MOBILE_PATTERN = /^[0-9]{10}$/;
@@ -22,8 +23,13 @@ export default function StudentRegistrationPage({ institutionId, username }) {
   const [form, setForm] = useState({
     studentName: "",
     studentDob: "",
+    admissionYear: "",
     studentFatherName: "",
     studentAddress: "",
+    addrLine: "",
+    addrPincode: "",
+    addrState: "",
+    addrCity: "",
     studentEmail: "",
     studentMobile: "",
     studentGender: "",
@@ -32,8 +38,13 @@ export default function StudentRegistrationPage({ institutionId, username }) {
     courseId: "",
   });
 
+  const [pinLookup, setPinLookup] = useState({ loading: false, cities: [], error: "" });
+
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+
+  const MAX_PHOTO_KB = 200;
+  const [photoError, setPhotoError] = useState("");
 
   useEffect(() => {
     api.getRegions().then(setRegions).catch(() => setRegions([]));
@@ -41,7 +52,7 @@ export default function StudentRegistrationPage({ institutionId, username }) {
     api.getYears().then(setYears).catch(() => setYears([]));
   }, [institutionId]);
 
-  const UPPERCASE_FIELDS = ["studentName", "studentFatherName", "studentAddress", "otherState"];
+  const UPPERCASE_FIELDS = ["studentName", "studentFatherName", "studentAddress", "addrLine", "otherState"];
   function setField(key, value) {
     const next = UPPERCASE_FIELDS.includes(key) && typeof value === "string" ? value.toUpperCase() : value;
     setForm((prev) => ({ ...prev, [key]: next }));
@@ -50,7 +61,28 @@ export default function StudentRegistrationPage({ institutionId, username }) {
     setTouched((prev) => ({ ...prev, [key]: true }));
   }
 
-  const step1Fields = ["studentName", "studentDob", "studentFatherName", "studentAddress", "studentGender", "studentPhoto", "studentMobile", "regionId"];
+  async function lookupPincode(pin) {
+    if (!/^\d{6}$/.test(pin)) return;
+    setPinLookup({ loading: true, cities: [], error: "" });
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+      const data = await res.json();
+      const entry = data && data[0];
+      if (!entry || entry.Status !== "Success" || !entry.PostOffice?.length) {
+        setPinLookup({ loading: false, cities: [], error: "No location found for this pincode." });
+        setForm((prev) => ({ ...prev, addrState: "", addrCity: "" }));
+        return;
+      }
+      const state = entry.PostOffice[0].State;
+      const cities = [...new Set(entry.PostOffice.map((p) => p.District))];
+      setPinLookup({ loading: false, cities, error: "" });
+      setForm((prev) => ({ ...prev, addrState: state, addrCity: cities[0] || "" }));
+    } catch {
+      setPinLookup({ loading: false, cities: [], error: "Could not look up pincode." });
+    }
+  }
+
+  const step1Fields = ["studentName", "studentDob", "admissionYear", "studentFatherName", "addrLine", "addrPincode", "addrState", "addrCity", "studentGender", "studentPhoto", "studentMobile", "studentEmail"];
   const step2Fields = ["courseId"];
 
   const step1Errors = {
@@ -69,15 +101,23 @@ export default function StudentRegistrationPage({ institutionId, username }) {
           if (age > 100) return "Enter a valid Date of Birth.";
           return false;
         })(),
+    admissionYear: (() => {
+      if (!form.admissionYear) return "Year of Admission is required.";
+      const d = new Date(form.admissionYear);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (d > today) return "Year of Admission cannot be in the future.";
+      return false;
+    })(),
     studentFatherName: !form.studentFatherName.trim() && "Father's Name is required.",
-    studentAddress: !form.studentAddress.trim() && "Address is required.",
-    studentEmail: form.studentEmail && !EMAIL_PATTERN.test(form.studentEmail) && "Enter a valid email, e.g. name@example.com.",
+    addrLine: !form.addrLine.trim() && "Address is required.",
+    addrPincode: !/^\d{6}$/.test(form.addrPincode) && "Enter a valid 6-digit pincode.",
+    addrState: !form.addrState.trim() && "State is required (auto-filled from pincode).",
+    addrCity: !form.addrCity.trim() && "City is required.",
+    studentEmail: !form.studentEmail.trim() ? "Email is required." : (!EMAIL_PATTERN.test(form.studentEmail) && "Enter a valid email, e.g. name@example.com."),
     studentMobile: !MOBILE_PATTERN.test(form.studentMobile) && "Enter a valid 10-digit mobile number.",
     studentGender: !form.studentGender && "Gender is required.",
     studentPhoto: !photoFile && "Photo is required.",
-    regionId: !form.regionId
-      ? "Region is required."
-      : (form.regionId === "other" && !form.otherState.trim() && "Enter the state name."),
   };
   const step2Errors = {
     courseId: !form.courseId && "Course is required.",
@@ -114,11 +154,12 @@ export default function StudentRegistrationPage({ institutionId, username }) {
   async function handleSubmit() {
     setError("");
     try {
-      const isOther = form.regionId === "other";
+      const combinedAddress = `${form.addrLine}, ${form.addrCity}, ${form.addrState} - ${form.addrPincode}`;
       const created = await api.createStudentDirect(institutionId, {
         ...form,
-        regionId: isOther ? null : form.regionId,
-        otherState: isOther ? form.otherState.trim() : null,
+        studentAddress: combinedAddress,
+        regionId: null,
+        otherState: form.addrState || null,
         yearId: years[0]?.id || null,
         actor: username,
       });
@@ -134,9 +175,9 @@ export default function StudentRegistrationPage({ institutionId, username }) {
 
   function resetForm() {
     setForm({
-      studentRegNo: "", studentName: "", studentDob: "", studentFatherName: "",
+      studentRegNo: "", studentName: "", studentDob: "", admissionYear: "", studentFatherName: "",
       studentAddress: "", studentEmail: "", studentMobile: "", studentGender: "",
-      regionId: "", otherState: "", courseId: "",
+      regionId: "", otherState: "", courseId: "", examSessionId: "",
     });
     setPhotoFile(null);
     setPhotoPreview(null);
@@ -208,14 +249,55 @@ export default function StudentRegistrationPage({ institutionId, username }) {
                   {fieldError("studentDob", step1Errors) && <small style={{ color: "#b00020" }}>{step1Errors.studentDob}</small>}
                 </label>
                 <label>
+                  <span>Year of Admission *</span>
+                  <input type="date" max={new Date().toISOString().slice(0, 10)} value={form.admissionYear} onChange={(e) => setField("admissionYear", e.target.value)} onBlur={() => markTouched("admissionYear")} />
+                  {fieldError("admissionYear", step1Errors) && <small style={{ color: "#b00020" }}>{step1Errors.admissionYear}</small>}
+                </label>
+                <label>
                   <span>Father's Name *</span>
                   <input value={form.studentFatherName} onChange={(e) => setField("studentFatherName", e.target.value)} onBlur={() => markTouched("studentFatherName")} />
                   {fieldError("studentFatherName", step1Errors) && <small style={{ color: "#b00020" }}>{step1Errors.studentFatherName}</small>}
                 </label>
                 <label style={{ gridColumn: "1 / -1" }}>
-                  <span>Address *</span>
-                    <textarea rows={3} style={{ resize: "vertical", width: "100%", borderRadius: 12, border: "1px solid var(--line)", padding: "10px 14px", font: "inherit" }} value={form.studentAddress} onChange={(e) => setField("studentAddress", e.target.value)} onBlur={() => markTouched("studentAddress")} />
-                  {fieldError("studentAddress", step1Errors) && <small style={{ color: "#b00020" }}>{step1Errors.studentAddress}</small>}
+                                    <span>Address *</span>
+                    <textarea rows={2} placeholder="House no, street, area" style={{ resize: "vertical", width: "100%", borderRadius: 12, border: "1px solid var(--line)", padding: "10px 14px", font: "inherit" }} value={form.addrLine} onChange={(e) => setField("addrLine", e.target.value)} onBlur={() => markTouched("addrLine")} />
+                  {fieldError("addrLine", step1Errors) && <small style={{ color: "#b00020" }}>{step1Errors.addrLine}</small>}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <span>Pincode *</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="6-digit pincode"
+                        value={form.addrPincode}
+                        onChange={(e) => {
+                          const pin = e.target.value.replace(/\D/g, "").slice(0, 6);
+                          setField("addrPincode", pin);
+                          if (pin.length === 6) lookupPincode(pin);
+                        }}
+                        onBlur={() => markTouched("addrPincode")}
+                      />
+                      {pinLookup.loading && <small style={{ color: "var(--muted)" }}>Looking up…</small>}
+                      {pinLookup.error && <small style={{ color: "#b00020" }}>{pinLookup.error}</small>}
+                      {fieldError("addrPincode", step1Errors) && <small style={{ color: "#b00020" }}>{step1Errors.addrPincode}</small>}
+                    </label>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <span>State *</span>
+                      <input type="text" readOnly placeholder="Auto from pincode" value={form.addrState} style={{ background: "var(--soft-gray)" }} />
+                      {fieldError("addrState", step1Errors) && <small style={{ color: "#b00020" }}>{step1Errors.addrState}</small>}
+                    </label>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <span>City *</span>
+                      <select value={form.addrCity} onChange={(e) => setField("addrCity", e.target.value)} onBlur={() => markTouched("addrCity")}>
+                        <option value="">{pinLookup.cities.length ? "Select city" : "Enter pincode first"}</option>
+                        {pinLookup.cities.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      {fieldError("addrCity", step1Errors) && <small style={{ color: "#b00020" }}>{step1Errors.addrCity}</small>}
+                    </label>
+                  </div>
                 </label>
                 <label style={{ alignSelf: "start" }}>
                   <span>Gender *</span>
@@ -234,6 +316,15 @@ export default function StudentRegistrationPage({ institutionId, username }) {
                     style={{ display: "inline-block", padding: "17px 16px 16px" }}
                     onChange={(e) => {
                       const f = e.target.files?.[0] || null;
+                      if (f && f.size > MAX_PHOTO_KB * 1024) {
+                        setPhotoError(`Photo must not exceed ${MAX_PHOTO_KB} KB (selected: ${Math.round(f.size / 1024)} KB).`);
+                        setPhotoFile(null);
+                        setPhotoPreview(null);
+                        setPhotoError("");
+                        e.target.value = "";
+                        return;
+                      }
+                      setPhotoError("");
                       setPhotoFile(f);
                       setPhotoPreview(f ? URL.createObjectURL(f) : null);
                     }}
@@ -241,38 +332,19 @@ export default function StudentRegistrationPage({ institutionId, username }) {
                   {photoPreview && (
                     <img src={photoPreview} alt="preview" style={{ marginTop: 10, display: "block", width: 130, height: 150, objectFit: "cover", borderRadius: 10, border: "1px solid var(--line)" }} />
                   )}
-                  {touched.studentPhoto && !photoFile && <small style={{ color: "#b00020" }}>Photo is required.</small>}
+                  <small style={{ color: "var(--muted)" }}>JPG, PNG or WEBP · max {MAX_PHOTO_KB} KB</small>
+                  {photoError && <small style={{ color: "#b00020" }}>{photoError}</small>}
+                  {!photoError && touched.studentPhoto && !photoFile && <small style={{ color: "#b00020" }}>Photo is required.</small>}
                 </label>
                 <label>
-                  <span>Email</span>
-                  <input type="email" placeholder="name@example.com (optional)" value={form.studentEmail} onChange={(e) => setField("studentEmail", e.target.value)} onBlur={() => markTouched("studentEmail")} />
+                  <span>Email *</span>
+                  <input type="email" placeholder="name@example.com" value={form.studentEmail} onChange={(e) => setField("studentEmail", e.target.value)} onBlur={() => markTouched("studentEmail")} />
                   {fieldError("studentEmail", step1Errors) && <small style={{ color: "#b00020" }}>{step1Errors.studentEmail}</small>}
                 </label>
                 <label>
                   <span>Mobile *</span>
                   <input placeholder="10-digit mobile number" value={form.studentMobile} onChange={(e) => setField("studentMobile", e.target.value.replace(/\D/g, ""))} onBlur={() => markTouched("studentMobile")} maxLength={10} />
                   {fieldError("studentMobile", step1Errors) && <small style={{ color: "#b00020" }}>{step1Errors.studentMobile}</small>}
-                </label>
-                  <label>
-                  <span>Region *</span>
-                  <select value={form.regionId} onChange={(e) => { setField("regionId", e.target.value); if (e.target.value !== "other") setField("otherState", ""); }} onBlur={() => markTouched("regionId")}>
-                    <option value="">Select region</option>
-                    {regions.map((r) => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                    <option value="other">Other State</option>
-                  </select>
-                  {fieldError("regionId", step1Errors) && <small style={{ color: "#b00020" }}>{step1Errors.regionId}</small>}
-                  {form.regionId === "other" && (
-                    <input
-                      style={{ marginTop: 8 }}
-                      placeholder="Enter state name"
-                      value={form.otherState}
-                      onChange={(e) => setField("otherState", e.target.value)}
-                      onBlur={() => markTouched("otherState")}
-                    />
-                  )}
-                  {form.regionId === "other" && touched.otherState && !form.otherState.trim() && <small style={{ color: "#b00020" }}>State name is required.</small>}
                 </label>
               </div>
             )}
@@ -299,13 +371,13 @@ export default function StudentRegistrationPage({ institutionId, username }) {
                   <dl>
                     <div><dt>Register No</dt><dd>Assigned automatically on registration</dd></div>
                     <div><dt>Name</dt><dd>{form.studentName}</dd></div>
-                    <div><dt>Date of Birth</dt><dd>{form.studentDob}</dd></div>
+                    <div><dt>Date of Birth</dt><dd>{formatDate(form.studentDob)}</dd></div>
+                    <div><dt>Year of Admission</dt><dd>{formatDate(form.admissionYear)}</dd></div>
                     <div><dt>Father's Name</dt><dd>{form.studentFatherName}</dd></div>
-                    <div><dt>Address</dt><dd>{form.studentAddress}</dd></div>
+                    <div><dt>Address</dt><dd>{`${form.addrLine}, ${form.addrCity}, ${form.addrState} - ${form.addrPincode}`}</dd></div>
                     <div><dt>Email</dt><dd>{form.studentEmail}</dd></div>
                     <div><dt>Gender</dt><dd>{form.studentGender}</dd></div>
                     <div><dt>Mobile</dt><dd>{form.studentMobile}</dd></div>
-                    <div><dt>Region</dt><dd>{regionName}</dd></div>
                   </dl>
                 </section>
                 <section className="preview-section">
