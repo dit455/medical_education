@@ -33,29 +33,6 @@ export default function AppShell({
   onChangePassword,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  const [institution, setInstitution] = useState(null);
-
-  useEffect(() => {
-    if (role !== "Institution" || !institutionId) {
-      setInstitution(null);
-      return;
-    }
-    let cancelled = false;
-    api
-      .getInstitution(institutionId)
-      .then((inst) => {
-        if (!cancelled) setInstitution(inst || null);
-      })
-      .catch(() => {
-        if (!cancelled) setInstitution(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [role, institutionId]);
-
-
   const [dashboardView, setDashboardView] = useState("overview");
   const [dashboardViewCommand, setDashboardViewCommand] = useState(null);
   // Remembers where the user was when a cross-page "add" action (e.g. Add
@@ -127,21 +104,6 @@ export default function AppShell({
             route={currentRoute}
             onMenuClick={() => setSidebarOpen(true)}
           />
-          {institutionRole === "Creator" &&
-            ["student-registration", "student-management", "internal-marks"].includes(currentRoute.type) && (
-              <section className="content-stack institution-portal" style={{ padding: "0 32px" }}>
-                <section className="board-summary-card">
-                  <div className="board-summary-head">
-                    <div>
-                      <p className="eyebrow">Institution Portal</p>
-                      <h2>{institution?.name || "Loading..."}</h2>
-                      <span>{username}</span>
-                    </div>
-                    {institution && <StatusBadge status={institution.status} />}
-                  </div>
-                </section>
-              </section>
-            )}
           {currentRoute.type === "dashboard" ? (
             <Dashboard
               data={data}

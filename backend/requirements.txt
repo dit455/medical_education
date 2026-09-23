@@ -1,14 +1,15 @@
-flask
-flask-cors
-mysql-connector-python==9.0.0
-python-dotenv
-waitress
-gunicorn
-bcrypt
-PyJWT
-requests
-Pillow
-reportlab
-openpyxl
-pandas
-dnspython
+   flask
+   flask-cors
+   mysql-connector-python==9.0.0
+   python-dotenv
+   waitress
+   cryptography
+   gunicorn
+   bcrypt
+   PyJWT
+   requests
+   Pillow
+   reportlab
+   openpyxl
+   pandas
+   dnspython
