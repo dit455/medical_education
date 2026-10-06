@@ -148,7 +148,7 @@ export default function AcademicMasterPage({ initialTab, tabCommand, onNavigate,
                 else if (onNavigate) onNavigate("dashboard", addConfig.view, addConfig.add);
               }}
             >
-              <Plus size={16} /> {addConfig.label}
+              <Plus size={24} /> {addConfig.label}
             </button>
           </div>
         );
@@ -162,7 +162,7 @@ export default function AcademicMasterPage({ initialTab, tabCommand, onNavigate,
 
         <div className="table-toolbar">
           <label className="search-box small">
-            <Search size={15} />
+            <Search size={24} />
             <input
               value={search}
               onChange={(e) => {
@@ -235,13 +235,13 @@ export default function AcademicMasterPage({ initialTab, tabCommand, onNavigate,
           </span>
           <div>
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
-              <ChevronLeft size={17} />
+              <ChevronLeft size={24} />
             </button>
             <strong>
               {page} / {totalPages}
             </strong>
             <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
-              <ChevronRight size={17} />
+              <ChevronRight size={24} />
             </button>
           </div>
         </div>
@@ -256,6 +256,7 @@ export default function AcademicMasterPage({ initialTab, tabCommand, onNavigate,
             ["status", "Status", ["Active", "Inactive"]],
           ]}
           title="Add Course"
+          cleanNames
           onClose={() => setAddCourseOpen(false)}
           onSave={handleAddCourse}
         />
@@ -269,6 +270,7 @@ export default function AcademicMasterPage({ initialTab, tabCommand, onNavigate,
             ["status", "Status", ["Active", "Inactive"]],
           ]}
           title="Add Subject"
+          cleanNames
           onClose={() => setAddSubjectOpen(false)}
           onSave={handleAddSubject}
         />

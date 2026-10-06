@@ -58,7 +58,7 @@ export default function DepartmentAdminsPage({ username }) {
             <h3>Accounts</h3>
           </div>
           <button className="primary-btn compact-btn" onClick={() => setModalOpen(true)}>
-            <Plus size={16} />
+            <Plus size={24} />
             Add
           </button>
         </div>
@@ -80,7 +80,7 @@ export default function DepartmentAdminsPage({ username }) {
                     <div className="table-empty">
                       <span>No Department Admin yet</span>
                       <button className="secondary-btn compact-action" onClick={() => setModalOpen(true)}>
-                        <Plus size={15} />
+                        <Plus size={24} />
                         Add Department Admin
                       </button>
                     </div>

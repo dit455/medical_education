@@ -19,7 +19,7 @@ export default function ListViewModal({
             <h3>{title}</h3>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
         {items.length === 0 ? (

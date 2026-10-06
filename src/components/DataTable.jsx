@@ -148,7 +148,7 @@ export default function DataTable({
                 disabled={disabled}
                 onClick={onSecondaryAdd}
               >
-                <Plus size={16} />
+                <Plus size={24} />
                 {secondaryAddLabel}
               </button>
             )}
@@ -158,7 +158,7 @@ export default function DataTable({
                 disabled={disabled}
                 onClick={() => setModalState({ mode: "add", row: emptyRowFromFields(fields) })}
               >
-                <Plus size={16} />
+                <Plus size={24} />
                 {addLabel}
               </button>
             )}
@@ -167,7 +167,7 @@ export default function DataTable({
       </div>
       <div className="table-toolbar">
         <label className="search-box small">
-          <Search size={15} />
+          <Search size={24} />
           <input
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
@@ -177,7 +177,7 @@ export default function DataTable({
         </label>
         <div className="table-toolbar-controls">
           <label className="select-box small">
-            <Filter size={15} />
+            <Filter size={24} />
             <select
               value={statusFilter}
               onChange={(e) => handleStatusFilterChange(e.target.value)}
@@ -207,7 +207,7 @@ export default function DataTable({
                 disabled={disabled}
                 onClick={onToolbarAction}
               >
-                <Plus size={16} />
+                <Plus size={24} />
                 {toolbarActionLabel}
               </button>
             )}
@@ -248,7 +248,7 @@ export default function DataTable({
                           (() => canAdd && setModalState({ mode: "add", row: emptyRowFromFields(fields) }))
                         }
                       >
-                        <Plus size={15} />
+                        <Plus size={24} />
                         {emptyActionLabel}
                       </button>
                     )} */}
@@ -264,7 +264,7 @@ export default function DataTable({
                 >
                   <td data-label="S.No">{(currentPage - 1) * rowsPerPage + index + 1}</td>
                   {columns.map((column) => (
-                    <td key={column} data-label={FIELD_LABELS[column] || humanizeKey(column)}>
+                        <td key={column} data-label={FIELD_LABELS[column] || humanizeKey(column)} className={typeof row[column] === "number" ? "num" : undefined}>
                         {column === "status" ? (
                         onToggle ? (
                           <StatusToggle status={row[column]} onToggle={() => onToggle(row)} />
@@ -340,7 +340,7 @@ export default function DataTable({
             disabled={currentPage === 1}
             aria-label={`${title} previous page`}
           >
-            <ChevronLeft size={17} />
+            <ChevronLeft size={24} />
           </button>
           <strong>
             {currentPage} / {totalPages}
@@ -350,7 +350,7 @@ export default function DataTable({
             disabled={currentPage === totalPages}
             aria-label={`${title} next page`}
           >
-            <ChevronRight size={17} />
+            <ChevronRight size={24} />
           </button>
         </div>
       </div>

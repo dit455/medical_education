@@ -38,13 +38,62 @@ export default function StudentEditModal({
   }, []);
 
   const set = (k, v) => setValues((p) => ({ ...p, [k]: v }));
+  const [errors, setErrors] = useState({});
   
   const isActive = String(values.status).toLowerCase() === "active";
     // Fields that should NOT be auto-capitalised.
   const noUpper = ["studentEmail", "studentMobile", "studentDob", "admissionYear"];
-  const handleText = (k, v) => set(k, noUpper.includes(k) ? v : v.toUpperCase());
+    const handleText = (k, v) => {
+    if (k === "studentRegNo") return; // Register No is locked
+    if (k === "studentDob" || k === "admissionYear") {
+      // Auto-format as DD/MM/YYYY while typing
+      const d = v.replace(/\D/g, "").slice(0, 8);
+      const masked = d.length > 4 ? `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}` : d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+      set(k, masked);
+      setErrors((p) => ({ ...p, [k]: "" }));
+      return;
+    }
+    set(k, noUpper.includes(k) ? v : v.toUpperCase());
+  };
+
+  function validateDates() {
+    const parse = (s) => {
+      const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s || "");
+      if (!m) return null;
+      const [, dd, mm, yyyy] = m;
+      const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+      const ok = d.getFullYear() === Number(yyyy) && d.getMonth() === Number(mm) - 1 && d.getDate() === Number(dd);
+      return ok ? d : null;
+    };
+    const found = {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const dob = parse(values.studentDob);
+    if (!values.studentDob) found.studentDob = "Date of Birth is required.";
+    else if (!dob) found.studentDob = "Enter a valid date as DD/MM/YYYY.";
+    else if (dob > today) found.studentDob = "Date of Birth cannot be in the future.";
+    else {
+      let age = today.getFullYear() - dob.getFullYear();
+      const m = today.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+      if (age < 17) found.studentDob = "Student must be at least 17 years old.";
+      else if (age > 100) found.studentDob = "Enter a valid Date of Birth.";
+    }
+
+    if (values.admissionYear) {
+      const adm = parse(values.admissionYear);
+      if (!adm) found.admissionYear = "Enter a valid date as DD/MM/YYYY.";
+      else if (adm > today) found.admissionYear = "Year of Admission cannot be in the future.";
+      else if (dob && adm < dob) found.admissionYear = "Admission date cannot be before Date of Birth.";
+    }
+
+    setErrors(found);
+    return Object.keys(found).length === 0;
+  }
 
   function handleSave() {
+    if (!validateDates()) return;
     const upper = (s) => (typeof s === "string" ? s.trim().toUpperCase() : s);
     onSave(student, {
       ...values,
@@ -75,7 +124,7 @@ export default function StudentEditModal({
     ["studentMobile", "Mobile"],
   ];
 
-  const genderOptions = ["Male", "Female"];
+  const genderOptions = ["Male", "Female", "Others"];
 
   const selectFields = [
     ["courseId", "Course", courses],
@@ -91,7 +140,7 @@ export default function StudentEditModal({
             <h3>Student Details</h3>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
 
@@ -104,11 +153,18 @@ export default function StudentEditModal({
           {textFields.map(([key, label]) => (
             <div className="view-row" key={key}>
               <span className="view-label">{label}</span>
-              <input
-                className="cell-input"
-                value={values[key]}
-                onChange={(e) => handleText(key, e.target.value)}
-              />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                <input
+                  className="cell-input"
+                  value={values[key]}
+                  readOnly={key === "studentRegNo"}
+                  placeholder={key === "studentDob" || key === "admissionYear" ? "DD/MM/YYYY" : undefined}
+                  style={key === "studentRegNo" ? { background: "var(--soft-gray)", cursor: "not-allowed" } : undefined}
+                  onChange={(e) => handleText(key, e.target.value)}
+                  onBlur={() => { if (key === "studentDob" || key === "admissionYear") validateDates(); }}
+                />
+                {errors[key] && <small style={{ color: "#b00020", display: "block", marginTop: 4 }}>{errors[key]}</small>}
+              </div>
             </div>
           ))}
 
@@ -152,7 +208,7 @@ export default function StudentEditModal({
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" className="secondary-btn" onClick={onClose}>Cancel</button>
             <button type="button" className="primary-btn" onClick={handleSave}>
-              <CircleCheck size={18} /> Save
+              <CircleCheck size={24} /> Save
             </button>
           </div>
         </div>

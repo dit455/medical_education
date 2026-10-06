@@ -97,7 +97,7 @@ export default function CourseSelectModal({
             <h3>{title}</h3>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
         <div className="course-select-search" style={{ padding: "0 0 12px" }}>
@@ -165,7 +165,7 @@ export default function CourseSelectModal({
             Cancel
           </button>
           <button className="primary-btn" disabled={!canSave} onClick={handleSave}>
-            <CircleCheck size={18} />
+            <CircleCheck size={24} />
             Add Selected
           </button>
         </div>

@@ -13,7 +13,7 @@ export default function DepartmentSelectPage({ onBack, onSelect }) {
         <section className="department-card">
           <div className="department-heading">
             <div className="seal-mark small">
-              <Building2 size={26} />
+              <Building2 size={24} />
             </div>
             <div>
               <p className="eyebrow">Department Portal</p>
@@ -24,7 +24,7 @@ export default function DepartmentSelectPage({ onBack, onSelect }) {
             {BOARD_ROLES.map((board) => (
               <button key={board} className="board-option" onClick={() => onSelect(board)}>
                 <span>{board}</span>
-                <strong>{board === "BOME" ? "Medical Education" : "Examination in Nursing"}</strong>
+                <strong>{board === "BOME" ? "Medical Education" : "Examinations in Nursing"}</strong>
               </button>
             ))}
           </div>

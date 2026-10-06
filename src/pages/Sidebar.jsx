@@ -152,14 +152,14 @@ export default function Sidebar({ role, routes, activeRoute, activeDashboardView
       <aside className={isOpen ? "sidebar open" : "sidebar"}>
         <div className="brand">
           <div className="brand-mark">
-            <Activity size={22} />
+            <Activity size={24} />
           </div>
           <div>
             <strong>EMS</strong>
             <span>BOME &amp; BOEN</span>
           </div>
           <button className="icon-btn sidebar-close" type="button" onClick={onClose} aria-label="Close menu">
-            <X size={17} />
+            <X size={24} />
           </button>
         </div>
         <nav className="nav-list" aria-label="Role modules">
@@ -169,7 +169,7 @@ export default function Sidebar({ role, routes, activeRoute, activeDashboardView
               <section className="nav-group" key={group.label}>
                 <button className="nav-group-toggle" type="button" onClick={() => toggleGroup(group.label)}>
                   <span>{group.label}</span>
-                  <ChevronDown size={15} className={isOpenGroup ? "open" : ""} />
+                  <ChevronDown size={24} className={isOpenGroup ? "open" : ""} />
                 </button>
                 {isOpenGroup && (
                   <div className="nav-group-items">
@@ -181,7 +181,7 @@ export default function Sidebar({ role, routes, activeRoute, activeDashboardView
                           className={isActive(item) ? "nav-item active" : "nav-item"}
                           onClick={() => onNavigate(item.routeKey, item.view)}
                         >
-                          <Icon size={18} />
+                          <Icon size={24} />
                           <span>{item.label}</span>
                         </button>
                       );

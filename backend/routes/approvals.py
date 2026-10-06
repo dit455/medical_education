@@ -356,6 +356,8 @@ def reject_pending_change(change_id):
     body = request.get_json(force=True) or {}
     actor = actor_from_body(body)
     note = (body.get("note") or "").strip() or None
+    if not note:
+        return jsonify({"error": "A reason is required to reject a request."}), 400
 
     conn = get_connection()
     try:
@@ -399,9 +401,9 @@ def delete_pending_change(change_id):
         if row is None:
             cursor.close()
             return jsonify({"error": "pending change not found"}), 404
-        if row[0] == "Approved":
+        if row[0] in ("Approved", "Rejected"):
             cursor.close()
-            return jsonify({"error": "approved requests cannot be deleted"}), 409
+            return jsonify({"error": "approved or rejected requests cannot be deleted"}), 409
 
         cursor.execute("DELETE FROM tbl_pending_changes WHERE change_id = %s", (change_id,))
         conn.commit()

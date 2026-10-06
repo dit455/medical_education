@@ -4,6 +4,17 @@ import { X, CircleCheck, Trash2 } from "lucide-react";
 import StatusBadge from "./StatusBadge.jsx";
 import ConfirmDialog from "./ConfirmDialog.jsx";
 
+
+const MAX_MARK = 100;
+
+const READONLY_STYLE = {
+  background: "var(--soft-gray)",
+  cursor: "not-allowed",
+  color: "var(--ink)",
+  WebkitTextFillColor: "var(--ink)",
+  opacity: 1,
+};
+
 const DIVISIONS = [
   { key: "ia", examTypeId: 1, label: "Internal Assessment" },
   { key: "ea", examTypeId: 2, label: "External Assessment" },
@@ -57,7 +68,41 @@ export default function SubjectEditModal({
     return `${username || "user"}_${stamp}`;
   }
 
-  function handleSave() {
+  function validateMarks() {
+    const scored = DIVISIONS.filter((x) => x.key !== "tp");
+    let anyEntered = false;
+    let sumMax = 0;
+
+    for (const d of scored) {
+      const max = marks[d.key].max === "" ? null : Number(marks[d.key].max);
+      const pass = marks[d.key].pass === "" ? null : Number(marks[d.key].pass);
+      if (max !== null || pass !== null) anyEntered = true;
+
+      if (max !== null && (Number.isNaN(max) || max < 0 || max > MAX_MARK)) {
+        return `${d.label}: Max marks must be between 0 and ${MAX_MARK}.`;
+      }
+      if (pass !== null && (Number.isNaN(pass) || pass < 0 || pass > MAX_MARK)) {
+        return `${d.label}: Pass marks must be between 0 and ${MAX_MARK}.`;
+      }
+      if (pass !== null && max !== null && pass > max) {
+        return `${d.label}: Pass marks cannot be greater than Max marks.`;
+      }
+      sumMax += max || 0;
+    }
+
+    if (anyEntered && sumMax !== MAX_MARK) {
+      return `Internal + External Max marks must add up to exactly ${MAX_MARK}. Currently ${sumMax}.`;
+    }
+    return null;
+  }
+
+    function handleSave() {
+    if (!validateDates()) return;
+    const error = validateMarks();
+    if (error) {
+      alert(error);
+      return;
+    }
     const divisions = DIVISIONS
       .filter((d) => marks[d.key].max !== "" || marks[d.key].pass !== "")
       .map((d) => ({
@@ -93,7 +138,7 @@ export default function SubjectEditModal({
               <h3>Subject Information</h3>
             </div>
             <button className="icon-btn" onClick={onClose} aria-label="Close">
-              <X size={18} />
+              <X size={24} />
             </button>
           </div>
 
@@ -117,17 +162,11 @@ export default function SubjectEditModal({
             </div>
             <div className="view-row">
               <span className="view-label">Year</span>
-              <select className="cell-input" value={year} onChange={(e) => setYear(e.target.value)}>
-                <option value="">—</option>
-                {yearOptions.map((y) => <option key={y.id ?? y} value={y.name ?? y}>{y.name ?? y}</option>)}
-              </select>
+              <input className="cell-input" value={year} readOnly style={READONLY_STYLE} />
             </div>
             <div className="view-row">
               <span className="view-label">Semester</span>
-              <select className="cell-input" value={semester} onChange={(e) => setSemester(e.target.value)}>
-                <option value="">—</option>
-                {semOptions.map((s) => <option key={s.id ?? s} value={s.name ?? s}>{s.name ?? s}</option>)}
-              </select>
+              <input className="cell-input" value={semester} readOnly style={READONLY_STYLE} />
             </div>
             <div className="view-row">
               <span className="view-label">Priority</span>
@@ -138,9 +177,9 @@ export default function SubjectEditModal({
               <div className="view-row" key={d.key}>
                 <span className="view-label">{d.label} (Max / Pass)</span>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <input className="cell-input" type="number" placeholder="Max"
+                  <input className="cell-input" type="number" placeholder="Max" min="0" max={MAX_MARK}
                     value={marks[d.key].max} onChange={(e) => setMark(d.key, "max", e.target.value)} />
-                  <input className="cell-input" type="number" placeholder="Pass"
+                  <input className="cell-input" type="number" placeholder="Pass" min="0" max={MAX_MARK}
                     value={marks[d.key].pass} onChange={(e) => setMark(d.key, "pass", e.target.value)} />
                 </div>
               </div>
@@ -159,7 +198,7 @@ export default function SubjectEditModal({
               className="primary-btn"
               onClick={handleSave}
             >
-              <CircleCheck size={18} /> Save
+              <CircleCheck size={24} /> Save
             </button>
           </div>
         </section>

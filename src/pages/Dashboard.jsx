@@ -96,7 +96,7 @@ export default function Dashboard({
                 const Icon = route.icon;
                 return (
                   <button className="module-tile" key={route.key} onClick={() => setActiveRoute(route.key)}>
-                    <Icon size={18} />
+                    <Icon size={24} />
                     <span>{route.label}</span>
                   </button>
                 );
@@ -365,6 +365,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     const payload = {
       name: (values.name || "").toUpperCase(),
       email: values.email,
+      otp: values.otp,
       abbreviation: (values.abbreviation || "").trim(),
       region_id: resolveRegionId(values.region),
       category_id: resolveCategoryId(values.category),
@@ -1038,7 +1039,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
         <div>
           {canGoBack && (
             <button type="button" className="back-btn" onClick={handleBack}>
-              <ArrowLeft size={16} />
+              <ArrowLeft size={24} />
               Back
             </button>
           )}
@@ -1060,17 +1061,17 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
             <p className="eyebrow">Academic Master</p>
             <div className="overview-module-grid">
               <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => onOpenAcademicMaster("institutions")}>
-                <span className="overview-module-icon"><Building2 size={26} /></span>
+                <span className="overview-module-icon"><Building2 size={24} /></span>
                 <span>Institution Master</span>
                
               </button>
               <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => onOpenAcademicMaster("courses")}>
-                <span className="overview-module-icon"><Layers size={26} /></span>
+                <span className="overview-module-icon"><Layers size={24} /></span>
                 <span>Course Master</span>
            
               </button>
               <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => onOpenAcademicMaster("subjects")}>
-                <span className="overview-module-icon"><BookOpen size={26} /></span>
+                <span className="overview-module-icon"><BookOpen size={24} /></span>
                 <span>Subject Master</span>
              
               </button>
@@ -1081,17 +1082,17 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
             <p className="eyebrow">Academic Mapping</p>
             <div className="overview-module-grid">
               <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={goToInstitutions}>
-                <span className="overview-module-icon"><Building2 size={26} /></span>
+                <span className="overview-module-icon"><Building2 size={24} /></span>
                 <span>Institutions</span>
          
               </button>
               <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => setView("courses")}>
-                <span className="overview-module-icon"><Layers size={26} /></span>
+                <span className="overview-module-icon"><Layers size={24} /></span>
                 <span>Courses</span>
            
               </button>
               <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => setView("subjects")}>
-                <span className="overview-module-icon"><BookOpen size={26} /></span>
+                <span className="overview-module-icon"><BookOpen size={24} /></span>
                 <span>Subjects</span>
              
               </button>
@@ -1102,7 +1103,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
             <p className="eyebrow">Approval Center</p>
             <div className="overview-module-grid">
               <button className="overview-module-tile" style={{ "--fc": "#12A37F", "--fb": "#e8f7f1" }} onClick={() => setActiveRoute("student-verification")}>
-                <span className="overview-module-icon"><UserCheck size={26} /></span>
+                <span className="overview-module-icon"><UserCheck size={24} /></span>
                 <span>Registered Students</span>
               
               </button>
@@ -1124,7 +1125,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
                 disabled={action.disabled}
                 title={action.title || undefined}
               >
-                <Icon size={16} />
+                <Icon size={24} />
                 {action.label}
               </button>
             );
@@ -1186,6 +1187,8 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           row={addModal.row}
           fields={addModalConfig[addModal.type].fields}
           title={addModalConfig[addModal.type].title}
+          cleanNames
+          emailOtp={addModal.type === "institution"}
           onClose={() => setAddModal(null)}
           onSave={handleAddModalSave}
         />
@@ -1196,6 +1199,8 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           row={formModal.row}
           fields={entityForm[formModal.entity].fields}
           title={entityForm[formModal.entity].title}
+          cleanNames
+          emailOtp={formModal.entity === "institution" && formModal.mode === "add"}
           onClose={() => {
             const wasInstitutionAdd = formModal.entity === "institution" && formModal.mode === "add";
             setFormModal(null);
@@ -1214,6 +1219,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           row={subjectModalState.row}
           fields={subjectFields}
           title="Add Subject"
+          cleanNames
           onClose={() => setSubjectModalState(null)}
           onSave={async (values) => {
             await saveSubject(values);
@@ -1270,7 +1276,8 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
             status: "Active",
           }}
           fields={addCourseFields}
-          title="Add Course"
+          title="Add Course" 
+          cleanNames
           onClose={() => setAddCourseOpen(false)}
           onSave={handleAddCourseSave}
         />
@@ -1436,7 +1443,7 @@ function RecentActivities({ workflows }) {
           <p className="eyebrow">Recent Activities</p>
           <h2>Updates</h2>
         </div>
-        <Activity size={18} />
+        <Activity size={24} />
       </div>
       <div className="activity-list">
         {rows.length ? (
@@ -1540,7 +1547,7 @@ function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onC
             <div className="subject-modal-head-actions">
               <StatusBadge status={subject?.status || course?.status || "Active"} />
               <button className="icon-btn" onClick={onClose} aria-label="Close">
-                <X size={18} />
+                <X size={24} />
               </button>
             </div>
           </div>
@@ -1577,7 +1584,7 @@ function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onC
                     onClick={action.onClick}
                     disabled={action.disabled}
                   >
-                    <Icon size={16} />
+                    <Icon size={24} />
                     {action.label}
                   </button>
                 );
@@ -1592,6 +1599,7 @@ function SubjectDetailsModal({ course, subject, subjectCount, subjectFields, onC
           row={modalState.row}
           fields={subjectFields}
           title="Subject Details"
+          cleanNames
           onClose={() => setModalState(null)}
           onSave={handleSave}
         />

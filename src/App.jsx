@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import HomePage from "./pages/HomePage.jsx";
-import LoginPage from "./pages/LoginPage.jsx";
-import DepartmentSelectPage from "./pages/DepartmentSelectPage.jsx";
-import ChangePasswordPage from "./pages/ChangePasswordPage.jsx";
-import AppShell from "./pages/AppShell.jsx";
+import { lazy } from "react";
+const LoginPage = lazy(() => import("./pages/LoginPage.jsx"));
+const DepartmentSelectPage = lazy(() => import("./pages/DepartmentSelectPage.jsx"));
+const ChangePasswordPage = lazy(() => import("./pages/ChangePasswordPage.jsx"));
+const AppShell = lazy(() => import("./pages/AppShell.jsx"));
 import { SEED_DATA } from "./data.js";
 
 const DEFAULT_SESSION = { screen: "home", role: null, loginType: null, username: null, institutionId: null, institutionRole: null };

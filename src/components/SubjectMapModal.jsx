@@ -104,7 +104,7 @@ export default function SubjectMapModal({
             <h3>Map Subject</h3>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
 
@@ -210,7 +210,7 @@ export default function SubjectMapModal({
             Cancel
           </button>
           <button className="primary-btn" disabled={!canSave} onClick={handleSave}>
-            <CircleCheck size={18} />
+            <CircleCheck size={24} />
             Add Selected
           </button>
         </div>

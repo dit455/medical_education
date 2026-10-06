@@ -80,11 +80,12 @@ const [forgotMessage, setForgotMessage] = useState("");
             <div className="login-card-heading">
               {onBackHome && (
                 <button className="login-back-btn" type="button" onClick={onBackHome}>
-                  <ArrowLeft size={15} />
+                  <ArrowLeft size={24} />
                   Back to home
                 </button>
               )}
               <h2>EMS Login</h2>
+              <p>Fields marked * are mandatory.</p>
               <span>Secure role-based access</span>
             </div>
             <div className="login-tabs" role="tablist" aria-label="Login role">
@@ -113,10 +114,11 @@ const [forgotMessage, setForgotMessage] = useState("");
             <form className="login-form" onSubmit={handleSubmit}>
               {loginType === "institution" && (
                 <label>
-                  <span>Role</span>
+                  <span>Role *</span>
                   <select
                     value={form.institutionRole}
                     onChange={(e) => setField("institutionRole", e.target.value)}
+                    aria-required="true"
                   >
                     <option value="Creator">Creator</option>
                     <option value="Approver">Approver</option>
@@ -124,16 +126,17 @@ const [forgotMessage, setForgotMessage] = useState("");
                 </label>
               )}
               <label>
-                <span>Username</span>
+                <span>Username *</span>
                 <input
                   value={form.username}
                   onChange={(e) => setField("username", e.target.value)}
                   placeholder="Username"
                   autoComplete="username"
+                  aria-required="true"
                 />
               </label>
                 <label>
-                <span>Password</span>
+                <span>Password *</span>
                 <div className="password-field">
                   <input
                     type={showPassword ? "text" : "password"}
@@ -141,6 +144,7 @@ const [forgotMessage, setForgotMessage] = useState("");
                     onChange={(e) => setField("password", e.target.value)}
                     placeholder="Password"
                     autoComplete="current-password"
+                    aria-required="true"
                   />
                   <button
                     type="button"
@@ -149,7 +153,7 @@ const [forgotMessage, setForgotMessage] = useState("");
                     aria-label={showPassword ? "Hide password" : "Show password"}
                     title={showPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+                    {showPassword ? <Eye size={24} /> : <EyeOff size={24} />}
                   </button>
                 </div>
               </label>
@@ -191,9 +195,9 @@ const [forgotMessage, setForgotMessage] = useState("");
                   </div>
               )}
               <div className="captcha-block">
-                <span>Captcha Verification</span>
+                <span>Captcha verification</span>
                 <div className="captcha-row">
-                  <div className="captcha-code" aria-label="Captcha code">
+                  <div className="captcha-code bhashini-skip-translation" aria-label="Captcha code">
                     {captcha}
                   </div>
                   <button
@@ -203,22 +207,23 @@ const [forgotMessage, setForgotMessage] = useState("");
                     aria-label="Refresh captcha"
                     title="Refresh captcha"
                   >
-                    <RefreshCw size={16} />
+                    <RefreshCw size={24} />
                   </button>
                 </div>
               </div>
               <label>
-                <span>Enter Captcha</span>
+                <span>Enter captcha *</span>
                 <input
                   value={form.captcha}
                   onChange={(e) => setField("captcha", e.target.value)}
                   placeholder="Enter captcha"
                   autoComplete="off"
+                  aria-required="true"
                 />
               </label>
               {error && <div className="login-error">{error}</div>}
-              <button className="primary-btn login-submit" type="submit" disabled={submitting}>
-                <LockKeyhole size={18} />
+              <button className="primary-btn login-submit" type="submit" disabled={submitting || !form.username.trim() || !form.password.trim() || !form.captcha.trim()}>
+                <LockKeyhole size={24} />
                 {submitting ? "Logging in..." : "Login"}
               </button>
             </form>

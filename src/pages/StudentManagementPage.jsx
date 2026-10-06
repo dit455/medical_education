@@ -145,12 +145,12 @@ export default function StudentManagementPage({ institutionId, username }) {
 
         <div className="table-toolbar">
           <label className="search-box small">
-            <Search size={15} />
+            <Search size={24} />
             <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search" />
           </label>
           <div className="table-toolbar-controls">
             <label className="select-box small">
-              <Filter size={15} />
+              <Filter size={24} />
               <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
                 <option>All</option>
                 {STATUS_FILTERS.map((o) => <option key={o}>{o}</option>)}
@@ -201,13 +201,13 @@ export default function StudentManagementPage({ institutionId, username }) {
                     <td data-label="Actions">
                       <div className="action-group">
                         <button type="button" className="icon-btn" title="View / Edit" onClick={() => setEditing(student)}>
-                          <FileText size={16} />
+                          <FileText size={24} />
                         </button>
                         <button type="button" className="icon-btn" title={String(student.status).toLowerCase() === "active" ? "Set Inactive" : "Set Active"} onClick={() => toggleStatus(student)}>
-                          {String(student.status).toLowerCase() === "active" ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                          {String(student.status).toLowerCase() === "active" ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
                         </button>
                         <button type="button" className="icon-btn danger" title="Delete student" onClick={() => setDeleting(student)}>
-                          <Trash2 size={16} />
+                          <Trash2 size={24} />
                         </button>
                       </div>
                     </td>
@@ -222,11 +222,11 @@ export default function StudentManagementPage({ institutionId, username }) {
           <span>{rangeStart}-{rangeEnd} of {filtered.length}</span>
           <div>
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} aria-label="Previous page">
-              <ChevronLeft size={17} />
+              <ChevronLeft size={24} />
             </button>
             <strong>{currentPage} / {totalPages}</strong>
             <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} aria-label="Next page">
-              <ChevronRight size={17} />
+              <ChevronRight size={24} />
             </button>
           </div>
         </div>

@@ -2,11 +2,14 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, CircleCheck } from "lucide-react";
 import { formatDate, isDateField, parseDisplayDate } from "../utils.js";
+import { sendInstitutionOtp } from "../api.js";
 
 // Generic field-driven form modal used for add/edit/view of any entity row.
 // `fields` is an array of [key, label, options?] tuples; an `options` array
 // renders a <select>, otherwise a plain text <input>.
-export default function RecordModal({ mode, row, fields, title, onClose, onSave }) {
+export default function RecordModal({ mode, row, fields, title, onClose, onSave, emailOtp = false, cleanNames = false }) {
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
   // In add/edit mode, date-like fields ("examDate", "studentDob", plain
   // "date", etc.) are shown to the user as DD/MM/YYYY, so pre-format any
   // incoming ISO values here. View mode formats separately, at display time.
@@ -22,6 +25,33 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
   });
   const isViewMode = mode === "view";
 
+  // Dropdown options (region / category) load from the API a moment after the
+  // modal opens. The <select> then SHOWS the first option, but formValues has
+  // no value for it yet - so an untouched dropdown would be submitted empty.
+  // Keep the state in sync with what is actually displayed.
+  useEffect(() => {
+    if (isViewMode) return;
+    setFormValues((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      fields.forEach(([key, , options]) => {
+        if (!options || options.length === 0) return;
+        const normalized = options.map((option) =>
+          typeof option === "object" && option !== null ? option : { value: option, label: option },
+        );
+        const match = normalized.find(
+          (o) => o.value === next[key] || o.label === next[key],
+        );
+        const resolved = match ? match.value : normalized[0].value;
+        if (next[key] !== resolved) {
+          next[key] = resolved;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [fields, isViewMode]);
+
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -29,7 +59,30 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
   }, []);
 
   function setField(key, value) {
-    setFormValues((prev) => ({ ...prev, [key]: value }));
+    setFormValues((prev) => {
+      const next = { ...prev, [key]: value };
+      if (emailOtp && key === "email") next.otp = "";
+      return next;
+    });
+    if (emailOtp && key === "email") setOtpSent(false);
+  }
+
+  async function handleSendOtp() {
+    const email = (formValues.email || "").trim();
+    if (!/^[^\s@]+@gmail\.com$/i.test(email)) {
+      alert("Enter a valid Gmail address first.");
+      return;
+    }
+    setOtpSending(true);
+    try {
+      await sendInstitutionOtp(email);
+      setOtpSent(true);
+      alert(`OTP sent to ${email}. Enter the 6-digit code to continue.`);
+    } catch (err) {
+      alert(err.message || "Could not send OTP.");
+    } finally {
+      setOtpSending(false);
+    }
   }
 
     return createPortal(
@@ -41,7 +94,7 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
             <h3>{title}</h3>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
 
@@ -123,17 +176,45 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
                         setField(
                           key,
                           key === "name" || key === "subject" || key === "abbreviation"
-                            ? e.target.value.toUpperCase()
+                              ? (cleanNames
+                                ? e.target.value.toUpperCase().replace(/[^A-Z0-9 ]/g, "").replace(/^\s+/, "").replace(/\s{2,}/g, " ")
+                                : e.target.value.toUpperCase())
                             : e.target.value
                         )
                       }
                       style={key === "name" || key === "subject" || key === "abbreviation" ? { textTransform: "uppercase" } : undefined}
-                      disabled={isViewMode}
+                                            disabled={isViewMode}
                     />
+                  )}
+                  {emailOtp && key === "email" && (
+                    <button
+                      type="button"
+                      className="secondary-btn"
+                      style={{ marginTop: 6 }}
+                      onClick={handleSendOtp}
+                      disabled={otpSending || !formValues.email}
+                    >
+                      {otpSending ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
+                    </button>
                   )}
                 </label>
               );
             })}
+            {emailOtp && otpSent && (
+              <label>
+                <span>Email OTP</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="6-digit code"
+                  value={formValues.otp || ""}
+                  onChange={(e) =>
+                    setFormValues((prev) => ({ ...prev, otp: e.target.value.replace(/\D/g, "") }))
+                  }
+                />
+              </label>
+            )}
           </div>
         )}
 
@@ -145,9 +226,23 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
             <button
               className="primary-btn"
                 onClick={async () => {
+                if (emailOtp && !/^\d{6}$/.test(formValues.otp || "")) {
+                  alert(otpSent ? "Enter the 6-digit OTP sent to the email." : "Click Send OTP to verify the email first.");
+                  return;
+                }
                 const payload = { ...formValues };
                 fields.forEach(([key, , options]) => {
-                  if (!options && isDateField(key)) {
+                  if (options && options.length) {
+                    const normalized = options.map((option) =>
+                      typeof option === "object" && option !== null
+                        ? option
+                        : { value: option, label: option },
+                    );
+                    const match = normalized.find(
+                      (o) => o.value === payload[key] || o.label === payload[key],
+                    );
+                    payload[key] = match ? match.value : normalized[0].value;
+                  } else if (!options && isDateField(key)) {
                     payload[key] = parseDisplayDate(payload[key]);
                   }
                 });
@@ -158,7 +253,7 @@ export default function RecordModal({ mode, row, fields, title, onClose, onSave 
                 }
               }}
             >
-              <CircleCheck size={18} />
+              <CircleCheck size={24} />
               Save
             </button>
           )}

@@ -12,7 +12,7 @@ export default function QuickActions({ actions }) {
             disabled={action.disabled}
           >
             <span className="quick-action-icon" aria-hidden="true">
-              <Icon size={18} />
+              <Icon size={24} />
             </span>
             <span>
               <strong>{action.label}</strong>

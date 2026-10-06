@@ -56,11 +56,12 @@ export default function ChangePasswordPage({ username, onChanged, onBack }) {
           <section className="login-card">
             <div className="login-card-heading">
               <h2>Set a New Password</h2>
+              <p>Fields marked * are mandatory.</p>
               <span>Required before you can continue - this happens only once.</span>
             </div>
             <form className="login-form" onSubmit={handleSubmit}>
                             <label>
-                <span>Temporary Password</span>
+                <span>Temporary Password *</span>
                 <div className="password-field">
                   <input
                     type={showCurrent ? "text" : "password"}
@@ -68,14 +69,15 @@ export default function ChangePasswordPage({ username, onChanged, onBack }) {
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="Temporary password"
                     autoComplete="current-password"
+                    aria-required="true"
                   />
                   <button type="button" className="password-toggle" onClick={() => setShowCurrent((s) => !s)} aria-label={showCurrent ? "Hide password" : "Show password"}>
-                    {showCurrent ? <Eye size={16} /> : <EyeOff size={16} />}
+                    {showCurrent ? <Eye size={24} /> : <EyeOff size={24} />}
                   </button>
                 </div>
               </label>
               <label>
-                <span>New Password</span>
+                <span>New Password *</span>
                 <div className="password-field">
                   <input
                     type={showNew ? "text" : "password"}
@@ -83,14 +85,16 @@ export default function ChangePasswordPage({ username, onChanged, onBack }) {
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="New password"
                     autoComplete="new-password"
+                    aria-required="true"
                   />
                   <button type="button" className="password-toggle" onClick={() => setShowNew((s) => !s)} aria-label={showNew ? "Hide password" : "Show password"}>
-                    {showNew ? <Eye size={16} /> : <EyeOff size={16} />}
+                    {showNew ? <Eye size={24} /> : <EyeOff size={24} />}
                   </button>
                 </div>
+                <small>Use at least 8 characters.</small>
               </label>
               <label>
-                <span>Confirm New Password</span>
+                <span>Confirm New Password *</span>
                 <div className="password-field">
                   <input
                     type={showConfirm ? "text" : "password"}
@@ -98,15 +102,16 @@ export default function ChangePasswordPage({ username, onChanged, onBack }) {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm new password"
                     autoComplete="new-password"
+                    aria-required="true"
                   />
                   <button type="button" className="password-toggle" onClick={() => setShowConfirm((s) => !s)} aria-label={showConfirm ? "Hide password" : "Show password"}>
-                    {showConfirm ? <Eye size={16} /> : <EyeOff size={16} />}
+                    {showConfirm ? <Eye size={24} /> : <EyeOff size={24} />}
                   </button>
                 </div>
               </label>
               {error && <div className="login-error">{error}</div>}
-                <button className="primary-btn login-submit" type="submit" disabled={submitting}>
-                <LockKeyhole size={18} />
+                <button className="primary-btn login-submit" type="submit" disabled={submitting || !currentPassword || !newPassword || !confirmPassword}>
+                <LockKeyhole size={24} />
                 {submitting ? "Updating..." : "Update Password"}
               </button>
               {onBack && (

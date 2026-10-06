@@ -26,7 +26,7 @@ export default function RecordPickModal({
             <h3>Select {title}</h3>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
         {isEmpty ? (
@@ -62,7 +62,7 @@ export default function RecordPickModal({
             disabled={!selectedRow}
             onClick={() => selectedRow && onPick(selectedRow)}
           >
-            <CircleCheck size={18} />
+            <CircleCheck size={24} />
             Edit Selected
           </button>
         </div>

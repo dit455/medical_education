@@ -6,7 +6,7 @@
 // etc.) instead of hardcoding "localhost" - otherwise a browser on another
 // machine would try to reach its OWN localhost:5000, not this one.
 //const BASE_URL = `http://${window.location.hostname}:5001/api`;
-const BASE_URL = "/api";
+const BASE_URL = `http://${window.location.hostname}:5001/api`;
 
 async function request(path, options) {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -70,6 +70,13 @@ export function createInstitution(payload) {
   return request("/institutions", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function sendInstitutionOtp(email) {
+  return request("/institutions/send-otp", {
+    method: "POST",
+    body: JSON.stringify({ email }),
   });
 }
 
@@ -280,6 +287,22 @@ export function createStudentDirect(institutionId, payload) {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function sendStudentOtp(email) {
+  return request("/students/send-otp", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export function verifyStudentOtp(email, otp) {
+  return request("/students/verify-otp", { method: "POST", body: JSON.stringify({ email, otp }) });
+}
+
+export function checkStudentDuplicate({ email, mobile, excludeId } = {}) {
+  const q = new URLSearchParams();
+  if (email) q.set("email", email);
+  if (mobile) q.set("mobile", mobile);
+  if (excludeId) q.set("excludeId", excludeId);
+  return request(`/students/check-duplicate?${q.toString()}`);
 }
 
 export function uploadStudentPhoto(studentId, file) {

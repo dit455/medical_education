@@ -7,7 +7,7 @@ export default function Topbar({ route, onMenuClick }) {
   if (HEADERLESS_TYPES.includes(route?.type) || HEADERLESS_KEYS.includes(route?.key)) {
     return (
       <button className="icon-btn mobile-menu-btn dashboard-mobile-menu" type="button" onClick={onMenuClick} aria-label="Open menu">
-        <Menu size={18} />
+        <Menu size={24} />
       </button>
     );
   }
@@ -16,7 +16,7 @@ export default function Topbar({ route, onMenuClick }) {
     <header className="topbar">
       <div className="topbar-title-row">
         <button className="icon-btn mobile-menu-btn" type="button" onClick={onMenuClick} aria-label="Open menu">
-          <Menu size={18} />
+          <Menu size={24} />
         </button>
         <div>
           <p className="eyebrow">EMS Workspace</p>

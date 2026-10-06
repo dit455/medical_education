@@ -23,7 +23,7 @@ export default function ExternalLinkWarning({ href, onCancel, onContinue }) {
             margin: "0 auto 18px",
           }}
         >
-          <AlertTriangle size={28} color="var(--heritage-yellow)" />
+          <AlertTriangle size={32} color="var(--heritage-yellow)" />
         </div>
 
         <h3 style={{ margin: "0 0 10px", fontSize: "1.15rem", color: "var(--ink)" }}>You are leaving this website</h3>
@@ -53,7 +53,7 @@ export default function ExternalLinkWarning({ href, onCancel, onContinue }) {
           </button>
           <button type="button" className="primary-btn" onClick={onContinue}>
             Continue
-            <ExternalLink size={15} />
+            <ExternalLink size={24} />
           </button>
         </div>
       </section>

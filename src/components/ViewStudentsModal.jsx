@@ -34,7 +34,7 @@ export default function ViewStudentsModal({ institutionId, institutionName, onCl
             <h3>Students{institutionName ? ` — ${institutionName}` : ""}</h3>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
 

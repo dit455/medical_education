@@ -233,7 +233,7 @@ function RejectDialog({ change, onCancel, onConfirm }) {
             <h3>Reject this {change.entityType} request?</h3>
           </div>
           <button className="icon-btn" onClick={onCancel} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
         <label>

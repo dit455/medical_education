@@ -561,7 +561,7 @@ export default function InternalMarksPage({ institutionId, username }) {
                 onChange={(e) => setScheduleField("courseId", e.target.value)}
               >
                 <option value="">Select course</option>
-                {courses.map((c) => (
+                {[...courses].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
                   <option key={c.id} value={c.id}>{(c.name || "").toUpperCase()}</option>
                 ))}
               </select>
@@ -991,9 +991,9 @@ export default function InternalMarksPage({ institutionId, username }) {
                           return (
                             <div className="action-group" style={{ display: "flex", flexWrap: "nowrap", gap: 6 }}>
                               <button type="button" className="icon-btn" title="View" onClick={() => setViewingRequest(req)}>
-                                <FileText size={16} />
+                                <FileText size={24} />
                               </button>
-                              {!isApproved && (
+                              {!isApproved && req.status !== "Rejected" && (
                                 <button type="button" className="icon-btn danger" title="Delete"
                                   onClick={async () => {
                                     try {
@@ -1003,7 +1003,7 @@ export default function InternalMarksPage({ institutionId, username }) {
                                       alert(err.message || "Could not delete this request.");
                                     }
                                   }}>
-                                  <Trash2 size={16} />
+                                  <Trash2 size={24} />
                                 </button>
                               )}
                             </div>
@@ -1028,7 +1028,7 @@ export default function InternalMarksPage({ institutionId, username }) {
                 <h3>Marks Request</h3>
               </div>
               <button className="icon-btn" onClick={() => setViewingRequest(null)} aria-label="Close">
-                <X size={18} />
+                <X size={24} />
               </button>
             </div>
             <div className="preview-section-stack">
@@ -1113,7 +1113,7 @@ function ResubmitMarksModal({ change, onClose, onSave }) {
             <h3>Correct and Resubmit</h3>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
 
@@ -1182,7 +1182,7 @@ function ResubmitMarksModal({ change, onClose, onSave }) {
             Cancel
           </button>
           <button className="primary-btn" onClick={handleSave} disabled={!canSave}>
-            <CircleCheck size={18} />
+            <CircleCheck size={24} />
             Save
           </button>
         </div>

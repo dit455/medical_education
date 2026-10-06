@@ -64,7 +64,7 @@ export default function CascadeEditModal({
             <h3>Select {title}</h3>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
 
@@ -143,7 +143,7 @@ export default function CascadeEditModal({
             Cancel
           </button>
           <button className="primary-btn" disabled={!canEdit} onClick={handleEdit}>
-            <CircleCheck size={18} />
+            <CircleCheck size={24} />
             Edit Selected
           </button>
         </div>

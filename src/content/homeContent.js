@@ -45,16 +45,16 @@ export const SITE = {
   departmentParts: ["Government of Puducherry", "Department of Health & Family Welfare"],
   productName: "Examination Marks System",
   emblems: [
-    { src: "/images/govt_puducherry.png", alt: "Government of Puducherry emblem" },
+    { src: "/images/govt_puducherry_black.png", alt: "Government of Puducherry logo" },
     { src: "/images/institute_seal.png", alt: "MTPG & RIHS institute seal" },
   ],
   copyright: `© ${new Date().getFullYear()} BOME / BOEN — Government of Puducherry. All rights reserved.`,
-  credit: "Directorate of Information Technology, Government of Puducherry",
+  credit: "Content owned and maintained by the Board of Medical Education & Board of Examinations in Nursing, Department of Health & Family Welfare, Government of Puducherry",
   intro:
     "Regulating and administering medical, nursing and allied health science education across the Union Territory of Puducherry.",
   // GIGW Quality guideline 11: this must come from the CMS, not be hardcoded.
   // Wire it to the content/build system; the ISO date here is only a stand-in.
-  lastUpdated: "2025-05-20",
+  lastUpdated: __LAST_UPDATED__,
 };
 
 // GIGW Quality guideline 18(3): a plain-language "About the organisation"
@@ -67,7 +67,7 @@ export const ABOUT_STATEMENT = {
   functions: [
     "Register students and issue unique registration numbers.",
     "Publish examination schedules and conduct term examinations.",
-    "Verify and approve marks through a maker–checker–approver workflow.",
+    "Marks are entered, checked and approved by three different officers.",
     "Issue digitally signed marks sheets delivered via DigiLocker.",
   ],
 };
@@ -107,7 +107,7 @@ export const HERO_SLIDES = [
     titleMain: "BOME / BOEN",
     body:
       "Ensuring excellence in Medical, Nursing and Allied Health Science education across the Union Territory of Puducherry.",
-    image: "/images/carousel_2.jpg",
+    image: "/images/pink_ribbon_awareness.webp",
   },
   {
     id: "futures",
@@ -116,7 +116,7 @@ export const HERO_SLIDES = [
     titleMain: "Healthcare Futures",
     body:
       "Regulating examinations and certification of diploma courses in Nursing and Paramedical Sciences on a single secure platform.",
-    image: "/images/carousel_1.jpg",
+    image: "/images/mtpg_rihs_building.webp",
   },
   {
     id: "digilocker",
@@ -124,8 +124,8 @@ export const HERO_SLIDES = [
     titleTop: "Digitally Signed",
     titleMain: "Marks Sheets",
     body:
-      "Maker–checker–approver verification, digital signature certificates and marks sheets delivered to students through DigiLocker.",
-    image: "/images/carousel_2.jpg",
+      "Marks are checked by three officers, signed digitally and sent to students through DigiLocker.",
+    image: "/images/pink_ribbon_awareness.webp",
   },
 ];
 
@@ -139,8 +139,8 @@ export const HERO_ACTIONS = [
 ];
 
 export const HERO_TRUST = [
-  { id: "mca", label: "Maker–Checker–Approver", icon: ShieldCheck },
-  { id: "otp", label: "OTP Verified Login", icon: KeyRound },
+  { id: "mca", label: "Three-Step Approval", icon: ShieldCheck },
+  { id: "otp", label: "One-Time Password Login", icon: KeyRound },
   { id: "dsc", label: "Digital Signature", icon: Fingerprint },
 ];
 
@@ -151,7 +151,7 @@ export const TICKER_LABEL = "Latest";
 export const TICKER_ITEMS = [
   { id: "t1", text: "Notification for the April / May examinations has been published." },
   { id: "t2", text: "Examination time table for all affiliated institutions is now available." },
-  { id: "t3", text: "Colleges may download the student and education details Excel templates." },
+  //{ id: "t3", text: "Colleges may download the student and education details Excel templates." },
   { id: "t4", text: "Circular — submission of student data by all affiliated institutions." },
   { id: "t5", text: "Approved marks sheets are issued to students through DigiLocker." },
 ];
@@ -171,15 +171,15 @@ export const SERVICES = [
     label: "Examination Schedule",
     desc: "Term-wise exam dates and time tables published per college and course.",
     icon: Calendar,
-    accent: "#0F4C9A",
+    accent: "#0F5757",
     target: "news",
   },
   {
     id: "downloads",
     label: "Downloads",
-    desc: "Excel templates, application forms and official documents.",
+    desc: "Examination schedules, guides and official documents (PDF).",
     icon: Download,
-    accent: "#D97706",
+    accent: "#0F5757",
     target: "resources",
   },
   {
@@ -187,7 +187,7 @@ export const SERVICES = [
     label: "Notifications",
     desc: "Latest circulars, results and announcements from the boards.",
     icon: Bell,
-    accent: "#C0333D",
+    accent: "#0F5757",
     target: "news",
   },
   {
@@ -195,7 +195,7 @@ export const SERVICES = [
     label: "Affiliated Institutions",
     desc: "Colleges and institutions registered under BOME and BOEN.",
     icon: Building2,
-    accent: "#0B1F3A",
+    accent: "#0F5757",
     target: "glance",
   },
 ];
@@ -269,7 +269,7 @@ export const NEWS = [
 export const ABOUT_CARD = {
   eyebrow: "About Us",
   title: "About BOME / BOEN",
-  image: "/images/carousel_1.jpg",
+  image: "/images/mtpg_rihs_building.webp",
   body:
     "Autonomous bodies under the Health & Family Welfare Department, Government of Puducherry, responsible for regulating examinations and certification across Nursing, Paramedical and Allied Health Sciences.",
   points: [
@@ -289,10 +289,20 @@ export const GALLERY_SECTION = {
 };
 
 export const GALLERY = [
-  { id: "g1", src: "/images/carousel_1.jpg", label: "Convocation ceremony", span: "tall" },
-  { id: "g2", src: "/images/carousel_2.jpg", label: "Clinical training" },
-  { id: "g3", src: "/images/carousel_1.jpg", label: "Nursing programme" },
-  { id: "g4", src: "/images/carousel_2.jpg", label: "Practical session", span: "wide" },
+  {
+    id: "g1",
+    thumb: "/images/gallery/pink_ribbon_awareness_thumb.webp",
+    src: "/images/pink_ribbon_awareness.webp",
+    original: "/images/carousel_2.jpg",
+    label: "Students and staff holding pink ribbons at an awareness event, Mother Theresa Post Graduate and Research Institute of Health Sciences",
+  },
+  {
+    id: "g2",
+    thumb: "/images/gallery/mtpg_rihs_building_thumb.webp",
+    src: "/images/mtpg_rihs_building.webp",
+    original: "/images/carousel_1.jpg",
+    label: "Main building of Mother Theresa Post Graduate and Research Institute of Health Sciences",
+  },
 ];
 
 /* -- Downloads + external links ------------------------------------------- */
@@ -308,12 +318,12 @@ export const RESOURCES_SECTION = {
 // size and a usage instruction. `href` is a department content dependency - the
 // files themselves must be supplied and the paths pointed here.
 export const DOWNLOADS = [
-  { id: "d1", label: "Student Details Excel Template", format: "XLSX", size: "48 KB", note: "Opens in a new window · requires a spreadsheet reader", href: null, icon: FileSpreadsheet },
-  { id: "d2", label: "Education Details Excel Template", format: "XLSX", size: "52 KB", note: "Opens in a new window · requires a spreadsheet reader", href: null, icon: FileSpreadsheet },
-  { id: "d3", label: "Examination Schedule", format: "PDF", size: "1.2 MB", note: "Opens in a new window · requires a PDF reader", href: null, icon: Calendar },
-  { id: "d4", label: "Document Upload Checklist", format: "PDF", size: "220 KB", note: "Opens in a new window · requires a PDF reader", href: null, icon: ClipboardCheck },
-  { id: "d5", label: "Marks Sheet Guide (DigiLocker)", format: "PDF", size: "640 KB", note: "Opens in a new window · requires a PDF reader", href: null, icon: FileCheck2 },
-  { id: "d6", label: "Helpdesk Contact Sheet", format: "PDF", size: "90 KB", note: "Opens in a new window · requires a PDF reader", href: null, icon: Headphones },
+  //{ id: "d1", label: "Student Details Excel Template", format: "XLSX", size: "48 KB", note: "Opens in a new window · requires a spreadsheet reader", href: null, icon: FileSpreadsheet },
+  //{ id: "d2", label: "Education Details Excel Template", format: "XLSX", size: "52 KB", note: "Opens in a new window · requires a spreadsheet reader", href: null, icon: FileSpreadsheet },
+  { id: "d3", label: "Examination Schedule", format: "PDF", size: "1.2 MB", note: "Opens in a new window · requires a PDF reader", href: "/downloads/examination-schedule.pdf", icon: Calendar },
+  { id: "d4", label: "Document Upload Checklist", format: "PDF", size: "220 KB", note: "Opens in a new window · requires a PDF reader", href: "/downloads/document-upload-checklist.pdf", icon: ClipboardCheck },
+  { id: "d5", label: "Marks Sheet Guide (DigiLocker)", format: "PDF", size: "640 KB", note: "Opens in a new window · requires a PDF reader", href: "/downloads/marks-sheet-guide.pdf", icon: FileCheck2 },
+  { id: "d6", label: "Helpdesk Contact Sheet", format: "PDF", size: "49 KB", note: "Opens in a new window · requires a PDF reader", href: "/downloads/helpdesk-contact-sheet.pdf", icon: Headphones },
 ];
 
 export const EXTERNAL_LINKS = [
@@ -360,7 +370,7 @@ export const CONTACT_SECTION = {
 export const CONTACT_CHANNELS = [
   { id: "c1", label: "0413 – 2238306", href: "tel:04132238306", icon: Phone },
   { id: "c3", label: "helpdesk@mtpg-rihs.py.gov.in", href: "mailto:helpdesk@mtpg-rihs.py.gov.in", icon: Mail },
-  { id: "c4", label: "IGGGH & PGI Campus, Puducherry", href: "#contact", icon: MapPin },
+  { id: "c4", label: "IGGGH & PGI Campus, Puducherry", title: "Indira Gandhi Government General Hospital & Post Graduate Institute", href: "#contact", icon: MapPin },
 ];
 
 /* -- Footer --------------------------------------------------------------- */
@@ -369,16 +379,16 @@ export const CONTACT_CHANNELS = [
 // footer policy set every government site must carry. Targets are content
 // dependencies - each should point to its own policy page once authored.
 export const FOOTER_POLICY_LINKS = [
-  { id: "p1", label: "Terms & Conditions", href: "#contact" },
-  { id: "p2", label: "Privacy Policy", href: "#contact" },
-  { id: "p3", label: "Copyright Policy", href: "#contact" },
-  { id: "p4", label: "Hyperlinking Policy", href: "#contact" },
-  { id: "p5", label: "Accessibility Statement", href: "#contact" },
-  { id: "p6", label: "Disclaimer", href: "#contact" },
-  { id: "p7", label: "Website Policies", href: "#contact" },
-  { id: "p8", label: "Help", href: "#contact" },
-  { id: "p9", label: "Archive", href: "#contact" },
-  { id: "p10", label: "Sitemap", href: "#contact" },
+  { id: "p1", label: "Terms & Conditions", href: "/policies/terms.html" },
+  { id: "p2", label: "Privacy Policy", href: "/policies/privacy.html" },
+  { id: "p3", label: "Copyright Policy", href: "/policies/copyright.html" },
+  { id: "p4", label: "Hyperlinking Policy", href: "/policies/hyperlinking.html" },
+  { id: "p5", label: "Accessibility Statement", href: "/policies/accessibility.html" },
+  { id: "p6", label: "Disclaimer", href: "/policies/disclaimer.html" },
+  { id: "p7", label: "Website Policies", href: "/policies/website-policies.html" },
+  { id: "p8", label: "Help", href: "/policies/help.html" },
+  { id: "p9", label: "Archive", href: "/policies/archive.html" },
+  { id: "p10", label: "Sitemap", href: "/policies/sitemap.html" },
 ];
 
 // GIGW Quality guideline 18(3,6,7): About / Contact / Feedback must be directly
@@ -393,11 +403,12 @@ export const PRIMARY_SERVICE_LINKS = [
 export const FEEDBACK = {
   eyebrow: "Feedback",
   title: "Tell us how we can improve",
-  note: "Your feedback is acknowledged on screen and reviewed by the EMS helpdesk within three working days.",
+  note: "Your feedback is reviewed by the EMS helpdesk within three working days. We use your name and e-mail only to reply to you; they are not shared with anyone.",
+  requiredNote: "Fields marked * are required.",
   fields: [
     { id: "name", label: "Full name", type: "text", autoComplete: "name", required: true },
     { id: "email", label: "Email address", type: "email", autoComplete: "email", required: true },
-    { id: "category", label: "Category", type: "select", required: true, options: ["General", "Examinations", "Marks / Results", "Technical issue"] },
+    { id: "category", label: "Category", type: "radio", required: true, defaultValue: "General", options: ["General", "Examinations", "Marks / Results", "Technical issue"] },
     { id: "message", label: "Your message", type: "textarea", autoComplete: "off", required: true },
   ],
   submitLabel: "Submit feedback",

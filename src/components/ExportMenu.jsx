@@ -34,7 +34,7 @@ export default function ExportMenu({ getData, disabled }) {
         onClick={() => setOpen((o) => !o)}
         disabled={disabled}
       >
-        <Download size={15} /> Export <ChevronDown size={14} />
+        <Download size={24} /> Export <ChevronDown size={24} />
       </button>
       {open && (
         <div

@@ -87,12 +87,12 @@ export default function MyRequestsTable({ changes, students = [], onView, onEdit
 
       <div className="table-toolbar">
         <label className="search-box small">
-          <Search size={15} />
+          <Search size={24} />
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search" />
         </label>
         <div className="table-toolbar-controls">
           <label className="select-box small">
-            <Filter size={15} />
+            <Filter size={24} />
             <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
               <option>All</option>
               {STATUS_FILTERS.map((o) => <option key={o}>{o}</option>)}
@@ -167,7 +167,7 @@ export default function MyRequestsTable({ changes, students = [], onView, onEdit
                           title={isFinal ? "View (approved — locked)" : "View and correct"}
                           onClick={() => (isFinal ? onView?.(change) : onEdit?.(change))}
                         />
-                        {!isFinal && (
+                        {!isFinal && change.status !== "Rejected" && (
                           <IconButton label="Delete" icon={Trash2} tone="danger" title="Withdraw this request" onClick={() => onDelete?.(change)} />
                         )}
                       </div>
@@ -186,11 +186,11 @@ export default function MyRequestsTable({ changes, students = [], onView, onEdit
         <span>{rangeStart}-{rangeEnd} of {rows.length}</span>
         <div>
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} aria-label="Previous page">
-            <ChevronLeft size={17} />
+            <ChevronLeft size={24} />
           </button>
           <strong>{currentPage} / {totalPages}</strong>
           <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} aria-label="Next page">
-            <ChevronRight size={17} />
+            <ChevronRight size={24} />
           </button>
         </div>
       </div>

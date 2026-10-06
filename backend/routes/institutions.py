@@ -1,15 +1,88 @@
 """CRUD for tbl_inst_master (the Institutions table on the board dashboard)."""
 
 from flask import Blueprint, jsonify, request
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from db import get_connection
 from utils import actor_from_body, board_column, label_to_status, status_to_label
 from credentials import generate_role_username, generate_password
-from mailer import send_credentials_email
+from mailer import send_credentials_email, send_otp_email
+import secrets
 import threading
 
 institutions_bp = Blueprint("institutions", __name__)
+
+
+
+OTP_TABLE_SQL = """
+    CREATE TABLE IF NOT EXISTS tbl_email_otp (
+        email VARCHAR(255) PRIMARY KEY,
+        otp_hash VARCHAR(255) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        attempts INT NOT NULL DEFAULT 0
+    )
+"""
+
+
+@institutions_bp.route("/api/institutions/send-otp", methods=["POST"])
+def send_institution_otp():
+    body = request.get_json(force=True) or {}
+    email = (body.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        return jsonify({"error": "Enter a valid email address."}), 400
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT inst_id FROM tbl_inst_master WHERE UPPER(TRIM(inst_email)) = UPPER(%s) LIMIT 1",
+            (email,),
+        )
+        if cursor.fetchone():
+            cursor.close()
+            return jsonify({"error": "An institution with this email already exists."}), 409
+
+        otp = f"{secrets.randbelow(1000000):06d}"
+        cursor.execute(OTP_TABLE_SQL)
+        cursor.execute(
+            """
+            REPLACE INTO tbl_email_otp (email, otp_hash, expires_at, attempts)
+            VALUES (%s, %s, NOW() + INTERVAL 10 MINUTE, 0)
+            """,
+            (email, generate_password_hash(otp)),
+        )
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
+
+    if not send_otp_email(email, otp):
+        return jsonify({"error": "Could not send OTP to this email. Check the address."}), 400
+    return jsonify({"message": "OTP sent"})
+
+
+def verify_institution_otp(cursor, email, otp):
+    email = (email or "").strip().lower()
+    otp = (otp or "").strip()
+    if not otp:
+        return "Email OTP is required. Click Send OTP first."
+    cursor.execute(OTP_TABLE_SQL)
+    cursor.execute(
+        "SELECT otp_hash, expires_at > NOW(), attempts FROM tbl_email_otp WHERE email = %s",
+        (email,),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return "No OTP was sent to this email. Click Send OTP."
+    otp_hash, not_expired, attempts = row
+    if not not_expired:
+        return "OTP has expired. Click Resend OTP."
+    if attempts >= 5:
+        return "Too many wrong attempts. Click Resend OTP."
+    if not check_password_hash(otp_hash, otp):
+        cursor.execute("UPDATE tbl_email_otp SET attempts = attempts + 1 WHERE email = %s", (email,))
+        return "Incorrect OTP."
+    return None
 
 INSTITUTION_SELECT_SQL = """
     SELECT i.inst_id, i.inst_name, i.inst_abbr, i.status_, r.region_desc, c.cat_desc
@@ -82,6 +155,9 @@ def create_institution():
     status_ = label_to_status(status_label)
     actor = actor_from_body(body)
 
+    if not region_id or not cat_id:
+        return jsonify({"error": "Region and Category are required."}), 400
+
     conn = get_connection()
     try:
         cursor = conn.cursor()
@@ -108,6 +184,14 @@ def create_institution():
         if cursor.fetchone():
             cursor.close()
             return jsonify({"error": "An institution with the same name, region and category already exists."}), 409
+
+
+        otp_error = verify_institution_otp(cursor, inst_email, body.get("otp"))
+        if otp_error:
+            conn.commit()
+            cursor.close()
+            return jsonify({"error": otp_error}), 400
+        cursor.execute("DELETE FROM tbl_email_otp WHERE email = %s", ((inst_email or "").strip().lower(),))
 
         cursor.execute("SELECT COALESCE(MAX(inst_id), 0) + 1 FROM tbl_inst_master")
         new_id = cursor.fetchone()[0]

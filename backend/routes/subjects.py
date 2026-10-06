@@ -191,6 +191,15 @@ def apply_create_subject(cursor, course_id, subject, year_id, sem_id, priority=N
 
     if existing_map:
         map_id = existing_map[0]
+        if priority is not None:
+            cursor.execute(
+                """
+                UPDATE tbl_course_subject_map
+                SET priority_id = %s
+                WHERE course_subject_id = %s
+                """,
+                (priority, map_id),
+            )
     else:
         cursor.execute(
             "SELECT COALESCE(MAX(course_subject_id), 0) + 1 FROM tbl_course_subject_map"
@@ -312,7 +321,10 @@ def apply_update_subject(cursor, course_subject_id, subject, year_id, sem_id,
     status_ = label_to_status(status_label)
 
     cursor.execute(
-        "SELECT subject_id FROM tbl_course_subject_map WHERE course_subject_id = %s",
+        """
+        SELECT subject_id, year_id, sem_id, priority_id
+        FROM tbl_course_subject_map WHERE course_subject_id = %s
+        """,
         (course_subject_id,),
     )
     map_row = cursor.fetchone()
@@ -320,14 +332,24 @@ def apply_update_subject(cursor, course_subject_id, subject, year_id, sem_id,
         raise ValueError("subject mapping not found")
     subject_id = map_row[0]
 
-    cursor.execute(
-        """
-        UPDATE tbl_subject_master
-        SET subject_desc = %s, updated_by = %s, updated_date = NOW()
-        WHERE subject_id = %s
-        """,
-        (subject, actor, subject_id),
-    )
+    # Year / Semester are fixed in the UI and are not sent by the edit modal,
+    # so fall back to whatever is already stored instead of writing NULL.
+    if year_id is None:
+        year_id = map_row[1]
+    if sem_id is None:
+        sem_id = map_row[2]
+    if priority is None:
+        priority = map_row[3]
+
+    if subject:
+        cursor.execute(
+            """
+            UPDATE tbl_subject_master
+            SET subject_desc = %s, updated_by = %s, updated_date = NOW()
+            WHERE subject_id = %s
+            """,
+            (subject, actor, subject_id),
+        )
     cursor.execute(
         """
         UPDATE tbl_course_subject_map

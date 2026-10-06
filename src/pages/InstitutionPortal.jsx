@@ -216,6 +216,7 @@ useEffect(() => {
   // --- Approvals (Approver role) ------------------------------------------
   const [reviewError, setReviewError] = useState("");
   const [rejectingChange, setRejectingChange] = useState(null);
+  const [approvingChange, setApprovingChange] = useState(null);
   const [reviewSearch, setReviewSearch] = useState("");
   const [reviewStatusFilter, setReviewStatusFilter] = useState("All");
   const [reviewPage, setReviewPage] = useState(1);
@@ -463,14 +464,15 @@ useEffect(() => {
                             <td data-label="Actions">
                               <div className="action-group">
                                 <IconButton label="View" icon={FileText} onClick={() => setViewingChange(change)} />
-                                <IconButton
-                                  label="Delete"
-                                  icon={Trash2}
-                                  tone="danger"
-                                  disabled={change.status === "Approved"}
-                                  title={change.status === "Approved" ? "Approved requests cannot be deleted" : "Withdraw this request"}
-                                  onClick={() => change.status !== "Approved" && setDeletingChange(change)}
-                                />
+                                {change.status !== "Approved" && change.status !== "Rejected" && (
+                                  <IconButton
+                                    label="Delete"
+                                    icon={Trash2}
+                                    tone="danger"
+                                    title="Withdraw this request"
+                                    onClick={() => setDeletingChange(change)}
+                                  />
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -496,12 +498,12 @@ useEffect(() => {
 
           <div className="table-toolbar">
             <label className="search-box small">
-              <Search size={15} />
+              <Search size={24} />
               <input value={reviewSearch} onChange={(e) => { setReviewSearch(e.target.value); setReviewPage(1); }} placeholder="Search" />
             </label>
             <div className="table-toolbar-controls">
               <label className="select-box small">
-                <Filter size={15} />
+                <Filter size={24} />
                 <select value={reviewStatusFilter} onChange={(e) => { setReviewStatusFilter(e.target.value); setReviewPage(1); }}>
                   <option>All</option>
                   {REVIEW_STATUS_FILTERS.map((o) => <option key={o}>{o}</option>)}
@@ -558,7 +560,7 @@ useEffect(() => {
                 ) : (
                     reviewPageRows.map((change, i) => {
                     const v = rowView(change);
-                    const isFinal = change.status === "Approved";
+                    const isFinal = change.status === "Approved" || change.status === "Rejected";
                     return (
                       <tr key={change.id}>
                         <td data-label="S.No">{i + 1}</td>
@@ -583,7 +585,7 @@ useEffect(() => {
                           <div className="action-group">
                             {change.status === "Pending" && (
                               <>
-                                <IconButton label="Approve" onClick={() => handleApproveChange(change)} icon={CircleCheck} />
+                                <IconButton label="Approve" onClick={() => setApprovingChange(change)} icon={CircleCheck} />
                                 <IconButton label="Reject" onClick={() => setRejectingChange(change)} icon={X} tone="danger" />
                               </>
                             )}
@@ -613,11 +615,11 @@ useEffect(() => {
             <span>{reviewRangeStart}-{reviewRangeEnd} of {filteredReviews.length}</span>
             <div>
               <button onClick={() => setReviewPage((p) => Math.max(1, p - 1))} disabled={reviewCurrentPage === 1} aria-label="Previous page">
-                <ChevronLeft size={17} />
+                <ChevronLeft size={24} />
               </button>
               <strong>{reviewCurrentPage} / {reviewTotalPages}</strong>
               <button onClick={() => setReviewPage((p) => Math.min(reviewTotalPages, p + 1))} disabled={reviewCurrentPage === reviewTotalPages} aria-label="Next page">
-                <ChevronRight size={17} />
+                <ChevronRight size={24} />
               </button>
             </div>
           </div>
@@ -632,6 +634,20 @@ useEffect(() => {
           title="Add Student & Internal Marks"
           onClose={() => setAddStudentOpen(false)}
           onSave={saveStudentWithMarks}
+        />
+      )}
+      {approvingChange && (
+        <ConfirmDialog
+          title="Approve this request?"
+          message="Do you want to approve this request? Once approved it cannot be changed or deleted."
+          confirmLabel="Approve"
+          confirmClass=""
+          onConfirm={async () => {
+            const target = approvingChange;
+            setApprovingChange(null);
+            await handleApproveChange(target);
+          }}
+          onCancel={() => setApprovingChange(null)}
         />
       )}
       {rejectingChange && (
@@ -680,7 +696,7 @@ useEffect(() => {
                 <h3>{viewingChange.payload.name}</h3>
               </div>
               <button className="icon-btn" onClick={() => setViewingChange(null)} aria-label="Close">
-                <X size={18} />
+                <X size={24} />
               </button>
             </div>
             <div className="preview-section-stack">
@@ -713,7 +729,7 @@ useEffect(() => {
                 <h3>{rowView(viewingReview).name}</h3>
               </div>
               <button className="icon-btn" onClick={() => setViewingReview(null)} aria-label="Close">
-                <X size={18} />
+                <X size={24} />
               </button>
             </div>
             <div className="preview-section-stack">
@@ -833,6 +849,14 @@ function summarizePayload(payload) {
 
 function ReviewRejectDialog({ change, onCancel, onConfirm }) {
   const [note, setNote] = useState("");
+  const [noteError, setNoteError] = useState("");
+  function handleReject() {
+    if (!note.trim()) {
+      setNoteError("Reason is required to reject a request.");
+      return;
+    }
+    onConfirm(note.trim());
+  }
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="modal confirm-dialog" role="alertdialog" aria-modal="true" aria-label="Reject this request?">
@@ -842,19 +866,26 @@ function ReviewRejectDialog({ change, onCancel, onConfirm }) {
             <h3>Reject this student request?</h3>
           </div>
           <button className="icon-btn" onClick={onCancel} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
         <label>
-          <span>Reason (optional)</span>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Let the Creator know why" />
+          <span>Reason *</span>
+          <input
+            value={note}
+            onChange={(e) => { setNote(e.target.value); setNoteError(""); }}
+            placeholder="Let the Creator know why"
+            aria-required="true"
+            aria-invalid={noteError ? true : undefined}
+          />
+          {noteError && <small style={{ color: "#b00020" }}>{noteError}</small>}
         </label>
         <div className="modal-actions">
           <button className="secondary-btn" onClick={onCancel}>
             Cancel
           </button>
-          <button className="primary-btn" onClick={() => onConfirm(note)}>
-            <X size={16} />
+          <button className="primary-btn" onClick={handleReject}>
+            <X size={24} />
             Reject
           </button>
         </div>

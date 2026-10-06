@@ -357,7 +357,7 @@ export const SEED_DATA = {
       id: 3,
       name: "BOEN Registrar",
       role: "BOEN",
-      office: "Board of Examination in Nursing",
+      office: "Board of Examinations in Nursing",
       designation: "Registrar",
       mobile: "9876500033",
       email: "boen@gov.in",

@@ -138,7 +138,7 @@ export default function AddSubjectModal({
                 margin: "0 auto 16px",
               }}
             >
-              <CircleCheck size={30} color="var(--brand)" />
+              <CircleCheck size={32} color="var(--brand)" />
             </div>
             <h3 style={{ margin: "0 0 8px" }}>
               {editMode ? "Changes Saved" : "Subject Added"}
@@ -166,7 +166,7 @@ export default function AddSubjectModal({
             <h3>{editMode ? "Edit Subject Marks" : "Add Subject"}</h3>
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={18} />
+            <X size={24} />
           </button>
         </div>
 
@@ -328,7 +328,7 @@ export default function AddSubjectModal({
             Cancel
           </button>
           <button className="primary-btn" disabled={!canSave} onClick={handleSave}>
-            <CircleCheck size={18} />
+            <CircleCheck size={24} />
               {editMode ? "Save Changes" : "Save"}
           </button>
         </div>

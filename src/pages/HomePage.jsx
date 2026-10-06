@@ -20,6 +20,8 @@ import {
 
 import "../styles/home.css";
 import ExternalLinkWarning from "../components/ExternalLinkWarning.jsx";
+import BhashiniTranslator from "../components/BhashiniTranslator.jsx";
+import { openCookieSettings } from "../components/CookieConsent.jsx";
 import { useHomeStats } from "../hooks/useHomeStats.js";
 import {
   ABOUT_CARD,
@@ -168,6 +170,12 @@ export default function HomePage({ onLoginClick }) {
   const [showTop, setShowTop] = useState(false);
   
 
+    // Sitemap links like /#about → scroll to that section after load
+  useEffect(() => {
+    const id = window.location.hash.replace("#", "");
+    if (id) setTimeout(() => scrollToSection(id), 300);
+  }, []);
+
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 600);
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -216,7 +224,7 @@ export default function HomePage({ onLoginClick }) {
         <Gallery onOpen={setLightbox} />
         <Resources />
         <Feedback />
-        <Contact />
+        {/* <Contact /> */}
       </main>
 
       <Footer onNavigate={handleNavigate} />
@@ -226,10 +234,10 @@ export default function HomePage({ onLoginClick }) {
         <button
           type="button"
           className="pub-totop"
-          aria-label={UI_TEXT.backToTop}
+          aria-label={UI_TEXT.backToTop} title={UI_TEXT.backToTop}
           onClick={() => window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" })}
         >
-          <ArrowUp size={18} />
+          <ArrowUp size={24} />
         </button>
       ) : null}
       </div>
@@ -252,12 +260,13 @@ function UtilityBar() {
           <Phrases parts={UTILITY_BAR.labelParts} separator="|" />
         </span>
         <div className="pub-utility-tools">
+          <BhashiniTranslator />
           {/* Text-size / contrast controls live in the UX4G accessibility
               widget loaded in index.html — no duplicate controls here. */}
           {/* GIGW 18(8): National Portal link, always a new tab. */}
           <a className="pub-utility-portal" href={NATIONAL_PORTAL.href} target="_blank" rel="noopener noreferrer" onClick={(e) => guardExternalClick(e, NATIONAL_PORTAL.href)}>
             {NATIONAL_PORTAL.label}
-            <ExternalLink size={11} aria-hidden="true" />
+            <ExternalLink size={24} aria-hidden="true" />
             <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
           </a>
         </div>
@@ -281,11 +290,8 @@ function Masthead({ onNavigate, onLoginClick }) {
     <header className="pub-masthead">
       <div className="pub-shell">
         <div className="pub-brand">
-          <span className="pub-emblems">
-            {SITE.emblems.map((emblem) => (
-              <img key={emblem.src} src={emblem.src} alt={emblem.alt} />
-            ))}
-          </span>
+          <img className="pub-state-emblem" src="/images/emblem_black.png" alt="State Emblem of India" width="58" height="112" />
+          {/* <span className="pub-lockup-divider" aria-hidden="true" /> */}
           <div className="pub-brand-text">
             <h1>
               <span className="pub-brand-primary">{SITE.boardName}</span>
@@ -295,29 +301,45 @@ function Masthead({ onNavigate, onLoginClick }) {
               <Phrases parts={SITE.departmentParts} />
             </p>
             <div className="pub-brand-contact">
-              {CONTACT_CHANNELS.map(({ id, label, href, icon: Icon }) => (
+                {CONTACT_CHANNELS.map(({ id, label, title, href, icon: Icon }) => (
                 <a key={id} href={href}>
-                  <Icon size={12} />
-                  {label}
+                  <Icon size={24} />
+                  {title ? <abbr title={title}>{label}</abbr> : label}
                 </a>
               ))}
             </div>
           </div>
+          <img
+            className="pub-state-logo"
+            src="/images/govt_puducherry_black.png"
+            alt="Government of Puducherry logo"
+            width="71"
+            height="87"
+          />
         </div>
 
         <div className="pub-masthead-aside">
+          {/*
           <nav className="pub-quicklinks" aria-label={UI_TEXT.landmarks.quickLinksNav}>
             {PRIMARY_SERVICE_LINKS.map(({ id, label, target, icon: Icon }) => (
               <button key={id} type="button" onClick={() => onNavigate(target)}>
-                <Icon size={13} aria-hidden="true" />
+                <Icon size={24} aria-hidden="true" />
                 {label}
               </button>
             ))}
             <button type="button" className="pub-quicklinks-login" onClick={onLoginClick}>
-              <KeyRound size={13} aria-hidden="true" />
+              <KeyRound size={24} aria-hidden="true" />
               {UI_TEXT.login}
             </button>
           </nav>
+          */}
+          {/*
+          <span className="pub-emblems">
+            {SITE.emblems.map((emblem) => (
+              <img key={emblem.src} src={emblem.src} alt={emblem.alt} />
+            ))}
+          </span>
+          */}
           <SiteSearch onNavigate={onNavigate} />
         </div>
       </div>
@@ -331,25 +353,64 @@ function Masthead({ onNavigate, onLoginClick }) {
  * (or opens the external link).
  */
 function SiteSearch({ onNavigate }) {
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
+  // searches from other pages arrive as /?q=word
+  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
+  const [open, setOpen] = useState(() => Boolean(new URLSearchParams(window.location.search).get("q")));
+
+  const [filter, setFilter] = useState("all");
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("q")) {
+      window.history.replaceState(null, "", window.location.pathname);
+      boxRef.current?.querySelector("input")?.focus();
+    }
+  }, []);
   const boxRef = useRef(null);
 
   const index = useMemo(
     () => [
-      ...SERVICES.map((item) => ({ id: `s-${item.id}`, label: item.label, group: UI_TEXT.search.groups.service, target: item.target })),
+      ...SERVICES.map((item) => ({ id: `s-${item.id}`, label: item.label, keywords: item.desc, group: UI_TEXT.search.groups.service, target: item.target })),
       ...NEWS.map((item) => ({ id: `n-${item.id}`, label: item.title, group: item.category, target: "news" })),
-      ...DOWNLOADS.map((item) => ({ id: `d-${item.id}`, label: item.label, group: UI_TEXT.search.groups.download, target: "resources" })),
+      // PDFs: open the file directly when it is uploaded
+      ...DOWNLOADS.map((item) => ({ id: `d-${item.id}`, label: item.label, keywords: `${item.format} ${item.note}`, group: `${UI_TEXT.search.groups.download} (${item.format})`, href: item.href || undefined, target: "resources" })),
       ...EXTERNAL_LINKS.map((item) => ({ id: `l-${item.id}`, label: item.label, group: UI_TEXT.search.groups.link, href: item.href })),
       ...NAV_LINKS.map((item) => ({ id: `p-${item.id}`, label: item.label, group: UI_TEXT.search.groups.page, target: item.id })),
+      // Images: search by caption (image metadata)
+      ...GALLERY.map((item) => ({ id: `g-${item.id}`, label: item.label, group: "Photo", target: "gallery" })),
+      // Policy and help pages
+      ...FOOTER_POLICY_LINKS.map((item) => ({ id: `w-${item.id}`, label: item.label, group: "Website page", href: item.href })),
     ],
     [],
   );
 
-  const matches = useMemo(() => {
+    const matches = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return [];
-    return index.filter((entry) => entry.label.toLowerCase().includes(term)).slice(0, 8);
+    const found = index.filter((entry) =>
+      `${entry.label} ${entry.keywords || ""} ${entry.group}`.toLowerCase().includes(term),
+    );
+    if (found.length > 0) return found.slice(0, 8);
+
+    // DBIM LNG-05: also search the text currently on screen (works after Bhashini translation)
+    const results = [];
+    const seen = new Set();
+    document
+      .querySelectorAll("main h2, main h3, main .pub-news-title, main .pub-card-text strong, main .pub-service p")
+      .forEach((node) => {
+        const text = node.textContent.trim();
+        const section = node.closest("section[id]");
+        if (!text || !section || seen.has(text)) return;
+        if (text.toLowerCase().includes(term)) {
+          seen.add(text);
+          results.push({
+            id: `dom-${results.length}`,
+            label: text,
+            group: section.querySelector("h2")?.textContent.trim() || "",
+            target: section.id,
+          });
+        }
+      });
+    return results.slice(0, 8);
   }, [index, query]);
 
   useEffect(() => {
@@ -364,7 +425,11 @@ function SiteSearch({ onNavigate }) {
     setOpen(false);
     setQuery("");
     if (entry.href) {
-      window.open(entry.href, "_blank", "noopener,noreferrer");
+      if (entry.href.startsWith("/")) {
+        window.location.href = entry.href;
+      } else {
+        window.open(entry.href, "_blank", "noopener,noreferrer");
+      }
       return;
     }
     onNavigate(entry.target);
@@ -372,10 +437,22 @@ function SiteSearch({ onNavigate }) {
 
   const showResults = open && query.trim().length > 0;
 
+  // ACC-06: filter results by category
+  const SEARCH_FILTERS = [
+    { id: "all", label: "All" },
+    { id: "pages", label: "Pages" },
+    { id: "downloads", label: "Downloads" },
+    { id: "photos", label: "Photos" },
+    { id: "links", label: "Links" },
+  ];
+  const kindOf = (id) =>
+    id.startsWith("d-") ? "downloads" : id.startsWith("g-") ? "photos" : id.startsWith("l-") ? "links" : "pages";
+  const filtered = filter === "all" ? matches : matches.filter((entry) => kindOf(entry.id) === filter);
+
   return (
     <div className="pub-search" ref={boxRef}>
       <div className="pub-search-field">
-        <Search size={15} aria-hidden="true" />
+        <Search size={24} aria-hidden="true" />
         {/* Combobox semantics so screen readers are told results appeared —
             without these the dropdown is silent to assistive tech. */}
         <input
@@ -398,29 +475,56 @@ function SiteSearch({ onNavigate }) {
           }}
         />
         {query ? (
-          <button type="button" className="pub-search-clear" aria-label={UI_TEXT.search.clear} onClick={() => setQuery("")}>
-            <X size={14} aria-hidden="true" />
+          <button type="button" className="pub-search-clear" aria-label={UI_TEXT.search.clear} title={UI_TEXT.search.clear} onClick={() => setQuery("")}>
+            <X size={24} aria-hidden="true" />
           </button>
         ) : null}
       </div>
 
       {showResults ? (
         matches.length > 0 ? (
-          <ul className="pub-search-results" id="pub-search-listbox" role="listbox" aria-label={UI_TEXT.search.label}>
-            {matches.map((entry) => (
-              <li key={entry.id} role="option" aria-selected="false">
-                <button type="button" onClick={() => choose(entry)}>
-                  <strong>{entry.label}</strong>
-                  <small>{entry.group}</small>
+          <div className="pub-search-results" id="pub-search-listbox">
+            <div className="pub-search-filters" role="group" aria-label="Filter results">
+              {SEARCH_FILTERS.map((f) => (
+                <button key={f.id} type="button" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
+                  {f.label}
                 </button>
-              </li>
-            ))}
-          </ul>
+              ))}
+            </div>
+            <ul className="pub-search-list" role="listbox" aria-label={UI_TEXT.search.label}>
+              {filtered.map((entry) => (
+                <li key={entry.id} role="option" aria-selected="false">
+                  <button type="button" onClick={() => choose(entry)}>
+                    <strong>{entry.label}</strong>
+                    <small>{entry.group}</small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {filtered.length === 0 ? (
+              <p className="pub-search-empty" role="status">No results in this category.</p>
+            ) : null}
+          </div>
         ) : (
           <div className="pub-search-results" id="pub-search-listbox">
             <p className="pub-search-empty" role="status">
               {formatText(UI_TEXT.search.empty, { query: query.trim() })}
             </p>
+            <p className="pub-search-suggest-title">Try one of these:</p>
+            <ul className="pub-search-suggest">
+              {[
+                { label: "Services", target: "services" },
+                { label: "Announcements", target: "news" },
+                { label: "Downloads", target: "resources" },
+                { label: "Contact Us", target: "contact" },
+              ].map((s) => (
+                <li key={s.target}>
+                  <button type="button" onClick={() => choose(s)}>
+                    {s.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         )
       ) : null}
@@ -439,7 +543,7 @@ function PrimaryNav({ activeSection, menuOpen, onToggleMenu, onNavigate, onLogin
           aria-controls="pub-nav-drawer"
           onClick={onToggleMenu}
         >
-          {menuOpen ? <X size={16} aria-hidden="true" /> : <Menu size={16} aria-hidden="true" />}
+          {menuOpen ? <X size={24} aria-hidden="true" /> : <Menu size={24} aria-hidden="true" />}
           {UI_TEXT.menu}
         </button>
 
@@ -456,10 +560,12 @@ function PrimaryNav({ activeSection, menuOpen, onToggleMenu, onNavigate, onLogin
           ))}
         </div>
 
+      
         <button type="button" className="pub-nav-login" onClick={onLoginClick}>
-          <KeyRound size={15} aria-hidden="true" />
+          <KeyRound size={24} aria-hidden="true" />
           {UI_TEXT.departmentLogin}
         </button>
+        
       </div>
 
       {menuOpen ? (
@@ -527,7 +633,7 @@ function Hero({ onAction }) {
                 onClick={() => onAction(action)}
               >
                 {action.label}
-                {action.variant === "primary" ? <ArrowRight size={15} /> : null}
+                {action.variant === "primary" ? <ArrowRight size={24} /> : null}
               </button>
             ))}
           </div>
@@ -535,7 +641,7 @@ function Hero({ onAction }) {
           <div className="pub-hero-trust">
             {HERO_TRUST.map(({ id, label, icon: Icon }) => (
               <span key={id}>
-                <Icon size={14} />
+                <Icon size={24} />
                 {label}
               </span>
             ))}
@@ -547,11 +653,11 @@ function Hero({ onAction }) {
         <span className="pub-hero-count">
           <b>{String(index + 1).padStart(2, "0")}</b> / {String(HERO_SLIDES.length).padStart(2, "0")}
         </span>
-        <button type="button" className="pub-hero-arrow" aria-label={UI_TEXT.hero.prevSlide} onClick={() => go(-1)}>
-          <ChevronLeft size={16} />
+        <button type="button" className="pub-hero-arrow" aria-label={UI_TEXT.hero.prevSlide} title={UI_TEXT.hero.prevSlide} onClick={() => go(-1)}>
+          <ChevronLeft size={24} />
         </button>
-        <button type="button" className="pub-hero-arrow" aria-label={UI_TEXT.hero.nextSlide} onClick={() => go(1)}>
-          <ChevronRight size={16} />
+        <button type="button" className="pub-hero-arrow" aria-label={UI_TEXT.hero.nextSlide} title={UI_TEXT.hero.nextSlide} onClick={() => go(1)}>
+          <ChevronRight size={24} />
         </button>
         <div className="pub-hero-dots" role="tablist" aria-label={UI_TEXT.hero.chooseSlide}>
           {HERO_SLIDES.map((item, position) => (
@@ -577,7 +683,7 @@ function Ticker() {
   return (
     <div className="pub-ticker">
       <span className="pub-ticker-label">
-        <Bell size={12} />
+        <Bell size={24} />
         {TICKER_LABEL}
       </span>
       <div className="pub-ticker-viewport">
@@ -592,10 +698,10 @@ function Ticker() {
       <button
         type="button"
         className="pub-ticker-pause"
-        aria-label={running ? UI_TEXT.ticker.pause : UI_TEXT.ticker.play}
+        aria-label={running ? UI_TEXT.ticker.pause : UI_TEXT.ticker.play} title={running ? UI_TEXT.ticker.pause : UI_TEXT.ticker.play}
         onClick={() => setRunning((value) => !value)}
       >
-        {running ? <Pause size={13} /> : <Play size={13} />}
+        {running ? <Pause size={24} /> : <Play size={24} />}
       </button>
     </div>
   );
@@ -616,7 +722,7 @@ function About() {
           <ul className="pub-about-band-list">
             {ABOUT_STATEMENT.functions.map((text) => (
               <li key={text}>
-                <CheckCircle2 size={16} aria-hidden="true" />
+                <CheckCircle2 size={24} aria-hidden="true" />
                 {text}
               </li>
             ))}
@@ -644,7 +750,7 @@ function Services({ onSelect, onSectionLink }) {
             onClick={() => onSectionLink(SERVICES_SECTION.linkTarget)}
           >
             {SERVICES_SECTION.linkLabel}
-            <ArrowRight size={14} />
+            <ArrowRight size={24} />
           </button>
         </div>
 
@@ -657,20 +763,19 @@ function Services({ onSelect, onSectionLink }) {
                 type="button"
                 className="pub-service"
                 style={{ "--accent": accent }}
-                aria-label={`${label} — ${desc}`}
                 onClick={() => onSelect(service)}
               >
                 <span className="pub-service-index" aria-hidden="true">
                   {String(position + 1).padStart(2, "0")}
                 </span>
                 <span className="pub-service-icon" aria-hidden="true">
-                  <Icon size={22} />
+                  <Icon size={24} />
                 </span>
                 <h3>{label}</h3>
                 <p>{desc}</p>
                 <span className="pub-service-more" aria-hidden="true">
                   {UI_TEXT.learnMore}
-                  <ArrowRight size={12} />
+                  <ArrowRight size={24} />
                 </span>
               </button>
             );
@@ -712,7 +817,7 @@ function Stats() {
             return (
               <div className="pub-stat" key={id}>
                 <span className="pub-stat-icon">
-                  <Icon size={22} />
+                  <Icon size={24} />
                 </span>
                 <div>
                   <CountUp value={value} pending={pending} suffix={hasLive ? "" : suffix || ""} />
@@ -785,10 +890,9 @@ function NewsAndAbout({ onLoginClick, onAction }) {
                     <button
                       type="button"
                       className="pub-news-item"
-                      aria-label={`${item.title} — ${item.category}, ${formatLongDate(item.date)}`}
                       onClick={() => onAction({ target: "resources" })}
                     >
-                      <span className="pub-news-date" aria-hidden="true">
+                        <span className="pub-news-date">
                         <span className="pub-news-day">{day}</span>
                         <span className="pub-news-month">{rest}</span>
                       </span>
@@ -799,7 +903,7 @@ function NewsAndAbout({ onLoginClick, onAction }) {
                         </span>
                         <span className="pub-news-title">{item.title}</span>
                       </span>
-                      <ChevronRight size={16} className="pub-news-chevron" aria-hidden="true" />
+                      <ChevronRight size={24} className="pub-news-chevron" aria-hidden="true" />
                     </button>
                   </li>
                 );
@@ -816,14 +920,14 @@ function NewsAndAbout({ onLoginClick, onAction }) {
               <ul className="pub-about-points">
                 {ABOUT_CARD.points.map(({ id, text, icon: Icon }) => (
                   <li key={id}>
-                    <Icon size={15} />
+                    <Icon size={24} />
                     {text}
                   </li>
                 ))}
               </ul>
               <button type="button" className="pub-btn pub-btn-navy" onClick={onLoginClick}>
                 {ABOUT_CARD.ctaLabel}
-                <ArrowRight size={14} />
+                <ArrowRight size={24} />
               </button>
             </div>
           </aside>
@@ -855,9 +959,9 @@ function Gallery({ onOpen }) {
               onClick={() => onOpen(item)}
               aria-label={formatText(UI_TEXT.gallery.view, { label: item.label })}
             >
-              <img src={item.src} alt={item.label} loading="lazy" />
+              <img src={item.thumb || item.src} alt={item.label} loading="lazy" width="600" height="400" />
               <span className="pub-gallery-caption">
-                <Maximize2 size={13} />
+                <Maximize2 size={24} />
                 {item.label}
               </span>
             </button>
@@ -882,11 +986,20 @@ function Lightbox({ item, onClose }) {
         onClose();
         return;
       }
-      // Keep Tab inside the dialog (WCAG 2.4.3): the only focusable control
-      // here is the close button, so any Tab returns to it.
+      // Keep Tab inside the dialog (WCAG 2.4.3): cycle close button + links.
       if (event.key === "Tab") {
-        event.preventDefault();
-        closeRef.current?.focus();
+        const dialog = closeRef.current?.closest(".pub-lightbox");
+        const items = dialog ? [...dialog.querySelectorAll("button, a[href]")] : [];
+        if (items.length === 0) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
 
@@ -911,12 +1024,22 @@ function Lightbox({ item, onClose }) {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <button type="button" className="pub-lightbox-close" ref={closeRef} aria-label={UI_TEXT.gallery.close} onClick={onClose}>
-        <X size={18} />
+      <button type="button" className="pub-lightbox-close" ref={closeRef} aria-label={UI_TEXT.gallery.close} title={UI_TEXT.gallery.close} onClick={onClose}>
+        <X size={24} />
       </button>
       <figure>
         <img src={item.src} alt={item.label} />
-        <figcaption>{item.label}</figcaption>
+          <figcaption>
+          {item.label}
+          <span className="pub-lightbox-actions">
+            <a href={item.original || item.src} target="_blank" rel="noopener noreferrer">
+              View original
+            </a>
+            <a href={item.original || item.src} download>
+              Download original
+            </a>
+          </span>
+        </figcaption>
       </figure>
     </div>
   );
@@ -954,7 +1077,7 @@ function Resources() {
                 const content = (
                   <>
                     <span className="pub-card-icon" aria-hidden="true">
-                      <Icon size={17} />
+                      <Icon size={24} />
                     </span>
                     <span className="pub-card-text">
                       <strong>{label}</strong>
@@ -962,18 +1085,18 @@ function Resources() {
                         {meta} — {note}
                       </small>
                     </span>
-                    <Download size={15} className="pub-card-action" aria-hidden="true" />
+                    <Download size={24} className="pub-card-action" aria-hidden="true" />
                   </>
                 );
-                const ariaLabel = `${label}. ${format} file, ${size}. ${note}.`;
                 return (
                   <li key={id}>
                     {href ? (
-                      <a className="pub-card" href={href} target="_blank" rel="noopener noreferrer" aria-label={`${ariaLabel} Opens in a new tab.`} onClick={(e) => guardExternalClick(e, href)}>
+                      <a className="pub-card" href={href} target="_blank" rel="noopener noreferrer" aria-label={`${label} (${format}, ${size}). Opens in a new tab.`} onClick={(e) => guardExternalClick(e, href)}>
                         {content}
+                        <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
                       </a>
                     ) : (
-                      <button type="button" className="pub-card" aria-label={ariaLabel} title={UI_TEXT.pendingFileTitle}>
+                      <button type="button" className="pub-card" title={UI_TEXT.pendingFileTitle}>
                         {content}
                       </button>
                     )}
@@ -995,17 +1118,17 @@ function Resources() {
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label={`${label} ${UI_TEXT.newTabSuffix}`}
                     onClick={(e) => guardExternalClick(e, href)}
                   >
                     <span className="pub-card-icon" aria-hidden="true">
-                      <Icon size={17} />
+                      <Icon size={24} />
                     </span>
                     <span className="pub-card-text">
                       <strong>{label}</strong>
                       <small>{href.replace(/^https?:\/\//, "").replace(/\/$/, "")}</small>
                     </span>
-                    <ArrowUpRight size={15} className="pub-card-action" aria-hidden="true" />
+                    <ArrowUpRight size={24} className="pub-card-action" aria-hidden="true" />
+                    <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
                   </a>
                 </li>
               ))}
@@ -1017,13 +1140,13 @@ function Resources() {
           <span className="pub-gov-strip-label">{UI_TEXT.alsoOn}</span>
           <a className="pub-gov-chip pub-gov-chip-portal" href={NATIONAL_PORTAL.href} target="_blank" rel="noopener noreferrer" onClick={(e) => guardExternalClick(e, NATIONAL_PORTAL.href)}>
             {NATIONAL_PORTAL.label}
-            <ExternalLink size={12} aria-hidden="true" />
+            <ExternalLink size={24} aria-hidden="true" />
             <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
           </a>
           {GOV_PLATFORMS.map(({ id, label, href }) => (
             <a key={id} className="pub-gov-chip" href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => guardExternalClick(e, href)}>
               {label}
-              <ExternalLink size={11} aria-hidden="true" />
+              <ExternalLink size={24} aria-hidden="true" />
               <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
             </a>
           ))}
@@ -1095,7 +1218,7 @@ function Feedback() {
 
         {submitted ? (
           <div className="pub-feedback-done" role="status">
-            <CheckCircle2 size={22} aria-hidden="true" />
+            <CheckCircle2 size={24} aria-hidden="true" />
             <div>
               <strong>{FEEDBACK.successTitle}</strong>
               <p>{FEEDBACK.successBody}</p>
@@ -1104,6 +1227,7 @@ function Feedback() {
         ) : (
           <form className="pub-feedback-form" onSubmit={handleSubmit} noValidate>
             <p className="pub-feedback-note">{FEEDBACK.note}</p>
+            <p className="pub-feedback-note"><strong>{FEEDBACK.requiredNote}</strong></p>
 
             {hasErrors ? (
               <p className="pub-form-summary" role="alert">
@@ -1123,6 +1247,29 @@ function Feedback() {
                   "aria-invalid": error ? true : undefined,
                   "aria-describedby": error ? errorId : undefined,
                 };
+
+                  if (field.type === "radio") {
+                  return (
+                    <fieldset key={field.id} className={`pub-field${error ? " has-error" : ""}`} style={{ border: 0, padding: 0, margin: 0 }}>
+                      <legend>
+                        {field.label}
+                        {field.required ? <span aria-hidden="true"> *</span> : null}
+                      </legend>
+                      {field.options.map((option, i) => (
+                        <label key={option} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <input
+                            type="radio"
+                            id={i === 0 ? `fb-${field.id}` : undefined}
+                            name={field.id}
+                            value={option}
+                            defaultChecked={option === field.defaultValue}
+                          />
+                          {option}
+                        </label>
+                      ))}
+                    </fieldset>
+                  );
+                }
                 return (
                   <div
                     key={field.id}
@@ -1161,7 +1308,7 @@ function Feedback() {
             </div>
             <button type="submit" className="pub-btn pub-btn-primary">
               {FEEDBACK.submitLabel}
-              <ArrowRight size={15} aria-hidden="true" />
+              <ArrowRight size={24} aria-hidden="true" />
             </button>
           </form>
         )}
@@ -1179,7 +1326,7 @@ function Contact() {
       <div className="pub-shell">
         <div className="pub-contact-id">
           <span className="pub-contact-icon">
-            <PrimaryIcon size={22} />
+            <PrimaryIcon size={24} />
           </span>
           <div>
             <p className="pub-eyebrow">{CONTACT_SECTION.eyebrow}</p>
@@ -1192,7 +1339,7 @@ function Contact() {
         <div className="pub-contact-channels">
           {CONTACT_CHANNELS.map(({ id, label, href, icon: Icon }) => (
             <a key={id} href={href}>
-              <Icon size={14} />
+              <Icon size={24} />
               {label}
             </a>
           ))}
@@ -1217,31 +1364,37 @@ function Footer({ onNavigate }) {
         <div className="pub-footer-grid">
           <div>
             <div className="pub-footer-brand">
-              <img src={SITE.emblems[0].src} alt="" aria-hidden="true" />
+              <img src={SITE.emblems[0].src} alt="" aria-hidden="true" width="40" height="49" loading="lazy" />
               <div>
-                <strong>{SITE.productName}</strong>
+                <strong className="bhashini-skip-translation">{SITE.productName}</strong>
                 <span>
                   <Phrases parts={SITE.departmentParts} />
                 </span>
               </div>
             </div>
-            <p>{SITE.intro}</p>
-            <span className="pub-footer-badge">
-              <BadgeIcon size={12} aria-hidden="true" />
-              {FOOTER_BADGE.label}
-            </span>
+            <address id="contact" className="pub-footer-contact">
+              {CONTACT_CHANNELS.map(({ id, label, title, href, icon: Icon }) => (
+                <a key={id} href={href}>
+                  <Icon size={24} strokeWidth={1.5} aria-hidden="true" />
+                  {title ? <abbr title={title}>{label}</abbr> : label}
+                </a>
+              ))}
+              <p>{CONTACT_SECTION.hours}</p>
+            </address>
+            {/*
             <div className="pub-footer-social" aria-label={UI_TEXT.landmarks.socialNav}>
               {SOCIAL_LINKS.map(({ id, label, href, icon: Icon }) => (
-                <a key={id} href={href} target="_blank" rel="noopener noreferrer" aria-label={`${label} ${UI_TEXT.newTabSuffix}`} onClick={(e) => guardExternalClick(e, href)}>
-                  <Icon size={16} aria-hidden="true" />
+                <a key={id} href={href} title={label} target="_blank" rel="noopener noreferrer" aria-label={`${label} ${UI_TEXT.newTabSuffix}`} onClick={(e) => guardExternalClick(e, href)}>
+                  <Icon size={24} aria-hidden="true" />
                 </a>
               ))}
             </div>
+            */}
           </div>
 
           <nav className="pub-footer-col" aria-label={UI_TEXT.landmarks.footerSections}>
             <h3>{UI_TEXT.quickLinksTitle}</h3>
-            <ul className="pub-footer-links two-col">
+              <ul className="pub-footer-links">
               {NAV_LINKS.map((link) => (
                 <li key={link.id}>
                   <button type="button" onClick={() => onNavigate(link.id)}>
@@ -1258,9 +1411,20 @@ function Footer({ onNavigate }) {
               {EXTERNAL_LINKS.map(({ id, label, href }) => (
                 <li key={id}>
                   <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`${label} ${UI_TEXT.newTabSuffix}`} onClick={(e) => guardExternalClick(e, href)}>
-                    <ChevronRight size={11} aria-hidden="true" />
+                    <ChevronRight size={24} aria-hidden="true" />
                     {label}
                   </a>
+                </li>
+                ))}
+            </ul>
+          </nav>
+
+          <nav className="pub-footer-col" aria-label="Policies and help">
+            <h3>Policies &amp; Help</h3>
+            <ul className="pub-footer-links">
+              {FOOTER_POLICY_LINKS.map(({ id, label, href }) => (
+                <li key={id}>
+                  <a href={href}>{label}</a>
                 </li>
               ))}
             </ul>
@@ -1268,16 +1432,20 @@ function Footer({ onNavigate }) {
         </div>
 
         <div className="pub-footer-bottom">
-          <div className="pub-footer-policies">
-            {FOOTER_POLICY_LINKS.map(({ id, label, href }) => (
-              <a key={id} href={href}>
-                {label}
-              </a>
-            ))}
-          </div>
+          {/* policy links moved to 4th footer column */}
           <p className="pub-footer-meta">
             <span className="pub-footer-copy">{SITE.copyright}</span>
             <span>{SITE.credit}</span>
+              <span>
+              <a href="mailto:helpdesk@mtpg-rihs.py.gov.in?subject=Translation%20error%20on%20website">
+                Report a translation error
+              </a>
+            </span>
+              <span>
+              <button type="button" className="pub-footer-cookie" onClick={openCookieSettings}>
+                Cookie settings
+              </button>
+            </span>
             <span className="pub-footer-updated">
               {UI_TEXT.lastUpdated}{" "}
               <time dateTime={SITE.lastUpdated}>{formatLongDate(SITE.lastUpdated)}</time>

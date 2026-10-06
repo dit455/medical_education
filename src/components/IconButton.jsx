@@ -9,7 +9,7 @@ export default function IconButton({ label, onClick, icon: Icon, tone, disabled 
       disabled={disabled}
       style={disabled ? { opacity: 0.35, cursor: "not-allowed" } : undefined}
     >
-      <Icon size={16} />
+      <Icon size={24} />
     </button>
   );
 }

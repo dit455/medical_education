@@ -105,3 +105,40 @@ Medical Education Board, Government of Puducherry
     except Exception as exc:
         print(f"[mailer] Failed to send password reset email: {exc}")
         return False
+
+def send_otp_email(to_email, otp, purpose="institution"):
+    cfg = _smtp_config()
+    if not cfg["host"] or not to_email:
+        return False
+
+    if purpose == "student":
+        note = "Enter this code on the student registration form to verify your email."
+    else:
+        note = "Share it with the Board officer who is registering your institution."
+
+    msg = EmailMessage()
+    msg["Subject"] = "EMS email verification code"
+    msg["From"] = cfg["sender"]
+    msg["To"] = to_email
+    msg.set_content(
+        f"""Your EMS verification code is: {otp}
+
+This code is valid for 10 minutes.
+{note}
+
+Regards,
+BOME & BOEN — EMS
+"""
+    )
+
+    try:
+        with smtplib.SMTP(cfg["host"], cfg["port"], timeout=20) as server:
+            if cfg["use_tls"]:
+                server.starttls()
+            if cfg["user"]:
+                server.login(cfg["user"], cfg["password"])
+            server.send_message(msg)
+        return True
+    except Exception as exc:
+        print(f"[mailer] Failed to send OTP email: {exc}")
+        return False

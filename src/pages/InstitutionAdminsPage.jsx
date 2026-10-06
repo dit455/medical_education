@@ -85,7 +85,7 @@ export default function InstitutionAdminsPage({ username }) {
             onClick={() => setModalOpen(true)}
             disabled={institutionOptions.length === 0}
           >
-            <Plus size={16} />
+            <Plus size={24} />
             Add
           </button>
         </div>
@@ -110,7 +110,7 @@ export default function InstitutionAdminsPage({ username }) {
                         onClick={() => setModalOpen(true)}
                         disabled={institutionOptions.length === 0}
                       >
-                        <Plus size={15} />
+                        <Plus size={24} />
                         Add Institution Account
                       </button>
                     </div>

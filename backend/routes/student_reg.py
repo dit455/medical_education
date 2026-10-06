@@ -11,6 +11,10 @@ from flask import Blueprint, jsonify, request
 from db import get_connection
 from utils import actor_from_body
 from credentials import institution_initials
+from mailer import send_otp_email
+from routes.institutions import OTP_TABLE_SQL, verify_institution_otp
+from werkzeug.security import generate_password_hash
+import secrets
 
 import os
 import uuid
@@ -304,6 +308,90 @@ def get_exam_sessions():
         conn.close()
 
 
+def _find_duplicate_contact(cursor, email, mobile, exclude_id=None):
+    """Returns (email_taken, mobile_taken) for tbl_student_det."""
+    email = (email or "").strip().lower()
+    mobile = (mobile or "").strip()
+    email_taken = mobile_taken = False
+    if email:
+        cursor.execute(
+            "SELECT 1 FROM tbl_student_det WHERE LOWER(TRIM(student_email)) = %s "
+            "AND (%s IS NULL OR student_id <> %s) LIMIT 1",
+            (email, exclude_id, exclude_id),
+        )
+        email_taken = cursor.fetchone() is not None
+    if mobile:
+        cursor.execute(
+            "SELECT 1 FROM tbl_student_det WHERE TRIM(student_mobile) = %s "
+            "AND (%s IS NULL OR student_id <> %s) LIMIT 1",
+            (mobile, exclude_id, exclude_id),
+        )
+        mobile_taken = cursor.fetchone() is not None
+    return email_taken, mobile_taken
+
+
+@student_reg_bp.route("/api/students/check-duplicate", methods=["GET"])
+def check_student_duplicate():
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        exclude_id = request.args.get("excludeId", type=int)
+        email_taken, mobile_taken = _find_duplicate_contact(
+            cursor, request.args.get("email"), request.args.get("mobile"), exclude_id
+        )
+        cursor.close()
+        return jsonify({"emailTaken": email_taken, "mobileTaken": mobile_taken})
+    finally:
+        conn.close()
+
+
+@student_reg_bp.route("/api/students/send-otp", methods=["POST"])
+def send_student_otp():
+    body = request.get_json(force=True) or {}
+    email = (body.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        return jsonify({"error": "Enter a valid email address."}), 400
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        email_taken, _ = _find_duplicate_contact(cursor, email, None)
+        if email_taken:
+            cursor.close()
+            return jsonify({"error": "A student with this email is already registered."}), 409
+        otp = f"{secrets.randbelow(1000000):06d}"
+        cursor.execute(OTP_TABLE_SQL)
+        cursor.execute(
+            "REPLACE INTO tbl_email_otp (email, otp_hash, expires_at, attempts) "
+            "VALUES (%s, %s, NOW() + INTERVAL 10 MINUTE, 0)",
+            (email, generate_password_hash(otp)),
+        )
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
+
+    if not send_otp_email(email, otp, purpose="student"):
+        return jsonify({"error": "Could not send OTP to this email. Check the address."}), 400
+    return jsonify({"message": "OTP sent"})
+
+
+@student_reg_bp.route("/api/students/verify-otp", methods=["POST"])
+def verify_student_otp():
+    body = request.get_json(force=True) or {}
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        error = verify_institution_otp(cursor, body.get("email"), body.get("otp"))
+        conn.commit()
+        cursor.close()
+        if error:
+            return jsonify({"error": error}), 400
+        return jsonify({"verified": True})
+    finally:
+        conn.close()
+
+
 @student_reg_bp.route("/api/institutions/<int:institution_id>/students", methods=["POST"])
 def create_student_direct(institution_id):
     """Student Registration is created directly here - it does NOT go
@@ -315,7 +403,23 @@ def create_student_direct(institution_id):
     conn = get_connection()
     try:
         cursor = conn.cursor()
+        email_taken, mobile_taken = _find_duplicate_contact(
+            cursor, body.get("studentEmail"), body.get("studentMobile")
+        )
+        if email_taken or mobile_taken:
+            cursor.close()
+            which = "email" if email_taken else "mobile number"
+            return jsonify({"error": f"A student with this {which} is already registered."}), 409
+        otp_error = verify_institution_otp(cursor, body.get("studentEmail"), body.get("otp"))
+        if otp_error:
+            conn.commit()
+            cursor.close()
+            return jsonify({"error": otp_error}), 400
         result = apply_create_student_registration(cursor, institution_id, body, actor)
+        cursor.execute(
+            "DELETE FROM tbl_email_otp WHERE email = %s",
+            ((body.get("studentEmail") or "").strip().lower(),),
+        )
         conn.commit()
         cursor.close()
         return jsonify(result), 201
@@ -333,8 +437,7 @@ def apply_update_student_registration(cursor, student_id, payload, actor="system
     cursor.execute(
         """
         UPDATE tbl_student_det
-        SET student_reg_no = COALESCE(%s, student_reg_no),
-            student_name = COALESCE(%s, student_name),
+            SET student_name = COALESCE(%s, student_name),
             student_dob = COALESCE(%s, student_dob),
             admission_year = COALESCE(%s, admission_year),
             student_father_name = COALESCE(%s, student_father_name),
@@ -347,7 +450,7 @@ def apply_update_student_registration(cursor, student_id, payload, actor="system
         WHERE student_id = %s
         """,
         (
-            payload.get("studentRegNo"), payload.get("studentName"), payload.get("studentDob"),
+            payload.get("studentName"), payload.get("studentDob"),
             payload.get("admissionYear"),
             payload.get("studentFatherName"), payload.get("studentAddress"),
             payload.get("studentEmail"), payload.get("studentMobile"),
@@ -360,11 +463,10 @@ def apply_update_student_registration(cursor, student_id, payload, actor="system
         """
         UPDATE tbl_student_enrol
         SET course_id = COALESCE(%s, course_id),
-            year_id = COALESCE(%s, year_id),
-            student_reg_no = COALESCE(%s, student_reg_no)
+        year_id = COALESCE(%s, year_id)
         WHERE student_id = %s
         """,
-        (payload.get("courseId"), payload.get("yearId"), payload.get("studentRegNo"), student_id),
+        (payload.get("courseId"), payload.get("yearId"), student_id),
     )
     cursor.execute(STUDENT_SELECT_SQL + " WHERE d.student_id = %s", (student_id,))
     row = cursor.fetchone()
@@ -382,6 +484,13 @@ def update_student_direct(student_id):
     try:
         cursor = conn.cursor()
         body = {k: (None if v == "" else v) for k, v in body.items()}
+        email_taken, mobile_taken = _find_duplicate_contact(
+            cursor, body.get("studentEmail"), body.get("studentMobile"), student_id
+        )
+        if email_taken or mobile_taken:
+            cursor.close()
+            which = "email" if email_taken else "mobile number"
+            return jsonify({"error": f"Another student already uses this {which}."}), 409
         result = apply_update_student_registration(cursor, student_id, body, actor)
         conn.commit()
         cursor.close()
