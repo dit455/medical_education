@@ -351,3 +351,219 @@ ALTER TABLE tbl_inst_master ADD COLUMN inst_email VARCHAR(255) NULL AFTER inst_n
 ALTER TABLE tbl_student_det ADD COLUMN student_gender VARCHAR(10) NULL AFTER student_mobile;
 ALTER TABLE tbl_student_det ADD COLUMN student_photo VARCHAR(255) NULL AFTER student_gender;
 ALTER TABLE tbl_student_det ADD COLUMN student_other_state VARCHAR(100) NULL AFTER region_id;
+
+
+
+
+------------------------------------------------------------------------------------------------
+
+
+ALTER TABLE tbl_inst_master
+    ADD COLUMN inst_abbr VARCHAR(30) NULL AFTER inst_name;
+
+ALTER TABLE tbl_course_master
+    ADD COLUMN course_abbr VARCHAR(30) NULL AFTER course_desc;
+
+ALTER TABLE tbl_inst_course_map
+    ADD COLUMN duration INT NULL AFTER course_id;   
+
+
+INSERT INTO tbl_inst_master
+(inst_id, inst_name, inst_abbr, bome_status, boen_status, region_id, cat_id, created_by, created_date, status_)
+VALUES
+(22, 'East Coast Institute of Paramedical Sciences, Puducherry', 'ECIPS', 1, 0, 1, 2, 'system', NOW(), 1);
+
+INSERT INTO tbl_inst_master
+(inst_id, inst_name, inst_abbr, bome_status, boen_status, region_id, cat_id, created_by, created_date, status_)
+VALUES
+(19, 'Annai Abirami Community College of Health Sciences', 'AA', 1, 0, 2, 2, 'system', NOW(), 1);
+
+
+INSERT INTO tbl_course_master
+(course_id, course_desc, course_abbr, bome_status, boen_status, created_by, created_date, status_) VALUES
+(27, 'Diploma In Uro Technology', 'DUT',  1, 0, 'system', NOW(), 1),
+(28, 'Diploma In ECG Technician', 'DECG', 1, 0, 'system', NOW(), 1);
+
+
+
+UPDATE tbl_inst_master SET inst_abbr='MTP'   WHERE inst_id=1;   
+UPDATE tbl_inst_master SET inst_abbr='MTK'   WHERE inst_id=2;   
+UPDATE tbl_inst_master SET inst_abbr='MTM'   WHERE inst_id=3;   
+UPDATE tbl_inst_master SET inst_abbr='MTY'   WHERE inst_id=4;   
+UPDATE tbl_inst_master SET inst_abbr='VMP'   WHERE inst_id=5;  
+UPDATE tbl_inst_master SET inst_abbr='PUCC'  WHERE inst_id=6;   
+UPDATE tbl_inst_master SET inst_abbr='SVCPS' WHERE inst_id=7;   
+UPDATE tbl_inst_master SET inst_abbr='ECIMS' WHERE inst_id=8;   
+UPDATE tbl_inst_master SET inst_abbr='IIHS'  WHERE inst_id=9;   
+UPDATE tbl_inst_master SET inst_abbr='VMK'   WHERE inst_id=10;  
+UPDATE tbl_inst_master SET inst_abbr='AEH'   WHERE inst_id=11;  
+UPDATE tbl_inst_master SET inst_abbr='AGP'   WHERE inst_id=12;  
+UPDATE tbl_inst_master SET inst_abbr='RGAMC' WHERE inst_id=13;  
+UPDATE tbl_inst_master SET inst_abbr='SVCP'  WHERE inst_id=14;  
+UPDATE tbl_inst_master SET inst_abbr='ICON'  WHERE inst_id=15;  
+UPDATE tbl_inst_master SET inst_abbr='RAAK'  WHERE inst_id=16;  
+UPDATE tbl_inst_master SET inst_abbr='MGDC'  WHERE inst_id=17;  
+UPDATE tbl_inst_master SET inst_abbr='SAHS'  WHERE inst_id=18;  
+UPDATE tbl_inst_master SET inst_abbr='AA'    WHERE inst_id=19;  
+UPDATE tbl_inst_master SET inst_abbr='CIAHS' WHERE inst_id=20;  
+UPDATE tbl_inst_master SET inst_abbr='CCN'   WHERE inst_id=21;  
+
+
+UPDATE tbl_course_master SET course_abbr='DGNM'    WHERE course_id=1;
+UPDATE tbl_course_master SET course_abbr='ANM'     WHERE course_id=2;
+UPDATE tbl_course_master SET course_abbr='DMLT'    WHERE course_id=3;
+UPDATE tbl_course_master SET course_abbr='DCRA'    WHERE course_id=4;
+UPDATE tbl_course_master SET course_abbr='DCEC'    WHERE course_id=5;
+UPDATE tbl_course_master SET course_abbr='DDT-OLD' WHERE course_id=6;
+UPDATE tbl_course_master SET course_abbr='DHP'     WHERE course_id=7;
+UPDATE tbl_course_master SET course_abbr='DSP'     WHERE course_id=8;
+UPDATE tbl_course_master SET course_abbr='DOT'     WHERE course_id=9;
+UPDATE tbl_course_master SET course_abbr='DO'      WHERE course_id=10;
+UPDATE tbl_course_master SET course_abbr='DHI'     WHERE course_id=11;
+UPDATE tbl_course_master SET course_abbr='DAPT'    WHERE course_id=12;
+UPDATE tbl_course_master SET course_abbr='DAP'     WHERE course_id=13;
+UPDATE tbl_course_master SET course_abbr='DPHARM-OLD' WHERE course_id=14;
+UPDATE tbl_course_master SET course_abbr='DCEC-REV' WHERE course_id=15;
+UPDATE tbl_course_master SET course_abbr='DDT'     WHERE course_id=16;
+UPDATE tbl_course_master SET course_abbr='DMHW-F'  WHERE course_id=17;
+UPDATE tbl_course_master SET course_abbr='DDH'     WHERE course_id=18;
+UPDATE tbl_course_master SET course_abbr='DDM'     WHERE course_id=19;
+UPDATE tbl_course_master SET course_abbr='DMIT'    WHERE course_id=20;
+UPDATE tbl_course_master SET course_abbr='DCCT'    WHERE course_id=21;
+UPDATE tbl_course_master SET course_abbr='DOTT'    WHERE course_id=22;
+UPDATE tbl_course_master SET course_abbr='D.PHARM' WHERE course_id=23;
+UPDATE tbl_course_master SET course_abbr='DAT'     WHERE course_id=24;
+UPDATE tbl_course_master SET course_abbr='DECT'    WHERE course_id=25;
+UPDATE tbl_course_master SET course_abbr='DSI'     WHERE course_id=26;
+
+
+
+
+INSERT INTO tbl_subject_master
+(subject_id, subject_desc, bome_status, boen_status, created_by, created_date, status_) VALUES
+
+(100,'BIO-SCIENCES',0,1,'system',NOW(),1),
+(101,'BEHAVIOURAL SCIENCES',0,1,'system',NOW(),1),
+(102,'NURSING FOUNDATION',0,1,'system',NOW(),1),
+(103,'COMMUNITY HEALTH NURSING - I',0,1,'system',NOW(),1),
+(104,'MEDICAL SURGICAL NURSING - I',0,1,'system',NOW(),1),
+(105,'MEDICAL SURGICAL NURSING - II',0,1,'system',NOW(),1),
+(106,'MENTAL HEALTH NURSING',0,1,'system',NOW(),1),
+(107,'PEDIATRIC NURSING',0,1,'system',NOW(),1),
+(108,'MIDWIFERY & GYNECOLOGICAL NURSING',0,1,'system',NOW(),1),
+(109,'COMMUNITY HEALTH NURSING - II',0,1,'system',NOW(),1),
+
+(110,'COMMUNITY HEALTH NURSING',0,1,'system',NOW(),1),
+(111,'HEALTH PROMOTION',0,1,'system',NOW(),1),
+(112,'PRIMARY HEALTH CARE NURSING',0,1,'system',NOW(),1),
+(113,'CHILD HEALTH NURSING',0,1,'system',NOW(),1),
+(114,'MIDWIFERY',0,1,'system',NOW(),1),
+(115,'HEALTH CENTRE MANAGEMENT',0,1,'system',NOW(),1),
+
+(116,'PAPER-IV',1,0,'system',NOW(),1),
+(117,'PAPER-V',1,0,'system',NOW(),1),
+(118,'PAPER-VI',1,0,'system',NOW(),1),
+
+(119,'BASIC ECG TECHNOLOGY',1,0,'system',NOW(),1);
+
+
+UPDATE tbl_inst_course_map SET duration=3 WHERE inst_course_id=1;
+UPDATE tbl_inst_course_map SET duration=2 WHERE inst_course_id=2;
+UPDATE tbl_inst_course_map SET duration=2 WHERE inst_course_id=3;
+UPDATE tbl_inst_course_map SET duration=2 WHERE inst_course_id=4;
+
+
+
+
+
+INSERT INTO tbl_inst_course_map (inst_course_id, inst_id, duration, course_id, created_by, created_date, status_) VALUES
+(1,1,3,1,'system',NOW(),1),(2,1,2,2,'system',NOW(),1),(3,2,2,3,'system',NOW(),1),(4,3,2,4,'system',NOW(),1),
+(5,18,2,21,'system',NOW(),1),(6,18,2,20,'system',NOW(),1),(7,18,2,16,'system',NOW(),1),(8,18,2,22,'system',NOW(),1),
+(9,19,2,24,'system',NOW(),1),(10,19,2,16,'system',NOW(),1),(11,19,2,25,'system',NOW(),1),(12,19,2,20,'system',NOW(),1),
+(13,19,2,3,'system',NOW(),1),(14,19,2,10,'system',NOW(),1),(15,19,2,22,'system',NOW(),1),(16,19,2,11,'system',NOW(),1),
+(17,1,2,20,'system',NOW(),1),(18,1,2,16,'system',NOW(),1),
+(19,11,2,10,'system',NOW(),1),(20,11,2,9,'system',NOW(),1),
+(21,14,2,23,'system',NOW(),1),
+(22,7,2,16,'system',NOW(),1),(23,7,2,21,'system',NOW(),1),(24,7,2,20,'system',NOW(),1),
+(25,22,2,21,'system',NOW(),1),(26,22,2,16,'system',NOW(),1),(27,22,2,3,'system',NOW(),1),
+(28,13,2,12,'system',NOW(),1),
+(29,17,2,19,'system',NOW(),1),(30,17,2,18,'system',NOW(),1),
+(31,5,3,1,'system',NOW(),1),(32,10,3,1,'system',NOW(),1),(33,2,3,1,'system',NOW(),1),
+(34,4,3,1,'system',NOW(),1),(35,15,3,1,'system',NOW(),1),(36,8,3,1,'system',NOW(),1),(37,9,3,1,'system',NOW(),1),
+(38,12,3,1,'system',NOW(),1),
+(39,4,2,2,'system',NOW(),1),(40,12,2,2,'system',NOW(),1),(41,15,2,2,'system',NOW(),1),
+(42,8,2,2,'system',NOW(),1),(43,5,2,2,'system',NOW(),1),(44,16,2,2,'system',NOW(),1),(45,19,2,2,'system',NOW(),1);
+
+
+INSERT INTO tbl_course_subject_map
+(course_subject_id, course_id, subject_id, year_id, sem_id, priority_id, created_by, created_date, status_) VALUES
+
+(1,20,28,1,1,1,'system',NOW(),1),(2,20,29,1,1,2,'system',NOW(),1),
+(3,20,30,1,1,3,'system',NOW(),1),(4,20,56,1,1,4,'system',NOW(),1),
+(5,20,55,2,3,1,'system',NOW(),1),(6,20,57,2,3,2,'system',NOW(),1),
+(7,20,59,2,3,3,'system',NOW(),1),(8,20,58,2,3,4,'system',NOW(),1),
+
+(9,21,28,1,1,1,'system',NOW(),1),(10,21,29,1,1,2,'system',NOW(),1),
+(11,21,30,1,1,3,'system',NOW(),1),
+(12,21,61,2,3,1,'system',NOW(),1),(13,21,62,2,3,2,'system',NOW(),1),
+
+(14,16,28,1,1,1,'system',NOW(),1),(15,16,29,1,1,2,'system',NOW(),1),
+(16,16,30,1,1,3,'system',NOW(),1),
+(17,16,31,2,3,1,'system',NOW(),1),(18,16,32,2,3,2,'system',NOW(),1),
+
+(19,22,28,1,1,1,'system',NOW(),1),(20,22,29,1,1,2,'system',NOW(),1),
+(21,22,30,1,1,3,'system',NOW(),1),(22,22,64,1,1,4,'system',NOW(),1),
+(23,22,65,2,3,1,'system',NOW(),1),(24,22,66,2,3,2,'system',NOW(),1),
+(25,22,67,2,3,3,'system',NOW(),1),
+
+(26,24,28,1,1,1,'system',NOW(),1),(27,24,29,1,1,2,'system',NOW(),1),
+(28,24,30,1,1,3,'system',NOW(),1),(29,24,90,1,1,4,'system',NOW(),1),
+(30,24,92,2,3,1,'system',NOW(),1),(31,24,91,2,3,2,'system',NOW(),1),
+(32,24,67,2,3,3,'system',NOW(),1),
+
+(33,18,40,2,3,1,'system',NOW(),1),(34,18,41,2,3,2,'system',NOW(),1),
+(35,18,42,2,3,3,'system',NOW(),1),
+
+(36,19,46,1,1,1,'system',NOW(),1),(37,19,47,1,1,2,'system',NOW(),1),
+(38,19,48,1,1,3,'system',NOW(),1),
+(39,19,51,2,3,1,'system',NOW(),1),(40,19,52,2,3,2,'system',NOW(),1),
+(41,19,53,2,3,3,'system',NOW(),1),
+
+(42,26,116,2,3,1,'system',NOW(),1),(43,26,117,2,3,2,'system',NOW(),1),
+(44,26,118,2,3,3,'system',NOW(),1),
+
+(45,3,1,1,1,1,'system',NOW(),1),(46,3,2,1,1,2,'system',NOW(),1),
+(47,3,3,2,3,1,'system',NOW(),1),(48,3,4,2,3,2,'system',NOW(),1),
+(49,3,5,2,3,3,'system',NOW(),1),
+
+(50,10,14,1,1,1,'system',NOW(),1),(51,10,15,1,1,2,'system',NOW(),1),
+(52,10,16,2,3,1,'system',NOW(),1),(53,10,17,2,3,2,'system',NOW(),1),
+
+(54,9,10,1,1,1,'system',NOW(),1),(55,9,11,1,1,2,'system',NOW(),1),
+(56,9,13,2,3,1,'system',NOW(),1),(57,9,12,2,3,2,'system',NOW(),1),
+
+(58,23,69,1,1,1,'system',NOW(),1),(59,23,70,1,1,2,'system',NOW(),1),
+(60,23,71,1,1,3,'system',NOW(),1),(61,23,72,1,1,4,'system',NOW(),1),
+(62,23,73,1,1,5,'system',NOW(),1),
+(63,23,79,2,3,1,'system',NOW(),1),(64,23,80,2,3,2,'system',NOW(),1),
+(65,23,81,2,3,3,'system',NOW(),1),(66,23,82,2,3,4,'system',NOW(),1),
+(67,23,83,2,3,5,'system',NOW(),1),(68,23,84,2,3,6,'system',NOW(),1),
+
+(69,12,18,1,1,1,'system',NOW(),1),(70,12,19,1,1,2,'system',NOW(),1),
+(71,12,20,1,1,3,'system',NOW(),1),(72,12,21,1,1,4,'system',NOW(),1),
+
+(73,27,28,1,1,1,'system',NOW(),1),(74,27,29,1,1,2,'system',NOW(),1),
+(75,27,30,1,1,3,'system',NOW(),1),(76,27,56,1,1,4,'system',NOW(),1),
+
+(77,28,28,1,1,1,'system',NOW(),1),(78,28,29,1,1,2,'system',NOW(),1),
+(79,28,30,1,1,3,'system',NOW(),1),(80,28,119,1,1,4,'system',NOW(),1),
+
+(81,1,100,1,1,1,'system',NOW(),1),(82,1,101,1,1,2,'system',NOW(),1),
+(83,1,102,1,1,3,'system',NOW(),1),(84,1,103,1,1,4,'system',NOW(),1),
+(85,1,104,2,3,1,'system',NOW(),1),(86,1,105,2,3,2,'system',NOW(),1),
+(87,1,106,2,3,3,'system',NOW(),1),(88,1,107,2,3,4,'system',NOW(),1),
+(89,1,108,3,5,1,'system',NOW(),1),(90,1,109,3,5,2,'system',NOW(),1),
+
+(91,2,110,1,1,1,'system',NOW(),1),(92,2,111,1,1,2,'system',NOW(),1),
+(93,2,112,1,1,3,'system',NOW(),1),(94,2,113,1,1,4,'system',NOW(),1),
+(95,2,114,2,3,1,'system',NOW(),1),(96,2,115,2,3,2,'system',NOW(),1);
