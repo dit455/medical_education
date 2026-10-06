@@ -85,7 +85,6 @@ const [forgotMessage, setForgotMessage] = useState("");
                 </button>
               )}
               <h2>EMS Login</h2>
-              <p>Fields marked * are mandatory.</p>
               <span>Secure role-based access</span>
             </div>
             <div className="login-tabs" role="tablist" aria-label="Login role">

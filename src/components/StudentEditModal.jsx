@@ -3,6 +3,9 @@ import { createPortal } from "react-dom";
 import { X, CircleCheck, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 import { formatDate, parseDisplayDate } from "../utils.js";
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MOBILE_PATTERN = /^[6-9][0-9]{9}$/;
+
 
 // Combined view + edit modal for a student: edit fields inline, save,
 // toggle Active/Inactive, or delete.
@@ -53,6 +56,12 @@ export default function StudentEditModal({
       setErrors((p) => ({ ...p, [k]: "" }));
       return;
     }
+      if (k === "studentMobile") {
+      set(k, v.replace(/\D/g, "").slice(0, 10));
+      setErrors((p) => ({ ...p, [k]: "" }));
+      return;
+    }
+    if (k === "studentEmail") setErrors((p) => ({ ...p, [k]: "" }));
     set(k, noUpper.includes(k) ? v : v.toUpperCase());
   };
 
@@ -88,6 +97,13 @@ export default function StudentEditModal({
       else if (dob && adm < dob) found.admissionYear = "Admission date cannot be before Date of Birth.";
     }
 
+    const email = (values.studentEmail || "").trim();
+    if (!email) found.studentEmail = "Email is required.";
+    else if (!EMAIL_PATTERN.test(email)) found.studentEmail = "Enter a valid email, e.g. name@example.com.";
+
+    const mobile = (values.studentMobile || "").trim();
+    if (!mobile) found.studentMobile = "Mobile number is required.";
+    else if (!MOBILE_PATTERN.test(mobile)) found.studentMobile = "Enter a valid 10-digit mobile number starting with 6–9.";
     setErrors(found);
     return Object.keys(found).length === 0;
   }
@@ -161,7 +177,9 @@ export default function StudentEditModal({
                   placeholder={key === "studentDob" || key === "admissionYear" ? "DD/MM/YYYY" : undefined}
                   style={key === "studentRegNo" ? { background: "var(--soft-gray)", cursor: "not-allowed" } : undefined}
                   onChange={(e) => handleText(key, e.target.value)}
-                  onBlur={() => { if (key === "studentDob" || key === "admissionYear") validateDates(); }}
+                  onBlur={() => { if (["studentDob", "admissionYear", "studentEmail", "studentMobile"].includes(key)) validateDates(); }}
+                  inputMode={key === "studentMobile" ? "numeric" : key === "studentEmail" ? "email" : undefined}
+                  maxLength={key === "studentMobile" ? 10 : undefined}
                 />
                 {errors[key] && <small style={{ color: "#b00020", display: "block", marginTop: 4 }}>{errors[key]}</small>}
               </div>
