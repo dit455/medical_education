@@ -567,3 +567,18 @@ INSERT INTO tbl_course_subject_map
 (91,2,110,1,1,1,'system',NOW(),1),(92,2,111,1,1,2,'system',NOW(),1),
 (93,2,112,1,1,3,'system',NOW(),1),(94,2,113,1,1,4,'system',NOW(),1),
 (95,2,114,2,3,1,'system',NOW(),1),(96,2,115,2,3,2,'system',NOW(),1);
+
+
+------------------------------------------------------------------------
+
+CREATE TABLE tbl_feedback (
+  feedback_id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(150) NOT NULL,
+  category VARCHAR(50) NOT NULL,
+  message TEXT NOT NULL,
+  status_ VARCHAR(20) NOT NULL DEFAULT 'New',
+  created_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_by VARCHAR(100),
+  reviewed_date DATETIME
+);
