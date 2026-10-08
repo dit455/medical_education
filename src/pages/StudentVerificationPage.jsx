@@ -9,7 +9,7 @@ import ExportMenu from "../components/ExportMenu.jsx";
 import Breadcrumb from "../components/Breadcrumb.jsx";
 
 
-const STATUS_FILTERS = ["Active", "Inactive", "Draft", "Submitted", "Verified", "Approved"];
+const STATUS_FILTERS = ["Active", "Inactive"];
 
 export default function StudentVerificationPage({ username, onNavigate }) {
   const [students, setStudents] = useState([]);
@@ -55,6 +55,8 @@ export default function StudentVerificationPage({ username, onNavigate }) {
     });
   }, [students, search, statusFilter, institutionFilter]);
 
+
+  const noInst = institutionFilter === "All";
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const currentPage = Math.min(page, totalPages);
   const pageRows = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
@@ -114,7 +116,7 @@ export default function StudentVerificationPage({ username, onNavigate }) {
 
   function openAdd() {
     setAdding({
-      __institution: "", studentName: "", studentDob: "", studentFatherName: "",
+      __institution: noInst ? "" : institutionFilter, studentName: "", studentDob: "", studentFatherName: "",
       studentAddress: "", studentEmail: "", studentMobile: "",
       regionId: "", courseId: "", yearId: "",
     });
@@ -165,7 +167,7 @@ export default function StudentVerificationPage({ username, onNavigate }) {
           <div>
             <h2>Records</h2>
           </div>
-          <button className="primary-btn compact-btn" type="button" onClick={openAdd}>
+            <button className="primary-btn compact-btn" type="button" onClick={openAdd} disabled={noInst} title={noInst ? "Select an institution first" : "Add student"}>
             <Plus size={24} /> Add
           </button>
         </div>
@@ -176,20 +178,21 @@ export default function StudentVerificationPage({ username, onNavigate }) {
             <input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search"
+              placeholder={noInst ? "Select an institution first" : "Search"}
+              disabled={noInst}
             />
           </label>
           <div className="table-toolbar-controls">
             <label className="select-box small">
               <Filter size={24} />
-              <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+                <select value={statusFilter} disabled={noInst} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
                 <option>All</option>
                 {STATUS_FILTERS.map((o) => <option key={o}>{o}</option>)}
               </select>
             </label>
             <label className="select-box small">
               <Filter size={24} />
-              <select value={institutionFilter} onChange={(e) => { setInstitutionFilter(e.target.value); setPage(1); }}>
+                <select value={institutionFilter} onChange={(e) => { setInstitutionFilter(e.target.value); setStatusFilter("All"); setSearch(""); setPage(1); }}>
                 <option value="All">All Institutions</option>
                 {institutions.map((i) => (
                   <option key={i.id} value={String(i.id)}>{(i.name || "").toUpperCase()}</option>
@@ -198,7 +201,7 @@ export default function StudentVerificationPage({ username, onNavigate }) {
             </label>
             <label className="select-box small rows-select">
               Rows
-              <select value={rowsPerPage} onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}>
+              <select value={rowsPerPage} disabled={noInst} onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}>
                 {[5, 10, 20].map((o) => <option key={o}>{o}</option>)}
               </select>
             </label>
@@ -225,7 +228,7 @@ export default function StudentVerificationPage({ username, onNavigate }) {
               {pageRows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="empty-state">
-                    <div className="table-empty"><span>No students found</span></div>
+                  <div className="table-empty"><span>{noInst ? "Select an institution to view students" : "No students found"}</span></div>
                   </td>
                 </tr>
               ) : (
