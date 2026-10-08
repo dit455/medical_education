@@ -11,7 +11,7 @@ import Breadcrumb from "../components/Breadcrumb.jsx";
 
 const STATUS_FILTERS = ["Active", "Inactive"];
 
-export default function StudentVerificationPage({ username, onNavigate }) {
+export default function StudentVerificationPage({ username, role, onNavigate }) {
   const [students, setStudents] = useState([]);
   const [regions, setRegions] = useState([]);
   const [years, setYears] = useState([]);
@@ -34,9 +34,9 @@ export default function StudentVerificationPage({ username, onNavigate }) {
     refresh();
     api.getRegions().then(setRegions).catch(() => setRegions([]));
     api.getYears().then(setYears).catch(() => setYears([]));
-    api.getInstitutions().then(setInstitutions).catch(() => setInstitutions([]));
+      api.getInstitutions(role).then(setInstitutions).catch(() => setInstitutions([]));
     api.getListCourses().then(setCourses).catch(() => setCourses([]));
-  }, []);
+  }, [role]);
 
   const nameFor = (list, id) => list.find((x) => x.id === id)?.name ?? "—";
 
@@ -56,6 +56,9 @@ export default function StudentVerificationPage({ username, onNavigate }) {
   }, [students, search, statusFilter, institutionFilter]);
 
 
+  useEffect(() => { setInstitutionFilter("All"); setPage(1); }, [role]);
+
+  
   const noInst = institutionFilter === "All";
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const currentPage = Math.min(page, totalPages);

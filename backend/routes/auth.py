@@ -15,6 +15,7 @@ from db import get_connection
 from utils import actor_from_body
 from credentials import generate_password
 from mailer import send_password_reset_email
+from routes.feedback import verify_captcha
 import threading
 
 auth_bp = Blueprint("auth", __name__)
@@ -70,6 +71,10 @@ def login():
     password = body.get("password") or ""
     if not username or not password:
         return jsonify({"error": "Username and password are required"}), 400
+
+    
+    if not verify_captcha(body.get("captchaToken"), body.get("captchaAnswer")):
+        return jsonify({"error": "Captcha does not match. Please try the new one."}), 400
 
     conn = get_connection()
     try:

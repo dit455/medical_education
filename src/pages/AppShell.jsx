@@ -136,11 +136,12 @@ export default function AppShell({
               tabCommand={academicTab || dashboardViewCommand}
               onNavigate={handleNavigate}
               username={username}
+              role={role}
             />
           ) : currentRoute.type === "approvals" ? (
             <ApprovalsPage role={role} username={username} />
           ) : currentRoute.key === "student-verification" ? (
-            <StudentVerificationPage username={username} onNavigate={handleNavigate} />
+            <StudentVerificationPage username={username} role={role} onNavigate={handleNavigate} />
           ) : (
             <CrudPage
               route={currentRoute}

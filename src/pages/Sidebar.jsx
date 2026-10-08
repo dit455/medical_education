@@ -14,6 +14,7 @@ import {
   Settings,
   UserCheck,
   Users,
+  MessageSquare,
   X,
 } from "lucide-react";
 import { BOARD_ROLES } from "../data.js";
@@ -121,6 +122,12 @@ function getDefaultOpenGroups(menuGroups, activeRoute, activeDashboardView) {
   return new Set(activeGroup ? [activeGroup] : fallbackGroup ? [fallbackGroup] : []);
 }
 
+
+const BOARD_NAMES = {
+  BOME: "Board of Medical Education",
+  BOEN: "Board of Examinations in Nursing",
+};
+
 export default function Sidebar({ role, routes, activeRoute, activeDashboardView, onNavigate, isOpen, onClose }) {
   const menuGroups = useMemo(() => buildMenu(routes, role), [routes, role]);
   const [openGroups, setOpenGroups] = useState(() =>
@@ -156,7 +163,8 @@ export default function Sidebar({ role, routes, activeRoute, activeDashboardView
           </div>
           <div>
             <strong>EMS</strong>
-            <span>BOME &amp; BOEN</span>
+            <span>{BOARD_NAMES[role] ? role : "BOME & BOEN"}</span>
+            {BOARD_NAMES[role] ? <small className="brand-board">{BOARD_NAMES[role]}</small> : null}
           </div>
           <button className="icon-btn sidebar-close" type="button" onClick={onClose} aria-label="Close menu">
             <X size={24} />

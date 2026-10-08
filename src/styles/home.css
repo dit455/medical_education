@@ -2706,3 +2706,22 @@
   overflow: visible;      /* dropdown can still open over the page */
 }
 .pub-utility-tools { contain: layout; }
+
+.captcha-img-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.captcha-img { border: 1px solid #0F5757; border-radius: 6px; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.captcha-img--empty { display: inline-flex; width: 170px; height: 56px; align-items: center; justify-content: center; font-size: 14px; }
+.captcha-refresh { width: 44px; height: 44px; border: 1px solid #0F5757; border-radius: 6px; background: #fff; color: #0F5757; cursor: pointer; }
+
+/* Feedback captcha alignment */
+.pub-feedback-form > .pub-field { margin-top: 24px; }
+.pub-feedback-form .captcha-img-row { display: flex; align-items: center; gap: 12px; margin: 8px 0 10px; }
+.pub-feedback-form .captcha-img { display: block; height: 56px; width: 170px; }
+.pub-feedback-form .captcha-refresh {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; flex: 0 0 56px;
+}
+.pub-feedback-form #fb-captcha {
+  max-width: 240px; letter-spacing: 6px; font-weight: 700; text-transform: uppercase;
+}
+.pub-feedback-form .pub-form-summary { margin-top: 16px; }
+.pub-feedback-form > button[type="submit"] { margin-top: 24px; }

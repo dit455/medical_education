@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, RefreshCw, LockKeyhole, Eye, EyeOff } from "lucide-react";
 import SiteHeader from "../components/SiteHeader.jsx";
 import SiteFooter from "../components/SiteFooter.jsx";
-import { randomCaptcha } from "../utils.js";
+
 import * as api from "../api.js";
 
 export default function LoginPage({ onLogin, onBackHome }) {
   const [loginType, setLoginType] = useState("super-admin");
   const [form, setForm] = useState({ username: "", password: "", captcha: "", institutionRole: "Creator" });
-  const [captcha, setCaptcha] = useState(randomCaptcha());
+  const [captchaImg, setCaptchaImg] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -21,11 +22,20 @@ const [forgotMessage, setForgotMessage] = useState("");
     setError("");
   }
 
-  function refreshCaptcha(clearError = true) {
-    setCaptcha(randomCaptcha());
+  async function refreshCaptcha(clearError = true) {
     setForm((prev) => ({ ...prev, captcha: "" }));
     if (clearError) setError("");
+    try {
+      const c = await api.getCaptcha();
+      setCaptchaImg(c.image);
+      setCaptchaToken(c.token);
+    } catch {
+      setCaptchaImg("");
+      setCaptchaToken("");
+    }
   }
+
+  useEffect(() => { refreshCaptcha(); }, []);
 
   // Both tabs authenticate against the real `users` DB table - Super Admin
   // is just a seeded row there (see backend/routes/auth.py ensure_super_admin),
@@ -37,21 +47,22 @@ const [forgotMessage, setForgotMessage] = useState("");
       setError("Enter username and password.");
       return;
     }
-    if (form.captcha.trim().toUpperCase() !== captcha) {
-      refreshCaptcha(false);
-      setError("Captcha does not match.");
+    if (form.captcha.trim().length !== 5) {
+      setError("Enter the 5 characters shown in the image.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const user = await api.login(form.username.trim(), form.password);
+      const user = await api.login(form.username.trim(), form.password, captchaToken, form.captcha.trim().toUpperCase());
       if (user.role === "Institution" && user.institutionRole && user.institutionRole !== form.institutionRole) {
+        refreshCaptcha(false);
         setError(`This account is registered as ${user.institutionRole}, not ${form.institutionRole}. Select ${user.institutionRole} to continue.`);
         return;
       }
       onLogin(user);
     } catch (err) {
+      refreshCaptcha(false);
       setError(err.message || "Invalid username or password.");
     } finally {
       setSubmitting(false);
@@ -196,9 +207,19 @@ const [forgotMessage, setForgotMessage] = useState("");
               <div className="captcha-block">
                 <span>Captcha verification</span>
                 <div className="captcha-row">
-                  <div className="captcha-code bhashini-skip-translation" aria-label="Captcha code">
-                    {captcha}
-                  </div>
+                    {captchaImg ? (
+                    <img
+                      src={captchaImg}
+                      alt="Captcha image. If you cannot read it, select Refresh for a new one."
+                      width="170"
+                      height="56"
+                      className="captcha-img captcha-img-login"
+                      draggable="false"
+                      onContextMenu={(e) => e.preventDefault()}
+                    />
+                  ) : (
+                    <span className="captcha-code">Loading…</span>
+                  )}
                   <button
                     type="button"
                     className="icon-btn"
@@ -214,7 +235,8 @@ const [forgotMessage, setForgotMessage] = useState("");
                 <span>Enter captcha *</span>
                 <input
                   value={form.captcha}
-                  onChange={(e) => setField("captcha", e.target.value)}
+                  onChange={(e) => setField("captcha", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5))}
+                  maxLength={5}
                   placeholder="Enter captcha"
                   autoComplete="off"
                   aria-required="true"

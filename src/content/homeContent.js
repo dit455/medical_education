@@ -413,7 +413,7 @@ export const FEEDBACK = {
   ],
   submitLabel: "Submit feedback",
   successTitle: "Thank you — your feedback has been received.",
-  successBody: "A reference will be sent to your email. The EMS helpdesk reviews every submission within three working days.",
+  successBody: "Please note your reference number. The EMS helpdesk reviews every submission within three working days.",
   // GIGW 55 / WCAG 3.3.1 + 3.3.3: errors must be identified in text with a
   // correction suggestion. `{label}` is substituted at render time.
   errors: {

@@ -21,7 +21,10 @@ import {
 import "../styles/home.css";
 import ExternalLinkWarning from "../components/ExternalLinkWarning.jsx";
 import BhashiniTranslator from "../components/BhashiniTranslator.jsx";
+import ImageCaptcha from "../components/ImageCaptcha.jsx";
+import * as api from "../api.js";
 import { openCookieSettings } from "../components/CookieConsent.jsx";
+
 import { useHomeStats } from "../hooks/useHomeStats.js";
 import {
   ABOUT_CARD,
@@ -1169,15 +1172,20 @@ function Resources() {
 function Feedback() {
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState({});
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaAnswer, setCaptchaAnswer] = useState("");
+  const [captchaKey, setCaptchaKey] = useState(0);
+  const [sending, setSending] = useState(false);
+  const [serverError, setServerError] = useState("");
+  const [reference, setReference] = useState("");
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
+    if (sending) return;
     const data = new FormData(event.currentTarget);
     const found = {};
+    setServerError("");
 
-    // Validated here rather than relying on the browser: `noValidate` is set so
-    // the messages are real on-screen text (GIGW 55 / WCAG 3.3.1, 3.3.3)
-    // instead of transient native bubbles.
     FEEDBACK.fields.forEach((field) => {
       const value = String(data.get(field.id) || "").trim();
       if (field.required && !value) {
@@ -1186,20 +1194,35 @@ function Feedback() {
         found[field.id] = FEEDBACK.errors.email;
       }
     });
+    if (captchaAnswer.length !== 5) found.captcha = "Enter the 5 characters shown in the image.";
 
     setErrors(found);
-
     if (Object.keys(found).length > 0) {
-      // Send focus to the first field in error so keyboard and screen-reader
-      // users land on the problem rather than hunting for it.
-      const firstBad = FEEDBACK.fields.find((field) => found[field.id]);
-      document.getElementById(`fb-${firstBad.id}`)?.focus();
+      const firstId = FEEDBACK.fields.find((f) => found[f.id])?.id || "captcha";
+      document.getElementById(`fb-${firstId}`)?.focus();
       return;
     }
 
-    // GIGW 19: on-screen acknowledgement. Wiring the POST to a backend inbox is
-    // a department dependency; this confirms receipt to the user meanwhile.
-    setSubmitted(true);
+    const payload = Object.fromEntries(
+      FEEDBACK.fields.map((f) => [f.id, String(data.get(f.id) || "").trim()])
+    );
+
+    setSending(true);
+    try {
+      const res = await api.submitFeedback({ ...payload, captchaToken, captchaAnswer });
+      setReference(res.reference);
+      setSubmitted(true);
+    } catch (err) {
+      setCaptchaKey((k) => k + 1);          // every failure gets a fresh captcha
+      if (/captcha/i.test(err.message)) {
+        setErrors({ captcha: err.message });
+        document.getElementById("fb-captcha")?.focus();
+      } else {
+        setServerError(err.message || "Could not send feedback. Please try again.");
+      }
+    } finally {
+      setSending(false);
+    }
   }
 
   const hasErrors = Object.keys(errors).length > 0;
@@ -1221,6 +1244,7 @@ function Feedback() {
             <CheckCircle2 size={24} aria-hidden="true" />
             <div>
               <strong>{FEEDBACK.successTitle}</strong>
+              <p>Your reference number: <strong>{reference}</strong></p>
               <p>{FEEDBACK.successBody}</p>
             </div>
           </div>
@@ -1306,10 +1330,20 @@ function Feedback() {
                 );
               })}
             </div>
-            <button type="submit" className="pub-btn pub-btn-primary">
-              {FEEDBACK.submitLabel}
-              <ArrowRight size={24} aria-hidden="true" />
-            </button>
+              <ImageCaptcha
+                id="fb-captcha"
+                value={captchaAnswer}
+                onChange={setCaptchaAnswer}
+                onToken={setCaptchaToken}
+                reloadKey={captchaKey}
+                error={errors.captcha}
+                errorId="fb-captcha-error"
+              />
+              {serverError ? <p className="pub-form-summary" role="alert">{serverError}</p> : null}
+              <button type="submit" className="pub-btn pub-btn-primary" disabled={sending}>
+                {sending ? "Sending…" : FEEDBACK.submitLabel}
+                <ArrowRight size={24} aria-hidden="true" />
+              </button>
           </form>
         )}
       </div>

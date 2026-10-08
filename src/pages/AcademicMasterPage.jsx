@@ -18,7 +18,7 @@ const TABS = {
   subjects: { label: "Subject Master", header: "Subject" },
 };
 
-export default function AcademicMasterPage({ initialTab, tabCommand, onNavigate, username }) {
+export default function AcademicMasterPage({ initialTab, tabCommand, onNavigate, username, role }) {
   const valid = ["institutions", "courses", "subjects"];
   const [tab, setTab] = useState(valid.includes(initialTab) ? initialTab : "institutions");
   const [data, setData] = useState({ institutions: [], courses: [], subjects: [] });
@@ -41,11 +41,11 @@ export default function AcademicMasterPage({ initialTab, tabCommand, onNavigate,
     api.getListSubjects(true).then((d) => setData((s) => ({ ...s, subjects: [...d].sort(byName) }))).catch(() => {});
   }
   useEffect(() => {
-    api.getInstitutions().then((d) => setData((s) => ({ ...s, institutions: [...d].sort(byName) }))).catch(() => {});
+    api.getInstitutions(role).then((d) => setData((s) => ({ ...s, institutions: [...d].sort(byName) }))).catch(() => {});
     loadCourses();
     loadSubjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [role]);
 
   async function handleAddCourse(values) {
     await api.createMasterCourse({

@@ -299,18 +299,4 @@ export const ROUTES = [
     type: "institution-approvals-portal",
     title: "Approvals",
   },
-  {
-    key: "approvals",
-    label: "Institution Approvals",
-    icon: CircleCheck,
-    // Super Admin is allowed here now (permission-wise) but `hidden: true`
-    // keeps it out of every auto-generated nav surface (sidebar fallback
-    // menu, dashboard module grid) so there's no visible way in yet. When
-    // ready: drop `hidden` and add an entry to SUPER_ADMIN_MENU in Sidebar.jsx.
-    roles: [...BOARD_ROLES, "Super Admin"],
-    group: "Board Workflows",
-    type: "approvals",
-    title: "Institution Approvals",
-    hidden: true,
-  },
 ];

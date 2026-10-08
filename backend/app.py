@@ -26,6 +26,7 @@ from routes.marks import marks_bp
 from routes.students import students_bp
 from routes.subjects import subjects_bp
 from routes.student_reg import student_reg_bp
+from routes.feedback import feedback_bp
 
 
 app = Flask(__name__)
@@ -48,6 +49,7 @@ app.register_blueprint(marks_bp)
 app.register_blueprint(attendance_bp)
 app.register_blueprint(approvals_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(feedback_bp)
 
 ensure_super_admin()
 

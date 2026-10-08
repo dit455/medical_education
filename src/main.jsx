@@ -5,6 +5,7 @@ import "./styles/ux4g-widget.css";
 import "./styles/cookie-consent.css";
 import App from "./App.jsx";
 import CookieConsent from "./components/CookieConsent.jsx";
+import FloatingTools from "./components/FloatingTools.jsx";
 
 createRoot(document.getElementById("root")).render(
   <>
@@ -12,5 +13,6 @@ createRoot(document.getElementById("root")).render(
       <App />
     </Suspense>
     <CookieConsent />
+    <FloatingTools />
   </>,
 );
