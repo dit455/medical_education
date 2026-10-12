@@ -1,9 +1,11 @@
 """Read-only lookup tables (regions, years, exam sems, course/subject masters)."""
 
+from django.contrib.sites import requests
 from flask import Blueprint, jsonify, request
 
 from db import get_connection
 from utils import status_to_label
+
 
 lookups_bp = Blueprint("lookups", __name__)
 
@@ -108,3 +110,18 @@ def get_all_subjects():
         ])
     finally:
         conn.close()
+
+
+import requests
+
+@lookups_bp.route("/api/pincode/<pin>", methods=["GET"])
+def pincode_lookup(pin):
+    if not (pin.isdigit() and len(pin) == 6):
+        return jsonify({"error": "Invalid pincode"}), 400
+    try:
+        r = requests.get(f"https://api.postalpincode.in/pincode/{pin}", timeout=5)
+        return jsonify(r.json())
+    except (requests.RequestException, ValueError):
+        return jsonify({"error": "Lookup failed"}), 502
+
+    

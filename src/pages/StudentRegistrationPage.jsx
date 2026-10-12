@@ -471,7 +471,13 @@ async function handleSubmit() {
                       }
                       setPhotoError("");
                       setPhotoFile(f);
-                      setPhotoPreview(f ? URL.createObjectURL(f) : null);
+                      if (f) {
+                          const reader = new FileReader();
+                          reader.onload = () => setPhotoPreview(reader.result); // data: URL, allowed by img-src
+                          reader.readAsDataURL(f);
+                        } else {
+                          setPhotoPreview(null);
+                        }
                     }}
                   />
                   {photoPreview && (
