@@ -96,8 +96,7 @@ export default function StudentRegistrationPage({ institutionId, username }) {
     if (!/^\d{6}$/.test(pin)) return;
     setPinLookup({ loading: true, cities: [], error: "" });
     try {
-      const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
-      const data = await res.json();
+      const data = await api.lookupPincode(pin);
       const entry = data && data[0];
       if (!entry || entry.Status !== "Success" || !entry.PostOffice?.length) {
         setPinLookup({ loading: false, cities: [], error: "No location found for this pincode." });
