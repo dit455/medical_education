@@ -119,9 +119,15 @@ def pincode_lookup(pin):
     if not (pin.isdigit() and len(pin) == 6):
         return jsonify({"error": "Invalid pincode"}), 400
     try:
-        r = requests.get(f"https://api.postalpincode.in/pincode/{pin}", timeout=5)
+        r = requests.get(
+            f"https://api.postalpincode.in/pincode/{pin}",
+            timeout=8,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        r.raise_for_status()
         return jsonify(r.json())
-    except (requests.RequestException, ValueError):
-        return jsonify({"error": "Lookup failed"}), 502
+    except Exception as e:
+        print("PINCODE LOOKUP ERROR:", repr(e), flush=True)
+        return jsonify({"error": f"Lookup failed: {e}"}), 502
 
     

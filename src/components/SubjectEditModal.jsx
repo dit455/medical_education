@@ -96,8 +96,7 @@ export default function SubjectEditModal({
     return null;
   }
 
-    function handleSave() {
-    if (!validateDates()) return;
+  function handleSave() {
     const error = validateMarks();
     if (error) {
       alert(error);
