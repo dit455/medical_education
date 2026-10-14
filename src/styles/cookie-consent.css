@@ -16,8 +16,8 @@
   color: #150202;
 }
 .cc-text { max-width: 760px; }
-.cc-text strong { font-size: 16px; color: #0F5757; }
-.cc-text p { margin: 0.25rem 0 0; font-size: 14px; line-height: 1.5; }
+.cc-text strong { font-size: var(--fs-p); color: #0F5757; }
+.cc-text p { margin: 0.25rem 0 0; font-size: var(--fs-p); line-height: 1.5; }
 .cc-text a { color: #0F5757; font-weight: 700; }
 .cc-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .cc-btn {
@@ -28,7 +28,7 @@
   background: #FFFFFF;
   color: #0F5757;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--fs-p);
   font-weight: 700;
   cursor: pointer;
 }
@@ -54,8 +54,8 @@
   color: #150202;
   font-family: "Noto Sans", system-ui, sans-serif;
 }
-.cc-dialog h2 { margin: 0 0 0.5rem; font-size: 24px; color: #0F5757; }
-.cc-dialog > p { margin: 0 0 1rem; font-size: 14px; }
+.cc-dialog h2 { margin: 0 0 0.5rem; font-size: var(--fs-h2); color: #0F5757; }
+.cc-dialog > p { margin: 0 0 1rem; font-size: var(--fs-p); }
 .cc-row {
   display: flex;
   align-items: center;
@@ -64,9 +64,9 @@
   padding: 0.9rem 0;
   border-top: 1px solid #EBEAEA;
 }
-.cc-row p { margin: 0.2rem 0 0; font-size: 14px; color: #606060; line-height: 1.5; }
+.cc-row p { margin: 0.2rem 0 0; font-size: var(--fs-p); color: #606060; line-height: 1.5; }
 .cc-row input[type="checkbox"] { width: 22px; height: 22px; accent-color: #0F5757; flex: 0 0 auto; }
-.cc-always { font-size: 13px; font-weight: 700; color: #606060; white-space: nowrap; }
+.cc-always { font-size: var(--fs-p); font-weight: 700; color: #606060; white-space: nowrap; }
 .cc-dialog .cc-actions { margin-top: 1rem; justify-content: flex-end; }
 
 @media (max-width: 640px) {

@@ -88,11 +88,11 @@ export const UTILITY_BAR = {
 export const NAV_LINKS = [
   { id: "home", label: "Home" },
   { id: "about", label: "About Us" },
-  { id: "services", label: "Services" },
+  { id: "news", label: "Updates & Resources" },
   { id: "glance", label: "At a Glance" },
-  { id: "news", label: "Announcements" },
-  { id: "gallery", label: "Gallery" },
-  { id: "resources", label: "Downloads & Links" },
+  { id: "services", label: "Services" },
+  // { id: "gallery", label: "Gallery" },            // Events & Activities hidden
+  // { id: "resources", label: "Downloads & Links" }, // merged into Updates & Resources
   { id: "feedback", label: "Feedback" },
   { id: "contact", label: "Contact Us" },
 ];
@@ -107,8 +107,9 @@ export const HERO_SLIDES = [
     titleMain: "BOME / BOEN",
     body:
       "Ensuring excellence in Medical, Nursing and Allied Health Science education across the Union Territory of Puducherry.",
-    image: "/images/pink_ribbon_awareness.webp",
+    image: "/images/banner.png",
   },
+  /* other hero slides hidden - only one banner image is used
   {
     id: "futures",
     eyebrow: "Health & Family Welfare Department",
@@ -127,6 +128,7 @@ export const HERO_SLIDES = [
       "Marks are checked by three officers, signed digitally and sent to students through DigiLocker.",
     image: "/images/pink_ribbon_awareness.webp",
   },
+  */
 ];
 
 // `action: "login"` is handled by HomePage (routes into the portal); anything
@@ -269,7 +271,7 @@ export const NEWS = [
 export const ABOUT_CARD = {
   eyebrow: "About Us",
   title: "About BOME / BOEN",
-  image: "/images/mtpg_rihs_building.webp",
+  image: "/images/carousel_1.jpg",
   body:
     "Autonomous bodies under the Health & Family Welfare Department, Government of Puducherry, responsible for regulating examinations and certification across Nursing, Paramedical and Allied Health Sciences.",
   points: [

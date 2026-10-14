@@ -221,11 +221,13 @@ export default function HomePage({ onLoginClick }) {
         <Hero onAction={runAction} />
         <Ticker />
         <About />
-        <Services onSelect={runAction} onSectionLink={handleNavigate} />
+        <InfoTabs onLoginClick={onLoginClick} />
         <Stats />
-        <NewsAndAbout onLoginClick={onLoginClick} onAction={runAction} />
+        <Services onSelect={runAction} onSectionLink={handleNavigate} />
+        {/* Events & Activities (gallery) hidden
         <Gallery onOpen={setLightbox} />
-        <Resources />
+        */}
+        {/* <Resources /> and <NewsAndAbout /> are merged into <InfoTabs /> */}
         <Feedback />
         {/* <Contact /> */}
       </main>
@@ -652,6 +654,7 @@ function Hero({ onAction }) {
         </div>
       </div>
 
+      {HERO_SLIDES.length > 1 ? (
       <div className="pub-hero-controls">
         <span className="pub-hero-count">
           <b>{String(index + 1).padStart(2, "0")}</b> / {String(HERO_SLIDES.length).padStart(2, "0")}
@@ -675,6 +678,7 @@ function Hero({ onAction }) {
           ))}
         </div>
       </div>
+      ) : null}
     </section>
   );
 }
@@ -936,6 +940,219 @@ function NewsAndAbout({ onLoginClick, onAction }) {
           </aside>
         </div>
       </div>
+    </section>
+  );
+}
+
+const INFO_TABS = [
+  { id: "news", label: "Latest News" },
+  { id: "downloads", label: "Downloads" },
+  { id: "links", label: "Important Links" },
+];
+
+/** Latest News + Downloads + Important Links in one tabbed section. */
+function InfoTabs({ onLoginClick }) {
+  const [active, setActive] = useState("news");
+  const [pendingExternalLink, setPendingExternalLink] = useState(null);
+
+  function guardExternalClick(e, href) {
+    e.preventDefault();
+    setPendingExternalLink(href);
+  }
+
+  function onTabKeyDown(event) {
+    const i = INFO_TABS.findIndex((t) => t.id === active);
+    let next = null;
+    if (event.key === "ArrowRight") next = (i + 1) % INFO_TABS.length;
+    if (event.key === "ArrowLeft") next = (i - 1 + INFO_TABS.length) % INFO_TABS.length;
+    if (event.key === "Home") next = 0;
+    if (event.key === "End") next = INFO_TABS.length - 1;
+    if (next === null) return;
+    event.preventDefault();
+    setActive(INFO_TABS[next].id);
+    document.getElementById(`tab-${INFO_TABS[next].id}`)?.focus();
+  }
+
+  return (
+    <section id="news" className="pub-news" aria-labelledby="news-title">
+      {/* keeps old #resources links / search results scrolling to this section */}
+      <span id="resources" className="pub-anchor" />
+      <div className="pub-shell">
+        <div className="pub-section-head">
+          <div>
+            <p className="pub-eyebrow">Updates &amp; Resources</p>
+            <h2 className="pub-title" id="news-title">
+              Latest News, Downloads &amp; Important Links
+            </h2>
+          </div>
+        </div>
+
+        <div className="pub-news-layout">
+          <div className="pub-tabs">
+            <div className="pub-tabs-list" role="tablist" aria-label="News, downloads and links" onKeyDown={onTabKeyDown}>
+              {INFO_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  id={`tab-${tab.id}`}
+                  className="pub-tab"
+                  aria-selected={active === tab.id}
+                  aria-controls={`panel-${tab.id}`}
+                  tabIndex={active === tab.id ? 0 : -1}
+                  onClick={() => setActive(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="pub-tabpanel" role="tabpanel" id={`panel-${active}`} aria-labelledby={`tab-${active}`}>
+              {active === "news" ? (
+                <ul className="pub-news-list">
+                  {NEWS.map((item) => {
+                    const { day, rest } = formatNewsDate(item.date);
+                    return (
+                      <li key={item.id}>
+                        <button type="button" className="pub-news-item" onClick={() => setActive("downloads")}>
+                          <span className="pub-news-date">
+                            <span className="pub-news-day">{day}</span>
+                            <span className="pub-news-month">{rest}</span>
+                          </span>
+                          <span className="pub-news-body">
+                            <span className="pub-news-tags" aria-hidden="true">
+                              {item.badge ? <span className="pub-tag pub-tag-new">{item.badge}</span> : null}
+                              <span className="pub-tag pub-tag-cat">{item.category}</span>
+                            </span>
+                            <span className="pub-news-title">{item.title}</span>
+                          </span>
+                          <ChevronRight size={24} className="pub-news-chevron" aria-hidden="true" />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+
+              {active === "downloads" ? (
+                <ul className="pub-card-list" aria-label="Downloads">
+                  {DOWNLOADS.map(({ id, label, format, size, note, href, icon: Icon }) => {
+                    const content = (
+                      <>
+                        <span className="pub-card-icon" aria-hidden="true">
+                          <Icon size={24} />
+                        </span>
+                        <span className="pub-card-text">
+                          <strong>{label}</strong>
+                          <small>
+                            {format} · {size} — {note}
+                          </small>
+                        </span>
+                        <Download size={24} className="pub-card-action" aria-hidden="true" />
+                      </>
+                    );
+                    return (
+                      <li key={id}>
+                        {href ? (
+                          <a
+                            className="pub-card"
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`${label} (${format}, ${size}). Opens in a new tab.`}
+                            onClick={(e) => guardExternalClick(e, href)}
+                          >
+                            {content}
+                            <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
+                          </a>
+                        ) : (
+                          <button type="button" className="pub-card" title={UI_TEXT.pendingFileTitle}>
+                            {content}
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+
+              {active === "links" ? (
+                <ul className="pub-card-list" aria-label="Important Links">
+                  {EXTERNAL_LINKS.map(({ id, label, href, icon: Icon }) => (
+                    <li key={id}>
+                      <a
+                        className="pub-card"
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => guardExternalClick(e, href)}
+                      >
+                        <span className="pub-card-icon" aria-hidden="true">
+                          <Icon size={24} />
+                        </span>
+                        <span className="pub-card-text">
+                          <strong>{label}</strong>
+                          <small>{href.replace(/^https?:\/\//, "").replace(/\/$/, "")}</small>
+                        </span>
+                        <ArrowUpRight size={24} className="pub-card-action" aria-hidden="true" />
+                        <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </div>
+
+          <aside className="pub-about" aria-label={ABOUT_CARD.title}>
+            <div className="pub-about-media" style={{ backgroundImage: `url(${ABOUT_CARD.image})` }}>
+              <span className="pub-tag">{ABOUT_CARD.eyebrow}</span>
+            </div>
+            <div className="pub-about-body">
+              <h3>{ABOUT_CARD.title}</h3>
+              <p>{ABOUT_CARD.body}</p>
+              <ul className="pub-about-points">
+                {ABOUT_CARD.points.map(({ id, text, icon: Icon }) => (
+                  <li key={id}>
+                    <Icon size={24} />
+                    {text}
+                  </li>
+                ))}
+              </ul>
+              <button type="button" className="pub-btn pub-btn-navy" onClick={onLoginClick}>
+                {ABOUT_CARD.ctaLabel}
+                <ArrowRight size={24} />
+              </button>
+            </div>
+          </aside>
+        </div>
+
+        <div className="pub-gov-strip" aria-label={UI_TEXT.landmarks.govPlatforms}>
+          <span className="pub-gov-strip-label">{UI_TEXT.alsoOn}</span>
+          <a className="pub-gov-chip pub-gov-chip-portal" href={NATIONAL_PORTAL.href} target="_blank" rel="noopener noreferrer" onClick={(e) => guardExternalClick(e, NATIONAL_PORTAL.href)}>
+            {NATIONAL_PORTAL.label}
+            <ExternalLink size={24} aria-hidden="true" />
+            <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
+          </a>
+          {GOV_PLATFORMS.map(({ id, label, href }) => (
+            <a key={id} className="pub-gov-chip" href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => guardExternalClick(e, href)}>
+              {label}
+              <ExternalLink size={24} aria-hidden="true" />
+              <span className="pub-sr-only"> {UI_TEXT.newTabSuffix}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+      {pendingExternalLink && (
+        <ExternalLinkWarning
+          href={pendingExternalLink}
+          onCancel={() => setPendingExternalLink(null)}
+          onContinue={() => {
+            window.open(pendingExternalLink, "_blank", "noopener,noreferrer");
+            setPendingExternalLink(null);
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -33,7 +33,7 @@
 #uw-main.ux4g-accessibility-uwaw {
   width: 380px !important;
   max-width: 100vw !important;
-  font-size: 14px !important;
+  font-size: var(--fs-p) !important;
 }
 
 /* Header bar (was 78px tall, 16px padding) */
@@ -43,7 +43,7 @@
 
 #uw-main .ux4g-accessibility-view-header,
 #uw-main .ux4g-accessibility-view-header * {
-  font-size: 14px !important;
+  font-size: var(--fs-p) !important;
 }
 
 #uw-main .ux4g-accessibility-need-help-header {
@@ -57,7 +57,7 @@
 
 /* Section blocks + their headings */
 #uw-main .ux4g-accessibility-uw-section__head {
-  font-size: 13px !important;
+  font-size: var(--fs-p) !important;
   padding: 10px 0 !important;
 }
 
@@ -97,7 +97,7 @@
 #uw-main .ux4g-accessibility-uwaw-features__item__icon svg {
   width: 22px !important;
   height: 22px !important;
-  font-size: 22px !important;
+  font-size: var(--fs-h2) !important;
   margin-bottom: 6px !important;
 }
 
@@ -105,12 +105,12 @@
 #uw-main .ux4g-accessibility-icon {
   width: 22px !important;
   height: 22px !important;
-  font-size: 22px !important;
+  font-size: var(--fs-h2) !important;
   line-height: 1 !important;
 }
 
 #uw-main .ux4g-accessibility-uwaw-features__item__name {
-  font-size: 11.5px !important;
+  font-size: var(--fs-sm) !important;
   line-height: 1.35 !important;
   padding: 6px 0 0 !important;
 }
@@ -127,11 +127,11 @@
 }
 
 #uw-main .ux4g-accessibility-ux4g-label {
-  font-size: 13px !important;
+  font-size: var(--fs-p) !important;
 }
 
 #uw-main .ux4g-accessibility-description {
-  font-size: 11.5px !important;
+  font-size: var(--fs-sm) !important;
   line-height: 1.4 !important;
 }
 
@@ -146,7 +146,7 @@
 }
 
 #uw-main .ux4g-accessibility-reset-panel button {
-  font-size: 13px !important;
+  font-size: var(--fs-p) !important;
   padding: 8px 14px !important;
 }
 

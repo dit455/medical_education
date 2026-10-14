@@ -1,0 +1,75 @@
+/* ===== DBIM PRV-02: cookie banner (bottom of page) ===== */
+.cc-banner {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 90;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  padding: 1rem clamp(1rem, 4vw, 3rem);
+  background: #FFFFFF;
+  border-top: 4px solid #0F5757;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.12);
+  font-family: "Noto Sans", system-ui, sans-serif;
+  color: #150202;
+}
+.cc-text { max-width: 760px; }
+.cc-text strong { font-size: 16px; color: #0F5757; }
+.cc-text p { margin: 0.25rem 0 0; font-size: 14px; line-height: 1.5; }
+.cc-text a { color: #0F5757; font-weight: 700; }
+.cc-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.cc-btn {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #0F5757;
+  border-radius: 10px;
+  background: #FFFFFF;
+  color: #0F5757;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cc-btn:hover { background: #D9F2F2; }
+.cc-primary { background: #0F5757; color: #FFFFFF; }
+.cc-primary:hover { background: #2D8686; border-color: #2D8686; }
+.cc-link { border-color: transparent; text-decoration: underline; }
+.cc-btn:focus-visible { outline: 3px solid #2D8686; outline-offset: 2px; }
+
+.cc-backdrop {
+  position: fixed; inset: 0; z-index: 95;
+  display: grid; place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.55);
+}
+.cc-dialog {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+  border-radius: 14px;
+  background: #FFFFFF;
+  color: #150202;
+  font-family: "Noto Sans", system-ui, sans-serif;
+}
+.cc-dialog h2 { margin: 0 0 0.5rem; font-size: 24px; color: #0F5757; }
+.cc-dialog > p { margin: 0 0 1rem; font-size: 14px; }
+.cc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border-top: 1px solid #EBEAEA;
+}
+.cc-row p { margin: 0.2rem 0 0; font-size: 14px; color: #606060; line-height: 1.5; }
+.cc-row input[type="checkbox"] { width: 22px; height: 22px; accent-color: #0F5757; flex: 0 0 auto; }
+.cc-always { font-size: 13px; font-weight: 700; color: #606060; white-space: nowrap; }
+.cc-dialog .cc-actions { margin-top: 1rem; justify-content: flex-end; }
+
+@media (max-width: 640px) {
+  .cc-actions { width: 100%; }
+  .cc-actions .cc-btn { flex: 1 1 auto; }
+}

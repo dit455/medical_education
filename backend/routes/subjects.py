@@ -5,6 +5,8 @@ committing - shared by the HTTP routes below and by the pending-changes
 approval dispatcher (routes/approvals.py).
 """
 
+import traceback
+
 from flask import Blueprint, jsonify, request
 
 from werkzeug.security import check_password_hash
@@ -441,7 +443,7 @@ def update_subject(course_subject_id):
     body = request.get_json(force=True) or {}
     conn = get_connection()
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
         try:
             if body.get("divisions"):
                 result = apply_create_subject(
@@ -458,8 +460,14 @@ def update_subject(course_subject_id):
                     body.get("priority"), body.get("status", "Active"), actor_from_body(body),
                 )
         except ValueError as exc:
+            conn.rollback()
             cursor.close()
             return jsonify({"error": str(exc)}), 404
+        except Exception as exc:
+            conn.rollback()
+            cursor.close()
+            traceback.print_exc()
+            return jsonify({"error": f"Save failed: {exc}"}), 500
         conn.commit()
         cursor.close()
         return jsonify(result)
