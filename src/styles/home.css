@@ -615,7 +615,7 @@
   background: var(--pub-gold-bright);
   color: var(--pub-navy-deep);
   font-weight: 800;
-  box-shadow: none;
+  box-shadow: 0 0.6rem 1.6rem rgba(240, 180, 41, 0.32);
 }
 
 .pub-btn-accent {
