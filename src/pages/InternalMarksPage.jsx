@@ -539,7 +539,7 @@ export default function InternalMarksPage({ institutionId, username }) {
     <section className="content-stack" style={{ width: "100%", maxWidth: "none", padding: "0 32px" }}>
       <div className="page-heading">
         <div>
-          <br></br>
+         
           <h2>Internal Marks Management</h2>
         </div>
       </div>

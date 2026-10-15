@@ -7,7 +7,7 @@ const ChangePasswordPage = lazy(() => import("./pages/ChangePasswordPage.jsx"));
 const AppShell = lazy(() => import("./pages/AppShell.jsx"));
 import { SEED_DATA } from "./data.js";
 
-const DEFAULT_SESSION = { screen: "home", role: null, loginType: null, username: null, institutionId: null, institutionRole: null };
+const DEFAULT_SESSION = { screen: "home", role: null, loginType: null, username: null, institutionId: null, institutionRole: null, institutionName: null };
 const SESSION_STORAGE_KEY = "ems-session";
 const ACTIVE_ROUTE_STORAGE_KEY = "ems-active-route";
 const DASHBOARD_VIEW_STORAGE_KEYS = ["ems_dash_view", "ems_dash_inst", "ems_dash_course", "ems_dash_subject"];
@@ -30,6 +30,7 @@ function readStoredSession() {
       username: parsed.username || null,
       institutionId: parsed.institutionId || null,
       institutionRole: parsed.institutionRole || null,
+      institutionName: parsed.institutionName || null,
     };
   } catch {
     return DEFAULT_SESSION;
@@ -92,6 +93,7 @@ export default function App() {
         username: user.username,
         institutionId: user.institutionId || null,
         institutionRole: user.institutionRole || null,
+        institutionName: user.institutionName || null,
       });
       return;
     }
@@ -102,6 +104,7 @@ export default function App() {
       username: user.username,
       institutionId: user.institutionId || null,
       institutionRole: user.institutionRole || null,
+      institutionName: user.institutionName || null,
     });
     setActiveRoute("dashboard");
   }
@@ -167,6 +170,7 @@ export default function App() {
       username={session.username}
       institutionId={session.institutionId}
       institutionRole={session.institutionRole}
+      institutionName={session.institutionName}
       data={data}
       activeRoute={activeRoute}
       setActiveRoute={setActiveRoute}

@@ -21,7 +21,7 @@ function HeaderSearch({ newTab = false }) {
 
 
 // Top institute header bar shown on every screen (login, department select, app shell).
-export default function SiteHeader({ showSearch = true, compact = false, role, username, onLogout, onBoardSwitch, onChangePassword }) {
+export default function SiteHeader({ showSearch = true, compact = false, role, institutionName, institutionRole, username, onLogout, onBoardSwitch, onChangePassword }) {
   if (compact) {
     return (
       <header className="institute-header app-compact-header">
@@ -56,7 +56,7 @@ export default function SiteHeader({ showSearch = true, compact = false, role, u
                 Change Password
               </button>
             )}
-            <ProfileMenu role={role} username={username} />
+            <ProfileMenu role={role} username={username} institutionName={institutionName} institutionRole={institutionRole} />
             <button className="secondary-btn logout-btn" onClick={onLogout}>
               <LogOut size={24} />
               Logout
@@ -102,7 +102,7 @@ export default function SiteHeader({ showSearch = true, compact = false, role, u
 
 // Profile button in the compact header - shows a small popover with the
 // signed-in user's username/role instead of doing nothing on click.
-function ProfileMenu({ role, username }) {
+function ProfileMenu({ role, username, institutionName, institutionRole }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
 
@@ -139,6 +139,12 @@ function ProfileMenu({ role, username }) {
             <span>Role</span>
             <strong>{role || "-"}</strong>
           </div>
+          {institutionName && (
+            <div className="profile-menu-row">
+              <span>Institution</span>
+              <strong>{institutionName}{institutionRole ? ` (${institutionRole})` : ""}</strong>
+            </div>
+          )}
         </div>
       )}
     </div>

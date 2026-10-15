@@ -128,7 +128,7 @@ const BOARD_NAMES = {
   BOEN: "Board of Examinations in Nursing",
 };
 
-export default function Sidebar({ role, routes, activeRoute, activeDashboardView, onNavigate, isOpen, onClose }) {
+export default function Sidebar({ role, institutionName, institutionRole, routes, activeRoute, activeDashboardView, onNavigate, isOpen, onClose }) {
   const menuGroups = useMemo(() => buildMenu(routes, role), [routes, role]);
   const [openGroups, setOpenGroups] = useState(() =>
     getDefaultOpenGroups(menuGroups, activeRoute, activeDashboardView),

@@ -134,7 +134,7 @@ export default function StudentManagementPage({ institutionId, username }) {
 
   return (
     <section className="content-stack" style={{ width: "100%", maxWidth: "none", padding: "0 32px" }}>
-      <div className="page-heading"><div><br /><h2>Student Management</h2></div></div>
+      <div className="page-heading"><div><h2>Student Management</h2></div></div>
 
       <section className="data-table-card" style={{ width: "100%" }}>
         <div className="data-table-heading">

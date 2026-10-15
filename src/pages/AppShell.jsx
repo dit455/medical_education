@@ -19,11 +19,35 @@ import ApprovalsPage from "./ApprovalsPage.jsx";
 import { ROUTES } from "../routes.js";
 import { ENTITY_COLUMNS } from "../data.js";
 
+
+function InstitutionCard({ institutionId, institutionName, username }) {
+  const [status, setStatus] = useState(null);
+  useEffect(() => {
+    if (!institutionId) return;
+    api.getInstitution(institutionId).then((i) => setStatus(i?.status)).catch(() => {});
+  }, [institutionId]);
+  return (
+      <div style={{ padding: "12px 32px 20px" }}>
+      <section className="board-summary-card">
+        <div className="board-summary-head">
+          <div>
+            <p className="eyebrow">Institution Portal</p>
+            <h2>{institutionName}</h2>
+            <span>{username}</span>
+          </div>
+          {status && <StatusBadge status={status} />}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function AppShell({
   role,
   username,
   institutionId,
   institutionRole,
+  institutionName,
   data,
   activeRoute,
   setActiveRoute,
@@ -62,6 +86,9 @@ export default function AppShell({
     [role, institutionRole],
   );
   const currentRoute = routesForRole.find((route) => route.key === activeRoute) || routesForRole[0];
+  
+
+  if (!currentRoute) return null;
 
   function handleNavigate(routeKey, view, add) {
     setAcademicTab(null);
@@ -88,10 +115,10 @@ export default function AppShell({
 
   return (
     <div className="page-with-header">
-      <SiteHeader compact role={role} username={username} onLogout={onLogout} onBoardSwitch={onBoardSwitch} onChangePassword={onChangePassword} />
+      <SiteHeader compact role={role} institutionName={institutionName} institutionRole={institutionRole} username={username} onLogout={onLogout} onBoardSwitch={onBoardSwitch} onChangePassword={onChangePassword} />
       <div className="app-shell">
         <Sidebar
-          role={role}
+          role={role} institutionName={institutionName} institutionRole={institutionRole}
           routes={routesForRole}
           activeRoute={currentRoute.key}
           activeDashboardView={dashboardView}
@@ -104,6 +131,9 @@ export default function AppShell({
             route={currentRoute}
             onMenuClick={() => setSidebarOpen(true)}
           />
+          {role === "Institution" && institutionRole === "Creator" && institutionName && (
+            <InstitutionCard institutionId={institutionId} institutionName={institutionName} username={username} />
+          )}
           {currentRoute.type === "dashboard" ? (
             <Dashboard
               data={data}

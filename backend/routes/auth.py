@@ -61,6 +61,7 @@ def _user_row_to_dict(row):
         "institutionId": row[4] if len(row) > 4 else None,
         "mustChangePassword": bool(row[5]) if len(row) > 5 else False,
         "institutionRole": row[6] if len(row) > 6 else None,
+        "institutionName": row[7] if len(row) > 7 else None,
     }
 
 
@@ -80,14 +81,14 @@ def login():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, username, department, role, inst_id, password, must_change_password, institution_role FROM users WHERE username = %s",
+            "SELECT u.id, u.username, u.department, u.role, u.inst_id, u.password, u.must_change_password, u.institution_role, m.inst_name FROM users u LEFT JOIN tbl_inst_master m ON m.inst_id = u.inst_id WHERE u.username = %s",
             (username,),
         )
         row = cursor.fetchone()
         cursor.close()
         if row is None or not row[5] or not check_password_hash(row[5], password):
             return jsonify({"error": "Invalid username or password"}), 401
-        return jsonify(_user_row_to_dict((row[0], row[1], row[2], row[3], row[4], row[6], row[7])))
+        return jsonify(_user_row_to_dict((row[0], row[1], row[2], row[3], row[4], row[6], row[7], row[8])))
     finally:
         conn.close()
 
