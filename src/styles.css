@@ -6674,6 +6674,10 @@ tbody tr.selected-row {
 /* 1. Default: key colour on light backgrounds */
 svg.lucide { color: #0F5757; }
 
+.lucide {
+  pointer-events: none;
+}
+
 /* 2. White on dark backgrounds */
 .pub-utility svg.lucide,
 .pub-nav svg.lucide,

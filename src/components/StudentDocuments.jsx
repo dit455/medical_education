@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import * as api from "../api.js";
+import { getUploadUrl } from "../utils.js";
 
-const UPLOAD_BASE = `http://${window.location.hostname}:5001/api/uploads/`;
 const isPdf = (path) => String(path || "").toLowerCase().endsWith(".pdf");
 
 // Rows for the student's photo, 12th TC and 12th marksheet, each with a
@@ -41,7 +41,7 @@ export default function StudentDocuments({ student }) {
                 type="button"
                 className="secondary-btn"
                 style={{ padding: "4px 14px" }}
-                onClick={() => setPreview({ label, url: UPLOAD_BASE + path, pdf: isPdf(path) })}
+                onClick={() => setPreview({ label, url: getUploadUrl(path), pdf: isPdf(path) })}
               >
                 Preview
               </button>

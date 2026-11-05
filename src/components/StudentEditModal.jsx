@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, CircleCheck, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
-import { formatDate, parseDisplayDate } from "../utils.js";
+import { formatDate, getUploadUrl, parseDisplayDate } from "../utils.js";
 import StudentDocuments from "./StudentDocuments.jsx";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -14,7 +14,6 @@ export default function StudentEditModal({
   student, institutions = [], courses = [], years = [], regions = [],
   onSave, onDelete, onClose,
 }) {
-  console.log("STUDENT PASSED TO MODAL:", student, "email value:", student.email);
   const [values, setValues] = useState({
     studentRegNo: student.registerNo || "",
     studentName: student.name || "",
@@ -31,9 +30,7 @@ export default function StudentEditModal({
     status: student.status || "Active",
   });
 
-  const photoUrl = student.photo
-    ? `http://${window.location.hostname}:5001/api/uploads/${student.photo}`
-    : null;
+  const photoUrl = student.photo ? getUploadUrl(student.photo) : null;
 
   useEffect(() => {
     const prev = document.body.style.overflow;

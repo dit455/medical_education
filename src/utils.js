@@ -1,6 +1,10 @@
 // Small shared helpers used across pages/components.
 import { BOARD_ROLES } from "./data.js";
 
+export function getUploadUrl(path) {
+  return `/api/uploads/${String(path).replace(/^\/+/, "")}`;
+}
+
 // Groups an array of objects by the given field name, e.g. groupByField(routes, "group").
 export function groupByField(items, field) {
   return items.reduce((groups, item) => {
