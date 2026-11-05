@@ -21,7 +21,9 @@ export default function AddSubjectModal({
   editMode = false,
   initialSubject = null, // { id, name, divisions:[{examTypeId,maxMarks,passMarks,totalMarks}], effectiveDate }
   username = "",
+  role = "",
 }) {
+  const isBoen = role === "BOEN";
   const [subjectId, setSubjectId] = useState(
     editMode && initialSubject ? String(initialSubject.id) : "",
   );
@@ -77,16 +79,17 @@ export default function AddSubjectModal({
       const pass = Number(marks[d.key].pass);
       // A division counts as "not used" whether the fields are left empty
       // or explicitly typed as 0 - both mean this division doesn't apply.
+      if (isBoen && (marks[d.key].max === "" || marks[d.key].pass === "")) {
+        return `${d.label}: Max and Pass marks are mandatory for BOEN.`;
+      }
       const blank = !Number(marks[d.key].max) && !Number(marks[d.key].pass);
-      if (blank) continue;
+      if (blank && !isBoen) continue; // BOME: blank is allowed
       if (max <= 0) return `${d.label}: enter valid maximum marks.`;
       if (pass < 0) return `${d.label}: enter valid pass marks.`;
       if (pass > max) return `${d.label}: pass cannot exceed maximum.`;
     }
-    if (totalMax !== 100)
-      return `Total maximum must equal 100 (currently ${totalMax}).`;
     return null;
-  }, [subjectId, marks, totalMax]);
+  }, [subjectId, marks, totalMax, isBoen]);
 
   const selectedSubject = subjectOptions.find((o) => String(o.value) === String(subjectId));
   const canSave = subjectId && !error;
@@ -106,7 +109,7 @@ export default function AddSubjectModal({
         maxMarks: Number(marks[d.key].max) || 0,
         passMarks: Number(marks[d.key].pass) || 0,
       })),
-      totalMarks: 100,
+      totalMarks: totalMax,
       totalMax,
       totalPass,
       effectiveDate,
@@ -235,12 +238,11 @@ export default function AddSubjectModal({
                     }}
                   >
                     <span style={{ fontWeight: 600, color: "var(--ink)", fontSize: "0.9rem" }}>
-                      {d.label}
+                      {d.label}{isBoen && <span style={{ color: "#b00020" }}> *</span>}
                     </span>
                     <input
                       type="number"
                       min="0"
-                      max="100"
                       aria-label={`${d.label} Max`}
                       value={marks[d.key].max}
                       onChange={(e) => setCell(d.key, "max", e.target.value)}
@@ -257,7 +259,6 @@ export default function AddSubjectModal({
                     <input
                       type="number"
                       min="0"
-                      max="100"
                       aria-label={`${d.label} Pass`}
                       value={marks[d.key].pass}
                       onChange={(e) => setCell(d.key, "pass", e.target.value)}
@@ -293,7 +294,7 @@ export default function AddSubjectModal({
                     textAlign: "center",
                     fontWeight: 700,
                     fontSize: "1.05rem",
-                    color: totalMax === 100 ? "#4ade80" : "var(--heritage-yellow)",
+                    color: totalMax > 0 ? "#4ade80" : "var(--heritage-yellow)",
                   }}
                 >
                   {totalMax}

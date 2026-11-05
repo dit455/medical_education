@@ -3,9 +3,10 @@ import { createPortal } from "react-dom";
 import { X, CircleCheck, Trash2 } from "lucide-react";
 import StatusBadge from "./StatusBadge.jsx";
 import ConfirmDialog from "./ConfirmDialog.jsx";
+import AlertDialog from "./AlertDialog.jsx";
 
 
-const MAX_MARK = 100;
+
 
 const READONLY_STYLE = {
   background: "var(--soft-gray)",
@@ -28,9 +29,11 @@ export default function SubjectEditModal({
   course, subject, subjectCount,
   yearOptions = [], semOptions = [],
   username = "",
+  role = "",
   onClose, onSave, onDelete,
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [alertMsg, setAlertMsg] = useState("");
 
   const [subjectName, setSubjectName] = useState(subject?.subject || "");
   const [year, setYear] = useState(subject?.year || "");
@@ -70,28 +73,23 @@ export default function SubjectEditModal({
 
   function validateMarks() {
     const scored = DIVISIONS.filter((x) => x.key !== "tp");
-    let anyEntered = false;
-    let sumMax = 0;
 
     for (const d of scored) {
+      if (role === "BOEN" && (marks[d.key].max === "" || marks[d.key].pass === "")) {
+        return `${d.label}: Max and Pass marks are mandatory for BOEN.`;
+      }
       const max = marks[d.key].max === "" ? null : Number(marks[d.key].max);
       const pass = marks[d.key].pass === "" ? null : Number(marks[d.key].pass);
-      if (max !== null || pass !== null) anyEntered = true;
 
-      if (max !== null && (Number.isNaN(max) || max < 0 || max > MAX_MARK)) {
-        return `${d.label}: Max marks must be between 0 and ${MAX_MARK}.`;
+      if (max !== null && (Number.isNaN(max) || max < 0)) {
+        return `${d.label}: Max marks must be 0 or more.`;
       }
-      if (pass !== null && (Number.isNaN(pass) || pass < 0 || pass > MAX_MARK)) {
-        return `${d.label}: Pass marks must be between 0 and ${MAX_MARK}.`;
+      if (pass !== null && (Number.isNaN(pass) || pass < 0)) {
+        return `${d.label}: Pass marks must be 0 or more.`;
       }
       if (pass !== null && max !== null && pass > max) {
         return `${d.label}: Pass marks cannot be greater than Max marks.`;
       }
-      sumMax += max || 0;
-    }
-
-    if (anyEntered && sumMax !== MAX_MARK) {
-      return `Internal + External Max marks must add up to exactly ${MAX_MARK}. Currently ${sumMax}.`;
     }
     return null;
   }
@@ -99,7 +97,7 @@ export default function SubjectEditModal({
   function handleSave() {
     const error = validateMarks();
     if (error) {
-      alert(error);
+      setAlertMsg(error);
       return;
     }
     const divisions = DIVISIONS
@@ -176,9 +174,9 @@ export default function SubjectEditModal({
               <div className="view-row" key={d.key}>
                 <span className="view-label">{d.label} (Max / Pass)</span>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <input className="cell-input" type="number" placeholder="Max" min="0" max={MAX_MARK}
+                  <input className="cell-input" type="number" placeholder="Max" min="0"
                     value={marks[d.key].max} onChange={(e) => setMark(d.key, "max", e.target.value)} />
-                  <input className="cell-input" type="number" placeholder="Pass" min="0" max={MAX_MARK}
+                  <input className="cell-input" type="number" placeholder="Pass" min="0"
                     value={marks[d.key].pass} onChange={(e) => setMark(d.key, "pass", e.target.value)} />
                 </div>
               </div>
@@ -202,6 +200,14 @@ export default function SubjectEditModal({
           </div>
         </section>
       </div>
+
+      {alertMsg && (
+        <AlertDialog
+          title="Invalid marks"
+          message={alertMsg}
+          onClose={() => setAlertMsg("")}
+        />
+      )}
       {confirmingDelete && (
         <ConfirmDialog
           title="Delete this subject?"

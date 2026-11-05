@@ -166,7 +166,7 @@ export default function StudentManagementPage({ institutionId, username }) {
               disabled={filtered.length === 0}
               getData={() => ({
                 title: "Registered Students",
-                headers: ["S.No", "Reg No", "Student", "Course", "Status"],
+                headers: ["Sl.No", "Reg No", "Student Name", "Course", "Status"],
                 rows: filtered.map((s, i) => [i + 1, s.registerNo, s.name, nameFor(courses, s.courseId), s.status]),
               })}
             />
@@ -177,26 +177,24 @@ export default function StudentManagementPage({ institutionId, username }) {
           <table>
             <thead>
               <tr>
-                <th>S.NO</th><th>INSTITUTION</th><th>COURSE</th>
-                <th>REG NO</th><th>STUDENT NAME</th>
-                <th>STATUS</th><th>ACTIONS</th>
+                <th>SL.NO</th><th>REG NO</th><th>STUDENT NAME</th>
+                <th>COURSE</th><th>STATUS</th><th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="empty-state">
+                  <td colSpan={6} className="empty-state">
                     <div className="table-empty"><span>No students registered yet</span></div>
                   </td>
                 </tr>
               ) : (
                 pageRows.map((student, i) => (
                   <tr key={student.id}>
-                    <td data-label="S.No">{(currentPage - 1) * rowsPerPage + i + 1}</td>
-                    <td data-label="Institution">{(institutionName || "-").toUpperCase()}</td>
-                    <td data-label="Course">{nameFor(courses, student.courseId).toUpperCase()}</td>
-                    <td data-label="Student ID">{student.registerNo}</td>
+                    <td data-label="Sl.No">{(currentPage - 1) * rowsPerPage + i + 1}</td>
+                    <td data-label="Reg No">{student.registerNo}</td>
                     <td data-label="Student Name">{student.name}</td>
+                    <td data-label="Course">{nameFor(courses, student.courseId).toUpperCase()}</td>
                     <td data-label="Status"><StatusBadge status={student.status} /></td>
                     <td data-label="Actions">
                       <div className="action-group">

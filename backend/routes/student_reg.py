@@ -22,7 +22,22 @@ from werkzeug.utils import secure_filename
 
 UPLOAD_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "student_photos")
 ALLOWED_PHOTO_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-MAX_PHOTO_KB = 200
+MAX_PHOTO_KB = 100
+
+DOC_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "student_docs")
+ALLOWED_DOC_EXT = {".pdf", ".jpg", ".jpeg", ".png"}
+MAX_DOC_KB = 300
+DOC_TYPES = {"tc12", "marksheet12"}
+DOC_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS tbl_student_documents (
+  doc_id INT AUTO_INCREMENT PRIMARY KEY,
+  student_id INT NOT NULL,
+  doc_type VARCHAR(30) NOT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  uploaded_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_student_doc (student_id, doc_type)
+)
+"""
 
 student_reg_bp = Blueprint("student_reg", __name__)
 
@@ -410,16 +425,7 @@ def create_student_direct(institution_id):
             cursor.close()
             which = "email" if email_taken else "mobile number"
             return jsonify({"error": f"A student with this {which} is already registered."}), 409
-        otp_error = verify_institution_otp(cursor, body.get("studentEmail"), body.get("otp"))
-        if otp_error:
-            conn.commit()
-            cursor.close()
-            return jsonify({"error": otp_error}), 400
         result = apply_create_student_registration(cursor, institution_id, body, actor)
-        cursor.execute(
-            "DELETE FROM tbl_email_otp WHERE email = %s",
-            ((body.get("studentEmail") or "").strip().lower(),),
-        )
         conn.commit()
         cursor.close()
         return jsonify(result), 201
@@ -556,6 +562,63 @@ def upload_student_photo(student_id):
         conn.close()
     return jsonify({"ok": True, "photo": rel_path})
 
+
+@student_reg_bp.route("/api/students/<int:student_id>/documents", methods=["POST"])
+def upload_student_document(student_id):
+    doc_type = request.form.get("docType", "")
+    if doc_type not in DOC_TYPES:
+        return jsonify({"error": "Invalid document type"}), 400
+    file = request.files.get("file")
+    if not file or not file.filename:
+        return jsonify({"error": "No file provided"}), 400
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_DOC_EXT:
+        return jsonify({"error": "Only PDF, JPG or PNG files are allowed"}), 400
+
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    if size > MAX_DOC_KB * 1024:
+       return jsonify({"error": f"File must not exceed {MAX_DOC_KB} KB"}), 400
+
+    os.makedirs(DOC_ROOT, exist_ok=True)
+    fname = f"student_{student_id}_{doc_type}_{uuid.uuid4().hex[:8]}{ext}"
+    file.save(os.path.join(DOC_ROOT, secure_filename(fname)))
+    rel_path = f"student_docs/{fname}"
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(DOC_TABLE_SQL)
+        cursor.execute(
+            "INSERT INTO tbl_student_documents (student_id, doc_type, file_path) "
+            "VALUES (%s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE file_path = VALUES(file_path), uploaded_date = NOW()",
+            (student_id, doc_type, rel_path),
+        )
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "path": rel_path})
+
+
+@student_reg_bp.route("/api/students/<int:student_id>/documents", methods=["GET"])
+def list_student_documents(student_id):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(DOC_TABLE_SQL)
+        cursor.execute(
+            "SELECT doc_type, file_path FROM tbl_student_documents WHERE student_id = %s",
+            (student_id,),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+    finally:
+        conn.close()
+    return jsonify([{"docType": r[0], "path": r[1]} for r in rows])
 
 @student_reg_bp.route("/api/uploads/<path:subpath>", methods=["GET"])
 def serve_upload(subpath):

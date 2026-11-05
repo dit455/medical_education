@@ -41,6 +41,9 @@ export default function DataTable({
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [durationFilter, setDurationFilter] = useState("All");
+  const [yearFilter, setYearFilter] = useState("All");
+  const [semesterFilter, setSemesterFilter] = useState("All");
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
   const [modalState, setModalState] = useState(null);
@@ -56,10 +59,33 @@ export default function DataTable({
           .toLowerCase()
           .includes(search.toLowerCase());
         const matchesStatus = statusFilter === "All" || row.status === statusFilter;
-        return matchesSearch && matchesStatus;
+        const matchesDuration =
+          durationFilter === "All" || String(row.duration ?? "") === durationFilter;
+        const matchesYear =
+          yearFilter === "All" || String(row.year ?? "") === yearFilter;
+        const matchesSemester =
+          semesterFilter === "All" || String(row.semester ?? "") === semesterFilter;
+        return (
+          matchesSearch && matchesStatus && matchesDuration && matchesYear && matchesSemester
+        );
       }),
-    [rows, search, statusFilter],
+    [rows, search, statusFilter, durationFilter, yearFilter, semesterFilter],
   );
+
+  const durationOptions = useMemo(
+    () =>
+      [...new Set(rows.map((r) => String(r.duration ?? "").trim()).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b, undefined, { numeric: true }),
+      ),
+    [rows],
+  );
+
+  const uniqueSorted = (key) =>
+    [...new Set(rows.map((r) => String(r[key] ?? "").trim()).filter(Boolean))].sort(
+      (a, b) => a.localeCompare(b, undefined, { numeric: true }),
+    );
+  const yearOptions = useMemo(() => uniqueSorted("year"), [rows]);
+  const semesterOptions = useMemo(() => uniqueSorted("semester"), [rows]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
   const currentPage = Math.min(page, totalPages);
@@ -187,8 +213,69 @@ export default function DataTable({
               {statusFilterOptions.map((option) => (
                 <option key={option}>{option}</option>
               ))}
-            </select>
+          </select>
           </label>
+
+          {yearOptions.length > 0 && (
+            <label className="select-box small">
+              <select
+                value={yearFilter}
+                onChange={(e) => {
+                  setYearFilter(e.target.value);
+                  setPage(1);
+                }}
+                disabled={disabled}
+                aria-label="Filter by year"
+              >
+                <option value="All">All Years</option>
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {semesterOptions.length > 0 && (
+            <label className="select-box small">
+              <select
+                value={semesterFilter}
+                onChange={(e) => {
+                  setSemesterFilter(e.target.value);
+                  setPage(1);
+                }}
+                disabled={disabled}
+                aria-label="Filter by semester"
+              >
+                <option value="All">All Semesters</option>
+                {semesterOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {durationOptions.length > 0 && (
+            <label className="select-box small">
+              <select
+                value={durationFilter}
+                onChange={(e) => {
+                  setDurationFilter(e.target.value);
+                  setPage(1);
+                }}
+                disabled={disabled}
+                aria-label="Filter by duration"
+              >
+                <option value="All">All Durations</option>
+                {durationOptions.map((d) => (
+                  <option key={d} value={d}>
+                    Duration: {d}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="select-box small rows-select">
             Rows
             <select

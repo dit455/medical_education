@@ -23,6 +23,7 @@ import DataTable from "../components/DataTable.jsx";
 import RecordModal from "../components/RecordModal.jsx";
 import SubjectEditModal from "../components/SubjectEditModal.jsx";
 import CourseSelectModal from "../components/CourseSelectModal.jsx";
+import SubjectMarksModal from "../components/SubjectMarksModal.jsx";
 import RecordPickModal from "../components/RecordPickModal.jsx";
 import ListViewModal from "../components/ListViewModal.jsx";
 import ViewStudentsModal from "../components/ViewStudentsModal.jsx";
@@ -482,20 +483,35 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
   };
 
   const [courseSelectOpen, setCourseSelectOpen] = useState(false);
+    // Compare names ignoring case, extra spaces and dash style.
+  const normName = (v) =>
+    String(v || "")
+      .replace(/[\u2010-\u2015]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+
   const courseSelectOptions = courseOptions.filter(
     (option) =>
-      !coursesForInstitution.some(
-        (c) => (c.name || "").trim().toLowerCase() === (option.label || "").trim().toLowerCase(),
-      ),
+      !coursesForInstitution.some((c) => normName(c.name) === normName(option.label)),
   );
 
   const [subjectSelectOpen, setSubjectSelectOpen] = useState(false);
+  const [pendingSubjects, setPendingSubjects] = useState(null); // step 2: marks popup
+  const [savingSubjects, setSavingSubjects] = useState(false);
   const subjectSelectOptions = subjectOptions.filter(
     (option) =>
-      !subjectsForCourse.some(
-        (s) => (s.subject || "").trim().toLowerCase() === (option.label || "").trim().toLowerCase(),
-      ),
+      !subjectsForCourse.some((s) => normName(s.subject) === normName(option.label)),
   );
+
+  // Reload what is already mapped each time a picker opens, so items added
+  // a moment ago never show up again.
+  useEffect(() => {
+    if (courseSelectOpen) refreshCourses(selectedInstitutionIdResolved);
+  }, [courseSelectOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (subjectSelectOpen) refreshSubjects(selectedCourseIdResolved);
+  }, [subjectSelectOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Unified add / edit / view modal driven by the action bar below the KPI
   // cards. Each entity maps to its field set and the matching save handler.
@@ -645,9 +661,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     }
   }
 
-
-   
-    async function handleMergedSubjectSave(values) {
+  async function handleMergedSubjectSave(values) {
     if (!selectedCourseIdResolved || !selectedInstitutionIdResolved) {
       alert("Please select a course first.");
       return;
@@ -752,25 +766,85 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     }
   }
 
-  async function handleCourseSelectSave(names, extraValues) {
-    for (const name of names) {
-      await saveCourse({ name, duration: extraValues?.duration });
+  async function handleCourseSelectSave(names, extraValues, durationByName = {}) {
+    try {
+      const instId =
+        selectedInstitutionIdResolved ||
+        (sessionStorage.getItem("ems_dash_inst")
+          ? Number(sessionStorage.getItem("ems_dash_inst"))
+          : null);
+      if (!instId) {
+        alert("Please select an institution first.");
+        return;
+      }
+      for (const name of names) {
+        await api.createCourse(instId, {
+          name: name.toUpperCase(),
+          status: "Active",
+          duration: durationByName[name] || null,
+          abbreviation: "",
+          actor: username,
+        });
+      }
+      setSelectedInstitutionId(instId);
+      refreshCourses(instId);
+      refreshInstitutions();
+      setCourseSelectOpen(false);
+    } catch (err) {
+      alert(err.message || "Could not map courses.");
     }
-    setCourseSelectOpen(false);
   }
 
-  async function handleSubjectSelectSave(names, extraValues) {
-    // priority_id is NOT NULL in tbl_course_subject_map; assign sequential
-    // priorities so each mapped subject gets a distinct, valid value.
-    for (let i = 0; i < names.length; i++) {
-      await saveSubject({
-        subject: names[i],
-        year: extraValues.year,
-        semester: extraValues.semester,
-        priority: i + 1,
-      });
-    }
+    // Step 1 -> Add Selected: keep the choices and open the marks popup.
+  function handleSubjectSelectSave(names, extraValues, _durations, yearSemByName = {}) {
+    setPendingSubjects(
+      names.map((name) => {
+        const ys = yearSemByName[name] || {};
+        return {
+          name,
+          year: ys.year,
+          semester: ys.semester,
+          yearLabel: years.find((y) => String(y.id) === String(ys.year))?.name || "",
+          semesterLabel: examSems.find((s) => String(s.id) === String(ys.semester))?.name || "",
+        };
+      }),
+    );
     setSubjectSelectOpen(false);
+  }
+
+  // Step 2 -> Save: create each subject with its Internal / External marks.
+  async function handleSubjectMarksSave(marksByName) {
+    if (!pendingSubjects || !selectedCourseIdResolved) return;
+    setSavingSubjects(true);
+    try {
+      const now = new Date();
+      const p = (n) => String(n).padStart(2, "0");
+      const stamp = `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+      for (let i = 0; i < pendingSubjects.length; i++) {
+        const s = pendingSubjects[i];
+        const m = marksByName[s.name];
+        await api.createSubject(selectedCourseIdResolved, {
+          subject: s.name.toUpperCase(),
+          year_id: resolveYearId(s.year),
+          sem_id: resolveSemId(s.semester),
+          priority: i + 1,
+          status: "Active",
+          divisions: [
+            { examTypeId: 1, maxMarks: m.ia.max, passMarks: m.ia.pass },
+            { examTypeId: 2, maxMarks: m.ea.max, passMarks: m.ea.pass },
+          ],
+          totalMarks: m.ia.max + m.ea.max,
+          signature_name: `${username || "user"}_${stamp}`,
+          actor: username,
+        });
+      }
+      refreshSubjects(selectedCourseIdResolved);
+      setPendingSubjects(null);
+    } catch (err) {
+      alert(err.message || "Could not add subjects.");
+    } finally {
+      setSavingSubjects(false);
+    }
   }
 
   function goToInstitutions() {
@@ -855,7 +929,11 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     },
     courses: {
       title: `Course Master${selectedInstitution ? ` - ${selectedInstitution.name}` : ""}`,
-      rows: selectedInstitutionIdResolved ? coursesForInstitution : [],
+      rows: selectedInstitutionIdResolved
+        ? [...coursesForInstitution].sort((a, b) =>
+            String(a.name ?? "").localeCompare(String(b.name ?? ""), undefined, { sensitivity: "base" })
+          )
+        : [],
       columns: ENTITY_COLUMNS.courses,
       fields: ENTITY_FIELDS.course,
       selectedId: selectedCourseIdResolved,
@@ -880,7 +958,11 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
     },
     subjects: {
       title: `Subject Master${selectedInstitution ? ` - ${selectedInstitution.name}` : ""}${selectedCourse ? ` - ${selectedCourse.name}` : ""}`,
-      rows: selectedCourseIdResolved ? subjectsForCourse : [],
+      rows: selectedCourseIdResolved
+        ? [...subjectsForCourse].sort((a, b) =>
+            String(a.subject ?? "").localeCompare(String(b.subject ?? ""), undefined, { sensitivity: "base" })
+          )
+        : [],
       columns: ENTITY_COLUMNS.boardSubjects,
       fields: subjectFields,
       selectedId: selectedSubject?.id || null,
@@ -967,6 +1049,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       },*/
     ],
     subjects: [
+      /* HIDDEN: Assign Mark to existing Subject
       {
         label: "Assign Mark to existing Subject",
         icon: Plus,
@@ -979,6 +1062,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
             : "",
         onClick: () => setAddSubjectOpen(true),
       },
+      */
       /*{
         label: "Add Subject",
         icon: Plus,
@@ -1166,6 +1250,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
 
       {view === "subjects" && isSubjectDetailsOpen && (
         <SubjectEditModal
+          role={role}
           course={selectedCourse}
           subject={selectedSubject}
           subjectCount={subjectsForCourse.length}
@@ -1308,6 +1393,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       )}
       {addSubjectOpen && (
         <AddSubjectModal
+          role={role}
           subjectOptions={subjectSelectOptions}
           username={username}
           onClose={() => setAddSubjectOpen(false)}
@@ -1316,6 +1402,7 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
       )}
       {editMarksSubject && (
         <AddSubjectModal
+          role={role}
           editMode
           initialSubject={editMarksSubject}
           subjectOptions={[]}
@@ -1412,7 +1499,8 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           title="Course"
           emptyMessage="No more courses available to add."
           options={courseSelectOptions}
-          extraFields={[["duration", "Duration", []]]}
+          extraFields={[]}
+          perItemDuration
           onClose={() => setCourseSelectOpen(false)}
           onSave={handleCourseSelectSave}
         />
@@ -1422,12 +1510,21 @@ function BoardDashboard({ role, username, data, setActiveRoute, dashboardView, d
           title="Subject"
           emptyMessage="No more subjects available to add."
           options={subjectSelectOptions}
-          extraFields={[
-            ["year", "Year", yearOptions],
-            ["semester", "Semester", semOptions],
-          ]}
+          extraFields={[]}
           onClose={() => setSubjectSelectOpen(false)}
+          perItemYearSem
+          yearOptions={yearOptions}
+          semOptions={semOptions}
           onSave={handleSubjectSelectSave}
+        />
+      )}
+      {pendingSubjects && (
+        <SubjectMarksModal
+          role={role}
+          subjects={pendingSubjects}
+          saving={savingSubjects}
+          onClose={() => setPendingSubjects(null)}
+          onSave={handleSubjectMarksSave}
         />
       )}
     </section>

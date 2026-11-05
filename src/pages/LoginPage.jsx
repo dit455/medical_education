@@ -22,6 +22,15 @@ const [forgotMessage, setForgotMessage] = useState("");
     setError("");
   }
 
+  function switchTab(type) {
+    if (type === loginType) return;
+    setLoginType(type);
+    setForm({ username: "", password: "", captcha: "", institutionRole: "Creator" });
+    setShowPassword(false);
+    setError("");
+    refreshCaptcha();
+  }
+
   async function refreshCaptcha(clearError = true) {
     setForm((prev) => ({ ...prev, captcha: "" }));
     if (clearError) setError("");
@@ -102,21 +111,21 @@ const [forgotMessage, setForgotMessage] = useState("");
               <button
                 type="button"
                 className={loginType === "super-admin" ? "active" : ""}
-                onClick={() => setLoginType("super-admin")}
+                onClick={() => switchTab("super-admin")}
               >
                 Super Admin
               </button>
               <button
                 type="button"
                 className={loginType === "department" ? "active" : ""}
-                onClick={() => setLoginType("department")}
+                onClick={() => switchTab("department")}
               >
                 Department
               </button>
               <button
                 type="button"
                 className={loginType === "institution" ? "active" : ""}
-                onClick={() => setLoginType("institution")}
+                onClick={() => switchTab("institution")}
               >
                 Institution
               </button>

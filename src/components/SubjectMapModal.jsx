@@ -184,7 +184,11 @@ export default function SubjectMapModal({
         <div className="course-select-list">
           {emptyMessage && <p>{emptyMessage}</p>}
           {!emptyMessage &&
-            filteredSubjects.map((option) => (
+            [...filteredSubjects]
+              .sort((a, b) =>
+                String(a.label ?? "").localeCompare(String(b.label ?? ""), undefined, { sensitivity: "base" })
+              )
+              .map((option) => (
               <label key={option.value} className="course-select-row">
                 <input
                   type="checkbox"

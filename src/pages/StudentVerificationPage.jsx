@@ -13,6 +13,7 @@ const STATUS_FILTERS = ["Active", "Inactive"];
 
 export default function StudentVerificationPage({ username, role, onNavigate }) {
   const [students, setStudents] = useState([]);
+  const [deleteStudent, setDeleteStudent] = useState(null);
   const [regions, setRegions] = useState([]);
   const [years, setYears] = useState([]);
   const [institutions, setInstitutions] = useState([]);
@@ -153,7 +154,7 @@ export default function StudentVerificationPage({ username, role, onNavigate }) 
   const viewFields = [
     ["registerNo", "Register No"], ["name", "Name"], ["fatherName", "Father"],
     ["dob", "DOB"], ["email", "Email"], ["mobile", "Mobile"],
-    ["yearName", "Year"], ["regionName", "Region"], ["status", "Status"],
+    ["regionName", "Region"], ["status", "Status"],
   ];
 
   return (
@@ -303,8 +304,18 @@ export default function StudentVerificationPage({ username, role, onNavigate }) 
                 refresh();
               } catch (err) { alert(err.message); }
             }}
-            onDelete={async (student) => {
-              if (!window.confirm(`Delete ${student.name}? This cannot be undone.`)) return;
+            onDelete={(student) => setDeleteStudent(student)}
+          />
+        )}
+
+        {deleteStudent && (
+          <ConfirmDialog
+            title={`Delete ${deleteStudent.name}?`}
+            message="This cannot be undone."
+            onCancel={() => setDeleteStudent(null)}
+            onConfirm={async () => {
+              const student = deleteStudent;
+              setDeleteStudent(null);
               try {
                 await api.deleteStudent(student.id);
                 setViewing(null);

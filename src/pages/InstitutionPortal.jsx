@@ -93,13 +93,19 @@ useEffect(() => {
     );
 }, [courses]);
 
-  const nameFrom = (list, id) => list.find((x) => String(x.id) === String(id))?.name ?? id;
-  const PAYLOAD_LABELS = {
-    courseId: "Course", subjectId: "Subject", yearId: "Year", semId: "Semester",
-    examCatId: "Exam Category", examSessionId: "Exam Session", studentId: "Student",
-    scoredMarks: "Scored Marks", totalMarks: "Total Marks", examDate: "Exam Date",
-    passMarks: "Pass Marks", result: "Result",
-  };
+const nameFrom = (list, id) => list.find((x) => String(x.id) === String(id))?.name ?? id;
+const PAYLOAD_LABELS = {
+  courseId: "Course", subjectId: "Subject", admissionYear: "Admission Year",
+  yearId: "Year", semId: "Semester", examDate: "Exam Date", studentId: "Student",
+  isAbsent: "Attendance", scoredMarks: "Scored Marks", totalMarks: "Total Marks",
+  passMarks: "Pass Marks",
+};
+// Only these fields appear in the approver's View modal, in this order.
+// Exam Category, Exam Session and Result are intentionally left out.
+const REVIEW_VIEW_ORDER = [
+  "courseId", "subjectId", "admissionYear", "yearId", "semId", "examDate",
+  "studentId", "isAbsent", "scoredMarks", "totalMarks", "passMarks",
+]; 
     function toDMY(v) {
     // Accepts an ISO date like "2026-09-01" (optionally with time) and returns
     // "01/09/2026". Returns null if it isn't an ISO-style date.
@@ -108,6 +114,8 @@ useEffect(() => {
     return `${m[3]}/${m[2]}/${m[1]}`;
   }
   function renderPayloadValue(key, value) {
+    if (key === "isAbsent") return value ? "Absent" : "Present";
+    if (value === null || value === undefined || value === "") return "-";
     if (key === "courseId") return nameFrom(lookups.courses, value);
     if (key === "subjectId") return nameFrom(lookups.subjects, value);
     if (key === "yearId") return nameFrom(lookups.years, value);
@@ -241,7 +249,7 @@ useEffect(() => {
     return reviewChanges.filter((c) => {
       const v = rowView(c);
       const matchSearch = !q ||
-        [v.regNo, v.name, v.scored, v.total, c.status]
+        [v.regNo, v.name, v.scored, v.total, v.absent ? "Absent" : "Present", c.status]
           .filter((x) => x !== undefined && x !== null)
           .join(" ").toLowerCase().includes(q);
       const matchStatus = reviewStatusFilter === "All" || c.status === reviewStatusFilter;
@@ -278,6 +286,7 @@ useEffect(() => {
         course: String(nameFrom(lookups.courses, change.payload.courseId) || "-").toUpperCase(),
         subject: nameFrom(lookups.subjects, change.payload.subjectId) || "-",
         result: change.payload.result || passOrFail(change.payload.scoredMarks, change.payload.passMarks),
+        absent: !!change.payload.isAbsent || change.payload.result === "Absent",
         email: student?.email || "-",
         phone: student?.mobile || "-",
       };
@@ -457,7 +466,6 @@ useEffect(() => {
                             <td data-label="Term">{change.payload.term}</td>
                             <td data-label="Scored Marks">{change.payload.internal}</td>
                             <td data-label="Total Marks">{change.payload.exam}</td>
-                            <td data-label="Result">{change.payload.result}</td>
                             <td data-label="Status">
                               <StatusBadge status={change.status} />
                             </td>
@@ -519,10 +527,11 @@ useEffect(() => {
                 disabled={filteredReviews.length === 0}
                 getData={() => ({
                   title: "Marks Approvals",
-                  headers: ["Reg No", "Student", "Scored", "Total", "Result", "Status", "Uploaded"],
-                  rows: filteredReviews.map((c) => {
+                  headers: ["Sl.No", "Reg No", "Student Name", "Course", "Subject", "Scored Marks", "Total Marks", "Pass Marks", "Present/Absent", "Status", "Uploaded On"],
+                  rows: filteredReviews.map((c, i) => {
                     const v = rowView(c);
-                    return [v.regNo, v.name, v.scored, v.total, v.result || "-", c.status, formatDate(c.requestedDate?.slice(0, 10))];
+                    const dash = (x) => (x === null || x === undefined || x === "" ? "-" : x);
+                    return [i + 1, v.regNo, v.name, v.course || "-", v.subject || "-", dash(v.scored), dash(v.total), dash(v.pass), v.absent ? "Absent" : "Present", c.status, formatDate(c.requestedDate?.slice(0, 10))];
                   }),
                 })}
               />
@@ -533,25 +542,24 @@ useEffect(() => {
             <table>
               <thead>
                 <tr>
-                  <th>S.No</th>
-                  <th>Institution</th>
-                  <th>Course</th>
-                  <th>Subject</th>
+                  <th>Sl.No</th>
                   <th>Reg No</th>
                   <th>Student Name</th>
+                  <th>Course</th>
+                  <th>Subject</th>
                   <th>Scored Marks</th>
                   <th>Total Marks</th>
                   <th>Pass Marks</th>
-                  <th>Result</th>
+                  <th>Present/Absent</th>
                   <th>Status</th>
-                  <th>Uploaded on</th>
+                  <th>Uploaded On</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                   {reviewPageRows.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="empty-state">
+                    <td colSpan={12} className="empty-state">
                       <div className="table-empty">
                         <span>No marks requests to review</span>
                       </div>
@@ -563,24 +571,23 @@ useEffect(() => {
                     const isFinal = change.status === "Approved" || change.status === "Rejected";
                     return (
                       <tr key={change.id}>
-                        <td data-label="S.No">{i + 1}</td>
-                        <td data-label="Institution">{(institution?.name || "-").toUpperCase()}</td>
-                        <td data-label="Course">{v.course || "-"}</td>
-                        <td data-label="Subject">{v.subject || "-"}</td>
+                        <td data-label="Sl.No">{(reviewCurrentPage - 1) * reviewRowsPerPage + i + 1}</td>
                         <td data-label="Reg No">{v.regNo}</td>
                         <td data-label="Student Name">{v.name}</td>
-                        <td data-label="Scored Marks">{v.scored}</td>
-                        <td data-label="Total Marks">{v.total}</td>
+                        <td data-label="Course">{v.course || "-"}</td>
+                        <td data-label="Subject">{v.subject || "-"}</td>
+                        <td data-label="Scored Marks">{v.scored ?? "-"}</td>
+                        <td data-label="Total Marks">{v.total ?? "-"}</td>
                         <td data-label="Pass Marks">{v.pass ?? "-"}</td>
-                        <td data-label="Result">
-                          {v.result ? (
-                            <span style={{ fontWeight: 700, color: v.result === "Pass" ? "#1e7e34" : "#b00020" }}>{v.result}</span>
-                          ) : "-"}
+                        <td data-label="Present/Absent">
+                          <span style={{ fontWeight: 700, color: v.absent ? "#b00020" : "#1e7e34" }}>
+                            {v.absent ? "Absent" : "Present"}
+                          </span>
                         </td>
                         <td data-label="Status">
                           <StatusBadge status={change.status} />
                         </td>
-                        <td data-label="Uploaded on">{formatDate(change.requestedDate?.slice(0, 10))}</td>
+                        <td data-label="Uploaded On">{formatDate(change.requestedDate?.slice(0, 10))}</td>
                         <td data-label="Actions">
                           <div className="action-group">
                             {change.status === "Pending" && (
@@ -735,9 +742,12 @@ useEffect(() => {
             <div className="preview-section-stack">
               <section className="preview-section">
                 <dl>
-                  {Object.entries(viewingReview.payload).map(([key, value]) => (
-                    <div key={key}><dt>{PAYLOAD_LABELS[key] || key}</dt><dd>{renderPayloadValue(key, value)}</dd></div>
-                  ))}
+                  {REVIEW_VIEW_ORDER.map((key) => {
+                    const value = key === "isAbsent" ? rowView(viewingReview).absent : viewingReview.payload[key];
+                    return (
+                      <div key={key}><dt>{PAYLOAD_LABELS[key]}</dt><dd>{renderPayloadValue(key, value)}</dd></div>
+                    );
+                  })}
                   <div><dt>Status</dt><dd><StatusBadge status={viewingReview.status} /></dd></div>
                 </dl>
               </section>

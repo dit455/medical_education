@@ -1,60 +1,46 @@
 import { useState, useEffect, useMemo } from "react";
-import { CircleCheck, X, FileText, Trash2 } from "lucide-react";
+import { CircleCheck, X } from "lucide-react";
 import * as api from "../api.js";
 import { passOrFail, formatDate } from "../utils.js";
 import MyRequestsTable from "../components/MyRequestsTable.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
 
-// Exam Schedule defines the exam context (course/year/semester/category/
-// session/date). The Creator picks a course, sees that course's subjects as
-// tabs, and under the active subject tab sees every enrolled student as a row
-// with an inline Scored Marks entry, an auto-filled Total/Pass (from the
-// Department's subject config), a live Pass/Fail result, and a per-row Submit
-// button. exam_type_id is always Internal Assessment.
+// Internal Marks Management (Institution -> Creator)
+// Layout mirrors the paper "xerox" sheet:
+//   LEFT  : Course, Subject
+//   RIGHT : Assessment Type, Year, Semester, Month & Year of Exam, Year of Admission
+//   BELOW : table of the course's students (Sl.No, Student, Attendance, Scored Marks,
+//           Total Marks, Pass Marks, Actions). After Submit the row stays, locked with
+//           Submit disabled, and the entry also appears in the My Requests table.
+// Total / Pass marks come from the Department's subject config.
+// Absent students are marked with the Present/Absent toggle.
+
+const EMPTY_SCHEDULE = { courseId: "", subjectId: "", admissionYear: "", yearId: "", semId: "", examMonth: "", examYear: "" };
+
 export default function InternalMarksPage({ institutionId, username }) {
   const [courses, setCourses] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [allSubjects, setAllSubjects] = useState([]);
-  const [institutionName, setInstitutionName] = useState("");
   const [years, setYears] = useState([]);
   const [sems, setSems] = useState([]);
-  const [examCategories, setExamCategories] = useState([]);
-  const [examSessions, setExamSessions] = useState([]);
   const [students, setStudents] = useState([]);
 
-  const loadSchedule = () => {
+  const [schedule, setSchedule] = useState(() => {
     try {
-      const raw = localStorage.getItem("ems_im_schedule");
-      if (raw) return JSON.parse(raw);
+      const raw = localStorage.getItem("ems_im_schedule_v2");
+      if (raw) return { ...EMPTY_SCHEDULE, ...JSON.parse(raw) };
     } catch {}
-    return {
-      courseId: "", admissionYear: "", yearId: "", semId: "", examCatId: "", examSessionId: "", examDate: "",
-    };
-  };
-  const [schedule, setSchedule] = useState(loadSchedule);
-  const [activeSubjectId, setActiveSubjectId] = useState("");
-  const [rowScored, setRowScored] = useState({});
-  const [rowState, setRowState] = useState({});
-  const [shownStudentIds, setShownStudentIds] = useState([]);
-  const persistKey = (cid, sid) => `ems_im_${cid || "x"}_${sid || "x"}`;
-  const loadPersisted = (cid, sid) => {
-    try {
-      const raw = localStorage.getItem(persistKey(cid, sid));
-      if (!raw) return { populated: [], absent: [] };
-      const p = JSON.parse(raw);
-      return { populated: p.populated || [], absent: p.absent || [] };
-    } catch {
-      return { populated: [], absent: [] };
-    }
-  };
+    return EMPTY_SCHEDULE;
+  });
 
-  const [addRegNo, setAddRegNo] = useState("");
-  const [addOpen, setAddOpen] = useState(false);
-  const [absentOpen, setAbsentOpen] = useState(false);
-  const [absentRegNo, setAbsentRegNo] = useState("");
-  const [highlightId, setHighlightId] = useState("");
-  const [addError, setAddError] = useState("");
-  const [absentError, setAbsentError] = useState("");
+  // Month and Year of the exam are entered separately; the saved value is "<month> <year>".
+  const examDateLabel = `${schedule.examMonth.trim()} ${schedule.examYear.trim()}`.trim();
+
+  // Per-row state is keyed by `${subjectId}::${studentId}` so nothing leaks between subjects.
+  const [rowScored, setRowScored] = useState({});
+  const [rowAbsent, setRowAbsent] = useState({});
+  const [rowState, setRowState] = useState({});
+  const [optimisticLocks, setOptimisticLocks] = useState({});
 
   const [error, setError] = useState("");
   const [touched, setTouched] = useState({});
@@ -63,21 +49,15 @@ export default function InternalMarksPage({ institutionId, username }) {
   const [viewingRequest, setViewingRequest] = useState(null);
   const [editingRequest, setEditingRequest] = useState(null);
 
-  function markTouched(key) {
-    setTouched((prev) => ({ ...prev, [key]: true }));
-  }
-  function fieldError(key, errors) {
-    return touched[key] && errors[key] ? errors[key] : null;
-  }
+  const rowKey = (subjectId, studentId) => `${subjectId}::${studentId}`;
+  const markTouched = (key) => setTouched((p) => ({ ...p, [key]: true }));
 
-  async function handleResubmitRequest(change, values) {
-    try {
-      await api.updatePendingChange(change.id, { ...change.payload, ...values }, username);
-      setEditingRequest(null);
-      refreshMyRequests();
-    } catch (err) {
-      alert(err.message || "Could not resubmit this request.");
-    }
+  function setScheduleField(key, value) {
+    setSchedule((prev) => {
+      const next = { ...prev, [key]: value };
+      try { localStorage.setItem("ems_im_schedule_v2", JSON.stringify(next)); } catch {}
+      return next;
+    });
   }
 
   function refreshMyRequests() {
@@ -87,420 +67,155 @@ export default function InternalMarksPage({ institutionId, username }) {
       .catch(() => setMyRequests([]));
   }
 
-  function refreshStudents() {
-    api.getInstitutionStudents(institutionId).then(setStudents).catch(() => setStudents([]));
+  async function handleResubmitRequest(change, values) {
+    try {
+      // a corrected entry with marks is a Present entry
+      await api.updatePendingChange(change.id, { ...change.payload, ...values, isAbsent: false }, username);
+      setEditingRequest(null);
+      refreshMyRequests();
+    } catch (err) {
+      alert(err.message || "Could not resubmit this request.");
+    }
   }
 
+  // ---------- data loading ----------
   useEffect(() => {
     api.getCourses(institutionId).then(setCourses).catch(() => setCourses([]));
-    api.getInstitution(institutionId).then((inst) => setInstitutionName(inst?.name || "")).catch(() => setInstitutionName(""));
-    refreshStudents();
+    api.getInstitutionStudents(institutionId).then(setStudents).catch(() => setStudents([]));
     api.getYears().then(setYears).catch(() => setYears([]));
     api.getExamSems().then(setSems).catch(() => setSems([]));
-    api.getExamCategories().then(setExamCategories).catch(() => setExamCategories([]));
-    api.getExamSessions().then(setExamSessions).catch(() => setExamSessions([]));
     refreshMyRequests();
   }, [institutionId]);
 
-    useEffect(() => {
+  // all subjects of all courses - only used to show subject names in My Requests
+  useEffect(() => {
     if (courses.length === 0) return;
-    Promise.all(courses.map((c) => api.getSubjects(c.id).catch(() => [])))
-      .then((lists) => setAllSubjects(lists.flat()));
+    Promise.all(courses.map((c) => api.getSubjects(c.id).catch(() => []))).then((l) => setAllSubjects(l.flat()));
   }, [courses]);
 
+  // Course -> its Active subjects fill the Subject dropdown
   useEffect(() => {
-    if (!schedule.courseId) {
-      setSubjects([]);
-      setActiveSubjectId("");
-      return;
-    }
+    if (!schedule.courseId) { setSubjects([]); return; }
     api
       .getSubjects(schedule.courseId)
       .then((list) => {
-        // Only Active subjects should be selectable for marks entry — an
-        // Inactive subject shouldn't appear as a tab here even though it
-        // still exists in the course's subject mapping.
-        const activeList = list.filter((s) => s.status !== "Inactive");
-        setSubjects(activeList);
-        let saved = "";
-        try { saved = localStorage.getItem("ems_im_subject") || ""; } catch {}
-        const match = activeList.find((s) => String(s.id) === String(saved));
-        setActiveSubjectId(match ? String(saved) : (activeList.length ? String(activeList[0].id) : ""));
+        const active = list.filter((s) => s.status !== "Inactive");
+        setSubjects(active);
+        // keep the saved subject only if it belongs to this course
+        setSchedule((prev) =>
+          active.some((s) => String(s.id) === String(prev.subjectId)) ? prev : { ...prev, subjectId: "" },
+        );
       })
-      .catch(() => {
-        setSubjects([]);
-        setActiveSubjectId("");
-      });
-    setRowScored({});
-    setShownStudentIds([]);
-    setAddRegNo("");
-    setAbsentRegNo("");
-    setAddError("");
-    setAbsentError("");
-    setRowState({});
-    setOptimisticLocks({});
+      .catch(() => setSubjects([]));
   }, [schedule.courseId]);
 
-    useEffect(() => {
-    if (activeSubjectId) refreshMyRequests();
-    try { localStorage.setItem("ems_im_subject", activeSubjectId || ""); } catch {}
-    }, [activeSubjectId]);
-
-  const activeSubject = useMemo(
-    () => subjects.find((s) => String(s.id) === String(activeSubjectId)),
-    [subjects, activeSubjectId],
-  );
-  const courseNameFor = (id) => (courses.find((c) => String(c.id) === String(id))?.name || "-").toUpperCase();
-  const subjectNameFor = (id) => subjects.find((s) => String(s.id) === String(id))?.subject || "-";
-  const subjectNameForAny = (id) => allSubjects.find((s) => String(s.id) === String(id))?.subject || "-";
-    const examPeriodLabel = useMemo(() => {
-    const d = activeSubject?.effectiveDate;
-    if (!d) return "";
-    const dt = new Date(d);
-    if (isNaN(dt)) return "";
-    return dt.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  }, [activeSubject]);
-
-      const internalDivision = useMemo(
-        () => activeSubject?.divisions?.find((d) => Number(d.examTypeId) === 1),
-        [activeSubject],
-      );
-  const configuredTotalMarks = internalDivision ? internalDivision.maxMarks : null;
-  const configuredPassMarks = internalDivision ? internalDivision.passMarks : null;
-
-
-
-  // Derive Year (1/2/3/4) from Year of Admission: current year − admission year.
-  // Matches the computed number against the year options (by the digit in the
-  // option name, e.g. "Year 3") and sets yearId automatically.
+  // changing course or subject starts a fresh sheet
   useEffect(() => {
-    if (!schedule.admissionYear || years.length === 0) return;
-    const admitYear = new Date(schedule.admissionYear).getFullYear();
-    if (!admitYear || Number.isNaN(admitYear)) return;
-    const computed = new Date().getFullYear() - admitYear + 1;
-    const match = years.find((y) => {
-      const n = parseInt(String(y.name).replace(/\D/g, ""), 10);
-      return n === computed;
-    });
-    setSchedule((prev) => {
-      const next = { ...prev, yearId: match ? String(match.id) : "" };
-      try { localStorage.setItem("ems_im_schedule", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setRowScored({});
+    setRowAbsent({});
+    setRowState({});
+    setOptimisticLocks({});
+    setError("");
+    if (schedule.subjectId) refreshMyRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule.admissionYear, years]);
+  }, [schedule.courseId, schedule.subjectId]);
 
+  // ---------- derived values ----------
+  const activeSubject = useMemo(
+    () => subjects.find((s) => String(s.id) === String(schedule.subjectId)),
+    [subjects, schedule.subjectId],
+  );
+  const internalDivision = useMemo(
+    () => activeSubject?.divisions?.find((d) => Number(d.examTypeId) === 1),
+    [activeSubject],
+  );
+  const totalMarks = internalDivision ? internalDivision.maxMarks : null;
+  const passMarks = internalDivision ? internalDivision.passMarks : null;
 
-
-  function setScheduleField(key, value) {
-    setSchedule((prev) => {
-      const next = { ...prev, [key]: value };
-      try { localStorage.setItem("ems_im_schedule", JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }
+  const courseNameFor = (id) => (courses.find((c) => String(c.id) === String(id))?.name || "-").toUpperCase();
+  const subjectNameForAny = (id) => allSubjects.find((s) => String(s.id) === String(id))?.subject || "-";
 
   const scheduleErrors = {
     courseId: !schedule.courseId && "Course is required.",
-    admissionYear: !schedule.admissionYear && "Year of Admission is required.",
+    subjectId: !schedule.subjectId && "Subject is required.",
     yearId: !schedule.yearId && "Year is required.",
     semId: !schedule.semId && "Semester is required.",
-    examCatId: !schedule.examCatId && "Exam Category is required.",
-    examSessionId: !schedule.examSessionId && "Exam Session is required.",
-    examDate: !schedule.examDate && "Month & Year of Exam is required.",
+    examMonth: !schedule.examMonth.trim() && "Month of Exam is required.",
+    examYear: !/^\d{4}$/.test(schedule.examYear.trim()) && "Enter a 4-digit year, e.g. 2026.",
+    admissionYear: !/^\d{4}$/.test(String(schedule.admissionYear).trim()) && "Enter a 4-digit year, e.g. 2025.",
   };
   const scheduleValid = Object.values(scheduleErrors).every((e) => !e);
+  const fieldError = (key) =>
+    touched[key] && scheduleErrors[key] ? <small style={{ color: "#b00020" }}>{scheduleErrors[key]}</small> : null;
 
   const courseStudents = useMemo(
     () => students.filter((s) => String(s.courseId) === String(schedule.courseId)),
     [students, schedule.courseId],
   );
 
-  const shownStudents = courseStudents;
-
-  // When a course is selected, auto-fill Year of Admission from that course's
-  // registered students. Uses the most recent batch's admission year if the
-  // course has students from multiple years.
-  useEffect(() => {
-    if (!schedule.courseId) return;
-    const withYear = courseStudents
-      .map((s) => s.admissionYear)
-      .filter(Boolean);
-    // Pick the latest admission date among THIS course's students; if the course
-    // has no students, clear the field instead of keeping the previous course's value.
-    let iso = "";
-    if (withYear.length > 0) {
-      const latest = withYear
-        .map((d) => ({ raw: d, t: new Date(d).getTime() }))
-        .filter((x) => !Number.isNaN(x.t))
-        .sort((a, b) => b.t - a.t)[0];
-      if (latest) iso = String(latest.raw).slice(0, 10);
-    }
-    setSchedule((prev) => {
-      if (prev.admissionYear === iso) return prev;
-      const next = { ...prev, admissionYear: iso, yearId: iso ? prev.yearId : "" };
-      try { localStorage.setItem("ems_im_schedule", JSON.stringify(next)); } catch {}
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule.courseId, courseStudents]);
-
-    // Added / Absentees is derived entirely from tbl_pending_changes (myRequests)
-  // for the active course+subject. No localStorage — so deleting/truncating rows
-  // in the DB clears this table too.
-  const [manuallyAdded, setManuallyAdded] = useState([]);
-
-  const requestsForActive = useMemo(
-    () => myRequests.filter(
-      (c) =>
-        String(c.payload.courseId) === String(schedule.courseId) &&
-        String(c.payload.subjectId) === String(activeSubjectId)
-    ),
-    [myRequests, schedule.courseId, activeSubjectId],
-  );
-
-  useEffect(() => {
-    setManuallyAdded([]);
-  }, [schedule.courseId, activeSubjectId]);
-
-  const absentIds = useMemo(
-    () =>
-      requestsForActive
-        .filter((c) => c.payload?.isAbsent || c.payload?.result === "Absent")
-        .map((c) => String(c.payload.studentId)),
-    [requestsForActive],
-  );
-
-  // Added / Absentees shows ONLY students brought in via −Absentees or +Add.
-  // Normal marks submissions stay in My Requests.
-  const populatedIds = useMemo(
-    () => Array.from(new Set([...absentIds, ...manuallyAdded])),
-    [absentIds, manuallyAdded],
-  );
-
-  const populatedStudents = useMemo(
-    () => courseStudents.filter((s) => populatedIds.includes(String(s.id))),
-    [courseStudents, populatedIds],
-  );
-
-  const requestForStudent = (sid) => {  
-  const exact = myRequests.find(
-        (c) =>
-          c.status !== "Rejected" &&
-          String(c.payload.courseId) === String(schedule.courseId) &&
-          String(c.payload.subjectId) === String(activeSubjectId) &&
-          String(c.payload.studentId) === String(sid)
-      );
-      if (exact) return exact;
-      // Fallback: same course + student, any subject — catches requests saved
-      // under a differently-numbered subject entry that shows the same name.
-      return (
-        myRequests.find(
-          (c) =>
-            c.status !== "Rejected" &&
-            String(c.payload.courseId) === String(schedule.courseId) &&
-            String(c.payload.studentId) === String(sid)
-        ) || null
-      );
-    };
-
+  // Existing (non-rejected) requests for this course + subject + semester + exam month.
   const lockedForSubject = useMemo(() => {
     const map = {};
     myRequests.forEach((c) => {
+      const p = c.payload || {};
       if (
         c.status !== "Rejected" &&
-        String(c.payload.courseId) === String(schedule.courseId) &&
-        String(c.payload.subjectId) === String(activeSubjectId)
+        String(p.courseId) === String(schedule.courseId) &&
+        String(p.subjectId) === String(schedule.subjectId) &&
+        String(p.semId) === String(schedule.semId) &&
+        String(p.examDate || "").trim() === examDateLabel
       ) {
-        // Keep the scored marks alongside the status so the locked cell can
-        // still show what was submitted (or what a rejected-then-corrected
-        // resubmission was updated to), instead of just a dash.
-        map[String(c.payload.studentId)] = { status: c.status, scoredMarks: c.payload.scoredMarks };
+        map[String(p.studentId)] = {
+          status: c.status,
+          scoredMarks: p.scoredMarks,
+          isAbsent: !!p.isAbsent || p.result === "Absent",
+        };
       }
     });
     return map;
-  }, [myRequests, schedule.courseId, activeSubjectId]);
+  }, [myRequests, schedule.courseId, schedule.subjectId, schedule.semId, examDateLabel]);
 
-  // The list of "My Requests" only refreshes after a network round-trip, so
-  // right after a successful submit there'd be a gap where the row shows an
-  // empty, still-editable input even though the submit already went through.
-  // Optimistic locks close that gap: as soon as a submit succeeds we lock
-  // the row and show the value immediately, then once the real request list
-  // catches up (lockedForSubject above) that becomes the source of truth and
-  // the optimistic entry is dropped.
-  const [optimisticLocks, setOptimisticLocks] = useState({});
+  // drop an optimistic lock once the real request has loaded
   useEffect(() => {
     setOptimisticLocks((prev) => {
       const next = {};
       let changed = false;
-      Object.keys(prev).forEach((key) => {
-        const sid = key.split("::")[1];
-        if (lockedForSubject[sid]) {
-          changed = true; // real lock has arrived - drop the optimistic one
-        } else {
-          next[key] = prev[key];
-        }
+      Object.keys(prev).forEach((k) => {
+        if (lockedForSubject[k.split("::")[1]]) changed = true;
+        else next[k] = prev[k];
       });
       return changed ? next : prev;
     });
   }, [lockedForSubject]);
 
-  // Scored-marks entry and per-row submit state must be scoped to a specific
-  // subject + student combination - keying by student id alone caused a
-  // value typed under one subject tab to "leak" into every other subject
-  // tab for that same student (and a "done"/error state to leak the same
-  // way), since all tabs shared the same rowScored[studentId] entry.
-  function rowKey(subjectId, studentId) {
-    return `${subjectId}::${studentId}`;
-  }
+  // Students of this course admitted in the typed year.
+  const yearStudents = useMemo(() => {
+    const yr = String(schedule.admissionYear).trim();
+    const yearOf = (s) => String(s.admissionYear || "").slice(0, 4);
+    return /^\d{4}$/.test(yr) ? courseStudents.filter((s) => yearOf(s) === yr) : courseStudents;
+  }, [courseStudents, schedule.admissionYear]);
 
-  function rowResult(key) {
-    const scored = rowScored[key];
-    if (scored === "" || scored == null) return null;
-    if (configuredTotalMarks != null && Number(scored) > Number(configuredTotalMarks)) return null;
-    return passOrFail(scored, configuredPassMarks);
-  }
+  // Every student stays in the table; a submitted one is shown locked (Submit disabled).
+  const shownStudents = yearStudents;
 
-      function normReg(v) {
-        // lowercase, strip spaces, and drop leading zeros in the numeric part
-        // so "S003", "s0003" and "S0003" all match.
-        return String(v).trim().toLowerCase().replace(/\s+/g, "")
-        .replace(/^([a-z]*)0*(\d+)$/, "$1$2");
-      }
-      function findByRegNo(regNo) {
-        const target = normReg(regNo);
-        return courseStudents.find((s) => normReg(s.registerNo) === target);
-      }
-
-    function focusRow(sid) {
-    setHighlightId(sid);
-    const el = document.getElementById(`marks-row-${sid}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    setTimeout(() => setHighlightId(""), 2500);
-   }
-
-    function handleAddStudent() {
-    setAddError("");
-    if (!scheduleValid) {
-      setTouched({
-        courseId: true, admissionYear: true, yearId: true, semId: true,
-        examCatId: true, examSessionId: true, examDate: true,
-      });
-      setAddError("Complete the Exam Schedule first.");
-      return;
-    }
-    if (!addRegNo.trim()) { setAddError("Enter a register number."); return; }
-    const student = findByRegNo(addRegNo);
-    if (!student) { setAddError("No student with that register number in this course."); return; }
-    const sid = String(student.id);
-    const isApproved = myRequests.some(
-      (c) =>
-        c.status === "Approved" &&
-        String(c.payload?.courseId) === String(schedule.courseId) &&
-        Number(c.payload?.subjectId) === Number(activeSubjectId) &&
-        String(c.payload?.studentId) === sid,
-    );
-    if (!isApproved) {
-      setAddError("Only students with an approved entry can be added.");
-      return;
-    }
-    setManuallyAdded((p) => (p.includes(sid) ? p : [...p, sid]));
-    focusRow(sid);
-    setAddRegNo("");
-    setAddOpen(false);
-  }
-
-  async function handleAddAbsentee() {
-    setAbsentError("");
-    if (!scheduleValid) {
-      setTouched({
-        courseId: true, admissionYear: true, yearId: true, semId: true,
-        examCatId: true, examDate: true,
-      });
-      setAbsentError("Complete the Exam Schedule first.");
-      return;
-    }
-    if (!absentRegNo.trim()) { setAbsentError("Enter a register number."); return; }
-    const student = findByRegNo(absentRegNo);
-    if (!student) { setAbsentError("No student with that register number in this course."); return; }
-    const sid = String(student.id);
-    const alreadyApproved = myRequests.some(
-      (c) =>
-        c.status === "Approved" &&
-        Number(c.payload?.subjectId) === Number(activeSubjectId) &&
-        String(c.payload?.studentId) === sid
-    );
-    if (alreadyApproved) {
-      setAbsentError("This student already has an approved entry and cannot be marked absent.");
-      return;
-    }
-    focusRow(sid);
-    setAbsentRegNo("");
-    setAbsentOpen(false);
-
-    const key = rowKey(activeSubjectId, sid);
-    setRowState((p) => ({ ...p, [key]: "submitting" }));
-    try {
-      await api.submitPendingChange({
-        entityType: "internal_marks",
-        action: "create",
-        entityId: null,
-        institutionId,
-        actor: username,
-        payload: {
-          courseId: Number(schedule.courseId),
-          subjectId: Number(activeSubjectId),
-          admissionYear: schedule.admissionYear,
-          yearId: Number(schedule.yearId),
-          semId: Number(schedule.semId),
-          examCatId: Number(schedule.examCatId),
-          examSessionId: schedule.examSessionId ? Number(schedule.examSessionId) : null,
-          examDate: schedule.examDate,
-          studentId: Number(student.id),
-          scoredMarks: null,
-          totalMarks: configuredTotalMarks != null ? Number(configuredTotalMarks) : null,
-          passMarks: configuredPassMarks != null ? Number(configuredPassMarks) : null,
-          result: "Absent",
-          isAbsent: true,
-        },
-      });
-      setOptimisticLocks((p) => ({ ...p, [key]: { status: "Pending", scoredMarks: null, isAbsent: true } }));
-      setRowState((p) => ({ ...p, [key]: "" }));
-      refreshMyRequests();
-    } catch (err) {
-      setAbsentError(err.message || "Could not submit absentee.");
-      setAbsentIds((p) => p.filter((id) => id !== sid));
-    }
-  }
-
+  // ---------- submit one row ----------
   async function handleRowSubmit(student) {
     setError("");
     if (!scheduleValid) {
-      setTouched({
-        courseId: true, admissionYear: true, yearId: true, semId: true,
-        examCatId: true, examDate: true,
-      });
-      setError("Please complete the Exam Schedule before submitting marks.");
+      setTouched({ courseId: true, subjectId: true, yearId: true, semId: true, examMonth: true, examYear: true, admissionYear: true });
+      setError("Please complete the exam details before submitting marks.");
       return;
     }
     const sid = String(student.id);
-    const key = rowKey(activeSubjectId, sid);
+    const key = rowKey(schedule.subjectId, sid);
+    const absent = !!rowAbsent[key];
     const scored = rowScored[key];
-    if (scored === "" || scored == null) {
-      setRowState((p) => ({ ...p, [key]: "Enter scored marks first." }));
-      return;
-    }
-    if (configuredTotalMarks == null) {
-      setRowState((p) => ({ ...p, [key]: "This subject has no marks configured by the Department." }));
-      return;
-    }
-    if (Number(scored) > Number(configuredTotalMarks)) {
-      setRowState((p) => ({ ...p, [key]: "Scored cannot exceed Total." }));
-      return;
-    }
-    if (Number(scored) < 0) {
-      setRowState((p) => ({ ...p, [key]: "Scored cannot be negative." }));
-      return;
+
+    if (!absent) {
+      if (scored === "" || scored == null) return setRowState((p) => ({ ...p, [key]: "Enter scored marks first." }));
+      if (totalMarks == null) return setRowState((p) => ({ ...p, [key]: "No marks configured by the Department." }));
+      if (Number(scored) > Number(totalMarks)) return setRowState((p) => ({ ...p, [key]: "Cannot exceed Total." }));
+      if (Number(scored) < 0) return setRowState((p) => ({ ...p, [key]: "Cannot be negative." }));
     }
 
     setRowState((p) => ({ ...p, [key]: "submitting" }));
@@ -513,20 +228,25 @@ export default function InternalMarksPage({ institutionId, username }) {
         actor: username,
         payload: {
           courseId: Number(schedule.courseId),
-          subjectId: Number(activeSubjectId),
-          admissionYear: schedule.admissionYear,
+          subjectId: Number(schedule.subjectId),
+          admissionYear: String(schedule.admissionYear).trim(),
           yearId: Number(schedule.yearId),
           semId: Number(schedule.semId),
-          examCatId: Number(schedule.examCatId),
-          examDate: schedule.examDate,
+          examCatId: null,
+          examSessionId: null,
+          examDate: examDateLabel,
           studentId: Number(student.id),
-          scoredMarks: Number(scored),
-          totalMarks: Number(configuredTotalMarks),
-          passMarks: configuredPassMarks != null ? Number(configuredPassMarks) : null,
-          result: rowResult(key),
+          scoredMarks: absent ? null : Number(scored),
+          totalMarks: totalMarks != null ? Number(totalMarks) : null,
+          passMarks: passMarks != null ? Number(passMarks) : null,
+          result: absent ? "Absent" : passOrFail(scored, passMarks),
+          isAbsent: absent,
         },
       });
-      setOptimisticLocks((p) => ({ ...p, [key]: { status: "Pending", scoredMarks: Number(scored) } }));
+      setOptimisticLocks((p) => ({
+        ...p,
+        [key]: { status: "Pending", scoredMarks: absent ? null : Number(scored), isAbsent: absent },
+      }));
       setRowScored((p) => ({ ...p, [key]: "" }));
       setRowState((p) => ({ ...p, [key]: "" }));
       refreshMyRequests();
@@ -535,186 +255,151 @@ export default function InternalMarksPage({ institutionId, username }) {
     }
   }
 
+  const segBtn = (active, danger) => ({
+    padding: "6px 12px",
+    border: "1px solid var(--line)",
+    cursor: "pointer",
+    fontWeight: 700,
+    fontSize: "0.8rem",
+    background: active ? (danger ? "#b00020" : "#1e7e34") : "#fff",
+    color: active ? "#fff" : "var(--muted)",
+  });
+
+  // ---------- render ----------
   return (
     <section className="content-stack" style={{ width: "100%", maxWidth: "none", padding: "0 32px" }}>
       <div className="page-heading">
-        <div>
-         
-          <h2>Internal Marks Management</h2>
-        </div>
+        <div><h2>Internal Marks Management</h2></div>
       </div>
 
       {error && <div className="login-error">{error}</div>}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* ===== Exam details (one grid, so every field is aligned and styled the same) ===== */}
         <section className="data-table-card" style={{ width: "100%" }}>
-          <div className="data-table-heading">
-            <div>
-              <h3>Exam Schedule</h3>
-            </div>
-          </div>
-          <div className="form-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr", gap: "18px 24px" }}>
+          <div className="data-table-heading"><div><h3>Exam Details</h3></div></div>
+
+          <style>{`
+            .im-exam-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 18px 24px; align-items: start; }
+            @media (max-width: 1100px) { .im-exam-grid { grid-template-columns: 1fr 1fr; } }
+            @media (max-width: 600px)  { .im-exam-grid { grid-template-columns: 1fr; } }
+          `}</style>
+
+          <div className="form-grid im-exam-grid">
+            {/* row 1 */}
             <label>
               <span>Course *</span>
               <select
                 value={schedule.courseId}
-                onChange={(e) => setScheduleField("courseId", e.target.value)}
+                onBlur={() => markTouched("courseId")}
+                onChange={(e) => setSchedule((p) => {
+                  const next = { ...p, courseId: e.target.value, subjectId: "" };
+                  try { localStorage.setItem("ems_im_schedule_v2", JSON.stringify(next)); } catch {}
+                  return next;
+                })}
               >
                 <option value="">Select course</option>
                 {[...courses].sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
                   <option key={c.id} value={c.id}>{(c.name || "").toUpperCase()}</option>
                 ))}
               </select>
+              {fieldError("courseId")}
             </label>
+
             <label>
               <span>Assessment Type</span>
               <input value="Internal Assessment" readOnly style={{ background: "var(--soft-gray)", cursor: "not-allowed" }} />
             </label>
-              <label>
-              <span>Year of Admission * (auto from students)</span>
-              <input
-                type="date"
-                value={schedule.admissionYear}
-                readOnly
-                disabled
-                style={{ background: "var(--soft-gray)", cursor: "not-allowed" }}
-              />
-              {fieldError("admissionYear", scheduleErrors) && <small style={{ color: "#b00020" }}>{scheduleErrors.admissionYear}</small>}
-            </label>
+
             <label>
-              <span>Year * (auto from admission year)</span>
-              <select value={schedule.yearId} disabled onChange={() => {}}>
-                <option value="">Auto from admission year</option>
-                {years.map((y) => (
-                  <option key={y.id} value={y.id}>{y.name}</option>
-                ))}
+              <span>Year *</span>
+              <select value={schedule.yearId} onBlur={() => markTouched("yearId")} onChange={(e) => setScheduleField("yearId", e.target.value)}>
+                <option value="">Select year</option>
+                {years.map((y) => (<option key={y.id} value={y.id}>{y.name}</option>))}
               </select>
-              {fieldError("yearId", scheduleErrors) && <small style={{ color: "#b00020" }}>{scheduleErrors.yearId}</small>}
+              {fieldError("yearId")}
             </label>
+
             <label>
               <span>Semester *</span>
               <select value={schedule.semId} onBlur={() => markTouched("semId")} onChange={(e) => setScheduleField("semId", e.target.value)}>
                 <option value="">Select semester</option>
-                {sems.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
+                {sems.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
               </select>
-              {fieldError("semId", scheduleErrors) && <small style={{ color: "#b00020" }}>{scheduleErrors.semId}</small>}
-            </label>
-            <label>
-              <span>Exam Category *</span>
-              <select value={schedule.examCatId} onBlur={() => markTouched("examCatId")} onChange={(e) => setScheduleField("examCatId", e.target.value)}>
-                <option value="">Select exam category</option>
-                {examCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {fieldError("examCatId", scheduleErrors) && <small style={{ color: "#b00020" }}>{scheduleErrors.examCatId}</small>}
+              {fieldError("semId")}
             </label>
 
+            {/* row 2 */}
             <label>
-              <span>Exam Session *</span>
-              <select value={schedule.examSessionId} onBlur={() => markTouched("examSessionId")} onChange={(e) => setScheduleField("examSessionId", e.target.value)}>
-                <option value="">Select session (FN/AN)</option>
-                {examSessions.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
+              <span>Subject *</span>
+              <select
+                value={schedule.subjectId}
+                disabled={!schedule.courseId}
+                onBlur={() => markTouched("subjectId")}
+                onChange={(e) => setScheduleField("subjectId", e.target.value)}
+              >
+                <option value="">{schedule.courseId ? "Select subject" : "Select a course first"}</option>
+                {subjects.map((s) => (<option key={s.id} value={s.id}>{s.subject}</option>))}
               </select>
-              {fieldError("examSessionId", scheduleErrors) && <small style={{ color: "#b00020" }}>{scheduleErrors.examSessionId}</small>}
+              {fieldError("subjectId")}
             </label>
 
+            {/* TODO: replace Month of Exam with a master-data dropdown once the master is ready */}
             <label>
-              <span>Month & Year of Exam *</span>
+              <span>Month of Exam *</span>
               <input
                 type="text"
-                placeholder="e.g. Jan-Feb 2026"
-                value={schedule.examDate}
-                onBlur={() => markTouched("examDate")}
-                onChange={(e) => setScheduleField("examDate", e.target.value)}
+                placeholder="e.g. Feb-March"
+                value={schedule.examMonth}
+                onBlur={() => markTouched("examMonth")}
+                onChange={(e) => setScheduleField("examMonth", e.target.value)}
               />
-              {fieldError("examDate", scheduleErrors) && <small style={{ color: "#b00020" }}>{scheduleErrors.examDate}</small>}
+              {fieldError("examMonth")}
+            </label>
+
+            <label>
+              <span>Year of Exam *</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="e.g. 2026"
+                value={schedule.examYear}
+                onBlur={() => markTouched("examYear")}
+                onChange={(e) => setScheduleField("examYear", e.target.value.replace(/\D/g, ""))}
+              />
+              {fieldError("examYear")}
+            </label>
+
+            <label>
+              <span>Year of Admission *</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="e.g. 2025"
+                value={schedule.admissionYear}
+                onBlur={() => markTouched("admissionYear")}
+                onChange={(e) => setScheduleField("admissionYear", e.target.value.replace(/\D/g, ""))}
+              />
+              {fieldError("admissionYear")}
             </label>
           </div>
         </section>
 
+        {/* ===== Students table ===== */}
         <section className="data-table-card" style={{ width: "100%" }}>
-          <div className="data-table-heading">
-            <div>
-              <h3>Student Marks</h3>
-            </div>
-          </div>
+          <div className="data-table-heading"><div><h3>Student Marks</h3></div></div>
 
-          {!schedule.courseId ? (
+          {!schedule.courseId || !schedule.subjectId ? (
             <div className="table-empty" style={{ padding: "24px 8px" }}>
-              <span>Select a course to see its subjects and students.</span>
+              <span>Select a course and subject to see its students.</span>
             </div>
-            ) : subjects.length === 0 ? (
-            <>
-              <div style={{ marginBottom: 12, color: "var(--muted)", fontSize: "0.8rem" }}>
-                No subjects mapped for this course yet — map subjects to enter marks.
-              </div>
-              <div className="table-wrap data-table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Reg No</th>
-                      <th>List of Students</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {courseStudents.length === 0 ? (
-                      <tr>
-                        <td colSpan={2} className="empty-state">
-                          <div className="table-empty"><span>No students registered for this course.</span></div>
-                        </td>
-                      </tr>
-                    ) : (
-                      courseStudents.map((s) => (
-                        <tr key={s.id}>
-                          <td>{s.regNo}</td>
-                          <td>{s.name}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </>
           ) : (
             <>
-              <div
-                role="tablist"
-                aria-label="Subjects"
-                style={{ display: "flex", flexWrap: "wrap", gap: 8, borderBottom: "1px solid var(--line)", marginBottom: 16 }}
-              >
-                {subjects.map((s) => {
-                  const active = String(s.id) === String(activeSubjectId);
-                  return (
-                    <button
-                      key={s.id}
-                      role="tab"
-                      aria-selected={active}
-                      onClick={() => setActiveSubjectId(String(s.id))}
-                      style={{
-                        padding: "10px 16px",
-                        border: "none",
-                        borderBottom: active ? "3px solid var(--brand)" : "3px solid transparent",
-                        background: "none",
-                        cursor: "pointer",
-                        fontWeight: active ? 800 : 600,
-                        color: active ? "var(--brand-dark)" : "var(--muted)",
-                        fontSize: "0.9rem",
-                      }}
-                    >
-                      {s.subject}
-                    </button>
-                  );
-                })}
-              </div>
-
               <div style={{ marginBottom: 12, color: "var(--muted)", fontSize: "0.8rem" }}>
                 {internalDivision
-                  ? `Total Marks ${configuredTotalMarks} \u00b7 Pass Marks ${configuredPassMarks} (from Department config)`
+                  ? `Total Marks ${totalMarks} \u00b7 Pass Marks ${passMarks} (from Department config)`
                   : "This subject has no Internal Assessment total/pass marks configured by the Department yet."}
               </div>
 
@@ -722,131 +407,94 @@ export default function InternalMarksPage({ institutionId, username }) {
                 <table>
                   <thead>
                     <tr>
+                      <th>Sl.No</th>
                       <th>Reg No</th>
-                      <th>List of Students</th>
+                      <th>Student Name</th>
+                      <th>Attendance</th>
                       <th>Scored Marks</th>
                       <th>Total Marks</th>
                       <th>Pass Marks</th>
-                      <th>Result</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                      {shownStudents.length === 0 ? (
+                    {shownStudents.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="empty-state">
-                          <div className="table-empty"><span>Add a student by register number using the buttons below.</span></div>
+                        <td colSpan={8} className="empty-state">
+                          <div className="table-empty">
+                            <span>
+                              {yearStudents.length > 0
+                                ? "No students to show."
+                                : "No students found for this course and year of admission."}
+                            </span>
+                          </div>
                         </td>
                       </tr>
                     ) : (
-                      shownStudents.map((student) => {
+                      shownStudents.map((student, i) => {
                         const sid = String(student.id);
-                        const key = rowKey(activeSubjectId, sid);
-                        // Prefer the real submitted request once it's loaded;
-                        // fall back to the optimistic lock right after a
-                        // submit, before the request list has refreshed.
-                        const lockedReq = lockedForSubject[sid] || optimisticLocks[key];
-                        const lockStatus = lockedReq?.status;
-                        const scored = rowScored[key] ?? "";
-                        const r = rowResult(key);
-                        const exceeds =
-                          scored !== "" && configuredTotalMarks != null && Number(scored) > Number(configuredTotalMarks);
+                        const key = rowKey(schedule.subjectId, sid);
+                        const locked = lockedForSubject[sid] || optimisticLocks[key];
+                        const absent = locked ? locked.isAbsent : !!rowAbsent[key];
+                        const scored = locked ? (locked.scoredMarks ?? "") : (rowScored[key] ?? "");
+                        const exceeds = scored !== "" && totalMarks != null && Number(scored) > Number(totalMarks);
                         const st = rowState[key];
-                        const lockedResult = lockStatus
-                          ? passOrFail(lockedReq.scoredMarks, configuredPassMarks)
-                          : null;
                         return (
-                            <tr
-                            key={student.id}
-                            id={`marks-row-${sid}`}
-                            style={highlightId === sid ? { background: "var(--soft-gray)", transition: "background 0.3s" } : undefined}
-                            >
+                          <tr key={sid}>
+                            <td data-label="Sl.No">{i + 1}</td>
                             <td data-label="Reg No">{student.registerNo}</td>
-                            <td data-label="List of Students">{student.name}</td>
+                            <td data-label="Student Name">{student.name}</td>
+                            <td data-label="Attendance">
+                              <div style={{ display: "inline-flex", borderRadius: 6, overflow: "hidden", opacity: locked ? 0.6 : 1 }}>
+                                <button type="button" disabled={!!locked} style={segBtn(!absent, false)}
+                                  onClick={() => setRowAbsent((p) => ({ ...p, [key]: false }))}>Present</button>
+                                <button type="button" disabled={!!locked} style={segBtn(absent, true)}
+                                  onClick={() => { setRowAbsent((p) => ({ ...p, [key]: true })); setRowScored((p) => ({ ...p, [key]: "" })); }}>Absent</button>
+                              </div>
+                            </td>
                             <td data-label="Scored Marks">
-                              {lockStatus ? (
-                                <input
-                                  type="number"
-                                  value={lockedReq.scoredMarks ?? ""}
-                                  readOnly
-                                  disabled
-                                  style={{ width: 110, minHeight: 38, background: "var(--soft-gray)", cursor: "not-allowed" }}
-                                />
-                              ) : (
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  max={configuredTotalMarks ?? undefined}
-                                  value={scored}
-                                  onChange={(e) =>
-                                    setRowScored((p) => ({ ...p, [key]: e.target.value }))
-                                  }
-                                  onWheel={(e) => e.currentTarget.blur()}
-                                  style={{ width: 110, minHeight: 38 }}
-                                />
-                              )}
-                              {exceeds && (
-                                <div style={{ color: "#b00020", fontSize: "0.72rem" }}>
-                                  Cannot exceed {configuredTotalMarks}
-                                </div>
-                              )}
+                              <input
+                                type="number" step="0.01" min="0" max={totalMarks ?? undefined}
+                                value={absent ? "" : scored}
+                                placeholder={absent ? "-" : ""}
+                                disabled={absent || !!locked}
+                                onChange={(e) => setRowScored((p) => ({ ...p, [key]: e.target.value }))}
+                                onWheel={(e) => e.currentTarget.blur()}
+                                style={{ width: 110, minHeight: 38, ...(locked ? { background: "var(--soft-gray)", cursor: "not-allowed" } : {}) }}
+                              />
+                              {exceeds && <div style={{ color: "#b00020", fontSize: "0.72rem" }}>Cannot exceed {totalMarks}</div>}
                             </td>
-                            <td data-label="Total Marks">{configuredTotalMarks ?? "-"}</td>
-                            <td data-label="Pass Marks">{configuredPassMarks ?? "-"}</td>
-                            <td data-label="Result">
-                              {lockStatus ? (
-                                lockedResult ? (
-                                  <span style={{ fontWeight: 700, color: lockedResult === "Pass" ? "#1e7e34" : "#b00020" }}>
-                                    {lockedResult}
-                                  </span>
-                                ) : (
-                                  "-"
-                                )
-                              ) : r ? (
-                                <span style={{ fontWeight: 700, color: r === "Pass" ? "#1e7e34" : "#b00020" }}>{r}</span>
-                              ) : (
-                                "-"
-                              )}
-                            </td>
+                            <td data-label="Total Marks">{totalMarks ?? "-"}</td>
+                            <td data-label="Pass Marks">{passMarks ?? "-"}</td>
                             <td data-label="Actions">
-                              {lockStatus ? (
-                                // Locks the instant a submit succeeds (optimistic lock)
-                                // rather than waiting for My Requests to refresh, and
-                                // continues to show the live status once it has.
-                                <StatusBadge status={lockStatus} />
-                              ) : (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                  <button
-                                    className="primary-btn"
-                                    style={{ padding: "6px 12px", fontSize: "0.8rem" }}
-                                    disabled={st === "submitting" || scored === "" || exceeds || configuredTotalMarks == null}
-                                    onClick={() => handleRowSubmit(student)}
-                                  >
-                                    {st === "submitting" ? "Submitting…" : "Submit"}
-                                  </button>
-                                  {st && st !== "submitting" && (
-                                    <small style={{ color: "#b00020" }}>{st}</small>
-                                  )}
-                                </div>
-                              )}
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                <button
+                                  className="primary-btn"
+                                  style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+                                  disabled={!!locked || st === "submitting" || exceeds || totalMarks == null || (!absent && scored === "")}
+                                  onClick={() => handleRowSubmit(student)}
+                                >
+                                  {locked ? "Submitted" : st === "submitting" ? "Submitting\u2026" : "Submit"}
+                                </button>
+                                {st && st !== "submitting" && <small style={{ color: "#b00020" }}>{st}</small>}
+                              </div>
                             </td>
                           </tr>
                         );
                       })
                     )}
-                      </tbody>
-                  </table>
+                  </tbody>
+                </table>
               </div>
             </>
           )}
         </section>
       </div>
 
-        <MyRequestsTable
-        changes={myRequests.filter((c) => !c.payload?.isAbsent && c.payload?.result !== "Absent")}
+      {/* ===== My Requests ===== */}
+      <MyRequestsTable
+        changes={myRequests}
         students={students}
-        institutionName={institutionName}
         courseNameFor={courseNameFor}
         subjectNameFor={subjectNameForAny}
         onView={setViewingRequest}
@@ -859,165 +507,7 @@ export default function InternalMarksPage({ institutionId, username }) {
             alert(err.message || "Could not delete this request.");
           }
         }}
-        footer={
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button
-                className="primary-btn"
-                style={{ padding: "8px 16px", width: "fit-content" }}
-                onClick={() => { setAddOpen((o) => !o); setAddError(""); }}
-              >+ Add</button>
-              {addOpen && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input
-                      autoFocus
-                      placeholder="Enter Register No"
-                      value={addRegNo}
-                      onChange={(e) => setAddRegNo(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAddStudent()}
-                      style={{ minHeight: 38, width: 180 }}
-                    />
-                    <button className="primary-btn" style={{ padding: "8px 16px" }} onClick={handleAddStudent}>Populate</button>
-                  </div>
-                  {addError && <small style={{ color: "#b00020" }}>{addError}</small>}
-                </div>
-              )}
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button
-                className="primary-btn"
-                style={{ padding: "8px 16px", width: "fit-content" }}
-                onClick={() => { setAbsentOpen((o) => !o); setAbsentError(""); }}
-              >− Absentees</button>
-              {absentOpen && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input
-                      autoFocus
-                      placeholder="Enter Register No"
-                      value={absentRegNo}
-                      onChange={(e) => setAbsentRegNo(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAddAbsentee()}
-                      style={{ minHeight: 38, width: 180 }}
-                    />
-                    <button className="primary-btn" style={{ padding: "8px 16px" }} onClick={handleAddAbsentee}>Mark Absent</button>
-                  </div>
-                  {absentError && <small style={{ color: "#b00020" }}>{absentError}</small>}
-                </div>
-              )}
-            </div>
-          </div>
-        }
-        />
-
-      <section className="data-table-card" style={{ width: "100%", marginTop: 24 }}>
-        <div className="data-table-head">
-          <div>
-            <h3>Added / Absentees</h3>
-            <span>Students you populated by register number.</span>
-          </div>
-        </div>
-        <div className="data-table-wrap">
-          <table>
-            <thead>
-                <tr>
-                <th>S.No</th>
-                <th>Institution</th>
-                <th>Course</th>
-                <th>Subject</th>
-                <th>Reg No</th>
-                <th>Student Name</th>
-                <th>Scored Marks</th>
-                <th>Total Marks</th>
-                <th>Pass Marks</th>
-                <th>Result</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {populatedStudents.length === 0 ? (
-                <tr>
-                  <td colSpan={13} className="empty-state">
-                    <div className="table-empty"><span>Use + Add or − Absentees above to populate students here.</span></div>
-                  </td>
-                </tr>
-              ) : (
-                populatedStudents.map((student, i) => {
-                  const sid = String(student.id);
-                  const key = rowKey(activeSubjectId, sid);
-                  const isAbsent = absentIds.includes(sid);
-                  const lockedReq = lockedForSubject[sid] || optimisticLocks[key];
-                  const lockStatus = lockedReq?.status;
-                  const scored = rowScored[key] ?? "";
-                  const r = rowResult(key);
-                  const exceeds = scored !== "" && configuredTotalMarks != null && Number(scored) > Number(configuredTotalMarks);
-                  const st = rowState[key];
-                  const lockedResult = lockStatus ? passOrFail(lockedReq.scoredMarks, configuredPassMarks) : null;
-                  return (
-                    <tr key={student.id} id={`pop-row-${sid}`}>
-                      <td data-label="S.No">{i + 1}</td>
-                      <td data-label="Institution">{(institutionName || "-").toUpperCase()}</td>
-                      <td data-label="Course">{courseNameFor(schedule.courseId)}</td>
-                      <td data-label="Subject">{subjectNameFor(activeSubjectId)}</td>
-                      <td data-label="Reg No">{student.registerNo}</td>
-                      <td data-label="Student Name">{student.name}</td>
-                      <td data-label="Scored Marks">
-                        {isAbsent ? "-" : (lockedReq?.scoredMarks ?? scored ?? "-")}
-                      </td>
-                      <td data-label="Total Marks">{configuredTotalMarks ?? "-"}</td>
-                      <td data-label="Pass Marks">{configuredPassMarks ?? "-"}</td>
-                      <td data-label="Result">
-                        {isAbsent ? (
-                          <span style={{ fontWeight: 700, color: "#b00020" }}>Absent</span>
-                        ) : lockStatus ? (
-                          lockedResult ? (
-                            <span style={{ fontWeight: 700, color: lockedResult === "Pass" ? "#1e7e34" : "#b00020" }}>{lockedResult}</span>
-                          ) : "-"
-                        ) : r ? (
-                          <span style={{ fontWeight: 700, color: r === "Pass" ? "#1e7e34" : "#b00020" }}>{r}</span>
-                        ) : "-"}
-                      </td>
-                      <td data-label="Status">
-                        <StatusBadge status={lockStatus || "Pending"} />
-                      </td>
-                        <td data-label="Actions">
-                        {(() => {
-                          const req = requestForStudent(sid);
-                          if (!req) return "-";
-                          const isApproved = req.status === "Approved";
-                          return (
-                            <div className="action-group" style={{ display: "flex", flexWrap: "nowrap", gap: 6 }}>
-                              <button type="button" className="icon-btn" title="View" onClick={() => setViewingRequest(req)}>
-                                <FileText size={24} />
-                              </button>
-                              {!isApproved && req.status !== "Rejected" && (
-                                <button type="button" className="icon-btn danger" title="Delete"
-                                  onClick={async () => {
-                                    try {
-                                      await api.deletePendingChange(req.id);
-                                      refreshMyRequests();
-                                    } catch (err) {
-                                      alert(err.message || "Could not delete this request.");
-                                    }
-                                  }}>
-                                  <Trash2 size={24} />
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      />
 
       {viewingRequest && (
         <div className="modal-backdrop" role="presentation">
@@ -1027,28 +517,16 @@ export default function InternalMarksPage({ institutionId, username }) {
                 <p className="eyebrow">view</p>
                 <h3>Marks Request</h3>
               </div>
-              <button className="icon-btn" onClick={() => setViewingRequest(null)} aria-label="Close">
-                <X size={24} />
-              </button>
+              <button className="icon-btn" onClick={() => setViewingRequest(null)} aria-label="Close"><X size={24} /></button>
             </div>
             <div className="preview-section-stack">
               <section className="preview-section">
                 <dl>
-                  <div><dt>Scored Marks</dt><dd>{viewingRequest.payload.scoredMarks}</dd></div>
+                  <div><dt>Attendance</dt><dd>{viewingRequest.payload.isAbsent || viewingRequest.payload.result === "Absent" ? "Absent" : "Present"}</dd></div>
+                  <div><dt>Scored Marks</dt><dd>{viewingRequest.payload.scoredMarks ?? "-"}</dd></div>
                   <div><dt>Total Marks</dt><dd>{viewingRequest.payload.totalMarks}</dd></div>
                   <div><dt>Pass Marks</dt><dd>{viewingRequest.payload.passMarks ?? "-"}</dd></div>
-                  <div>
-                    <dt>Result</dt>
-                    <dd>
-                      {(() => {
-                        const r = viewingRequest.payload.result || passOrFail(viewingRequest.payload.scoredMarks, viewingRequest.payload.passMarks);
-                        return r ? (
-                          <span style={{ fontWeight: 700, color: r === "Pass" ? "#1e7e34" : "#b00020" }}>{r}</span>
-                        ) : "-";
-                      })()}
-                    </dd>
-                  </div>
-                  <div><dt>Exam Date</dt><dd>{formatDate(viewingRequest.payload.examDate)}</dd></div>
+                  <div><dt>Exam Month &amp; Year</dt><dd>{formatDate(viewingRequest.payload.examDate)}</dd></div>
                   <div><dt>Status</dt><dd><StatusBadge status={viewingRequest.status} /></dd></div>
                   {viewingRequest.reviewNote && <div><dt>Note</dt><dd>{viewingRequest.reviewNote}</dd></div>}
                 </dl>
@@ -1060,6 +538,7 @@ export default function InternalMarksPage({ institutionId, username }) {
           </section>
         </div>
       )}
+
       {editingRequest && (
         <ResubmitMarksModal
           change={editingRequest}
@@ -1071,6 +550,7 @@ export default function InternalMarksPage({ institutionId, username }) {
   );
 }
 
+// ResubmitMarksModal - unchanged from the current file
 function ResubmitMarksModal({ change, onClose, onSave }) {
   const configuredTotal = change.payload.totalMarks;
   const passMarks = change.payload.passMarks;
@@ -1078,19 +558,13 @@ function ResubmitMarksModal({ change, onClose, onSave }) {
   const [scoredMarks, setScoredMarks] = useState(
     change.payload.scoredMarks != null ? String(change.payload.scoredMarks) : "",
   );
-  const [examDate, setExamDate] = useState(change.payload.examDate || "");
+  const [examDate] = useState(change.payload.examDate || "");
 
   const scoredNum = scoredMarks === "" ? null : Number(scoredMarks);
   const totalNum = configuredTotal == null ? null : Number(configuredTotal);
-
   const exceeds = scoredNum != null && totalNum != null && scoredNum > totalNum;
   const negative = scoredNum != null && scoredNum < 0;
-
-  const result =
-    scoredNum != null && !exceeds && !negative
-      ? passOrFail(scoredNum, passMarks)
-      : null;
-
+  const result = scoredNum != null && !exceeds && !negative ? passOrFail(scoredNum, passMarks) : null;
   const canSave = scoredMarks !== "" && !exceeds && !negative;
 
   function handleSave() {
@@ -1112,56 +586,25 @@ function ResubmitMarksModal({ change, onClose, onSave }) {
             <p className="eyebrow">edit</p>
             <h3>Correct and Resubmit</h3>
           </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">
-            <X size={24} />
-          </button>
+          <button className="icon-btn" onClick={onClose} aria-label="Close"><X size={24} /></button>
         </div>
 
         <div className="form-grid">
           <label>
             <span>Scored Marks</span>
-            <input
-              type="number"
-              min="0"
-              max={totalNum ?? undefined}
-              value={scoredMarks}
-              onChange={(e) => setScoredMarks(e.target.value)}
-            />
-            {exceeds && (
-              <small style={{ color: "#b00020" }}>
-                Scored Marks cannot exceed Total Marks ({totalNum}).
-              </small>
-            )}
-            {negative && (
-              <small style={{ color: "#b00020" }}>Scored Marks cannot be negative.</small>
-            )}
+            <input type="number" min="0" max={totalNum ?? undefined} value={scoredMarks} onChange={(e) => setScoredMarks(e.target.value)} />
+            {exceeds && <small style={{ color: "#b00020" }}>Scored Marks cannot exceed Total Marks ({totalNum}).</small>}
+            {negative && <small style={{ color: "#b00020" }}>Scored Marks cannot be negative.</small>}
           </label>
 
           <label>
             <span>Total Marks</span>
             <input type="number" value={totalNum ?? ""} readOnly disabled />
-            <small style={{ color: "#64748B" }}>Set by the Department — cannot be changed.</small>
-          </label>
-
-          
-
-            <label>
-            <span>Result</span>
-            <input
-              value={result ?? "—"}
-              readOnly
-              disabled
-              style={{
-                fontWeight: 700,
-                color: result === "Pass" ? "#1e7e34" : result === "Fail" ? "#b00020" : "inherit",
-              }}
-            />
           </label>
 
           <label>
             <span>Pass Marks</span>
             <input value={passMarks ?? "—"} readOnly disabled />
-            <small style={{ color: "#64748B" }}>Set by the Department.</small>
           </label>
 
           <label>
@@ -1178,9 +621,7 @@ function ResubmitMarksModal({ change, onClose, onSave }) {
         </div>
 
         <div className="modal-actions">
-          <button className="secondary-btn" onClick={onClose}>
-            Cancel
-          </button>
+          <button className="secondary-btn" onClick={onClose}>Cancel</button>
           <button className="primary-btn" onClick={handleSave} disabled={!canSave}>
             <CircleCheck size={24} />
             Save

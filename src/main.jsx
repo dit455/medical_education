@@ -6,6 +6,7 @@ import "./styles/cookie-consent.css";
 import App from "./App.jsx";
 import CookieConsent from "./components/CookieConsent.jsx";
 import FloatingTools from "./components/FloatingTools.jsx";
+import GlobalAlert from "./components/GlobalAlert.jsx";
 
 createRoot(document.getElementById("root")).render(
   <>
@@ -14,5 +15,6 @@ createRoot(document.getElementById("root")).render(
     </Suspense>
     <CookieConsent />
     <FloatingTools />
+    <GlobalAlert />
   </>,
 );

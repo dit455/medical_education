@@ -1,34 +1,49 @@
 import { useState, useMemo } from "react";
-import { FileText, Trash2, Search, Download, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileText, Trash2, Search, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import StatusBadge from "./StatusBadge.jsx";
 import IconButton from "./IconButton.jsx";
-import { passOrFail, formatDate } from "../utils.js";
+import { formatDate } from "../utils.js";
 import ExportMenu from "./ExportMenu.jsx";
 
 const STATUS_FILTERS = ["Pending", "Approved", "Rejected", "Verified", "Submitted"];
 
-// Creator's own internal-marks submissions, with search, status filter,
-// rows selector, PDF export and pagination. View/Edit/Delete unchanged;
-// Approved rows stay locked (view only).
-export default function MyRequestsTable({ changes, students = [], onView, onEdit, onDelete, footer, institutionName = "", courseNameFor = () => "-", subjectNameFor = () => "-" }) {
+// Creator's own internal-marks submissions.
+// Columns: Sl.No, Reg No, Course, Subject, Scored Marks, Total Marks, Pass Marks,
+//          Present/Absent, Status, Uploaded On, Actions
+export default function MyRequestsTable({
+  changes,
+  students = [],
+  onView,
+  onEdit,
+  onDelete,
+  courseNameFor = () => "-",
+  subjectNameFor = () => "-",
+}) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
 
   const studentById = (id) => students.find((s) => String(s.id) === String(id));
+  const isAbsent = (c) => !!c.payload?.isAbsent || c.payload?.result === "Absent";
+  const attendanceOf = (c) => (isAbsent(c) ? "Absent" : "Present");
+  const show = (v) => (v === null || v === undefined || v === "" ? "-" : v);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return changes.filter((c) => {
       const st = studentById(c.payload.studentId);
-      const matchSearch = !q ||
-        [st?.registerNo, st?.name, c.payload.scoredMarks, c.status]
+      const matchSearch =
+        !q ||
+        [st?.registerNo, st?.name, c.payload.scoredMarks, attendanceOf(c), c.status]
           .filter((v) => v !== undefined && v !== null)
-          .join(" ").toLowerCase().includes(q);
+          .join(" ")
+          .toLowerCase()
+          .includes(q);
       const matchStatus = statusFilter === "All" || c.status === statusFilter;
       return matchSearch && matchStatus;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [changes, students, search, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / rowsPerPage));
@@ -37,47 +52,22 @@ export default function MyRequestsTable({ changes, students = [], onView, onEdit
   const rangeStart = rows.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
   const rangeEnd = Math.min(currentPage * rowsPerPage, rows.length);
 
-  async function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector(`script[src="${src}"]`)) return resolve();
-      const el = document.createElement("script");
-      el.src = src; el.onload = resolve; el.onerror = reject;
-      document.body.appendChild(el);
-    });
-  }
-
-  async function handleExportPdf() {
-    try {
-      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
-      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      doc.setFontSize(14);
-      doc.text("My Requests — Internal Marks", 14, 16);
-      doc.autoTable({
-        startY: 22,
-        head: [["Reg No", "Student", "Scored", "Total", "Result", "Status", "Uploaded"]],
-        body: rows.map((c) => {
-          const st = studentById(c.payload.studentId);
-          const result = c.payload.result || passOrFail(c.payload.scoredMarks, c.payload.passMarks) || "-";
-          return [
-            st?.registerNo || "-",
-            st?.name || `Student #${c.payload.studentId}`,
-            c.payload.scoredMarks ?? "",
-            c.payload.totalMarks ?? "",
-            result,
-            c.status ?? "",
-            formatDate(c.requestedDate?.slice(0, 10)) ?? "",
-          ];
-        }),
-        styles: { fontSize: 9 },
-        headStyles: { fillColor: [15, 118, 110] },
-      });
-      doc.save("my-requests.pdf");
-    } catch (err) {
-      alert("Could not generate PDF: " + err.message);
-    }
-  }
+  const exportRow = (c, i) => {
+    const st = studentById(c.payload.studentId);
+    return [
+      i + 1,
+      st?.registerNo || "-",
+      st?.name || "-",
+      courseNameFor(c.payload.courseId),
+      subjectNameFor(c.payload.subjectId),
+      show(c.payload.scoredMarks),
+      show(c.payload.totalMarks),
+      show(c.payload.passMarks),
+      attendanceOf(c),
+      c.status ?? "",
+      formatDate(c.requestedDate?.slice(0, 10)) ?? "",
+    ];
+  };
 
   return (
     <section className="data-table-card" style={{ width: "100%" }}>
@@ -104,16 +94,12 @@ export default function MyRequestsTable({ changes, students = [], onView, onEdit
               {[5, 10, 20].map((o) => <option key={o}>{o}</option>)}
             </select>
           </label>
-            <ExportMenu
+          <ExportMenu
             disabled={rows.length === 0}
             getData={() => ({
-              title: "My Requests — Internal Marks",
-              headers: ["Reg No", "Student", "Scored", "Total", "Result", "Status", "Uploaded"],
-              rows: rows.map((c) => {
-                const st = studentById(c.payload.studentId);
-                const result = c.payload.result || passOrFail(c.payload.scoredMarks, c.payload.passMarks) || "-";
-                return [st?.registerNo || "-", st?.name || `Student #${c.payload.studentId}`, c.payload.scoredMarks, c.payload.totalMarks, result, c.status, formatDate(c.requestedDate?.slice(0, 10))];
-              }),
+              title: "My Requests - Internal Marks",
+              headers: ["Sl.No", "Reg No", "Student Name", "Course", "Subject", "Scored Marks", "Total Marks", "Pass Marks", "Present/Absent", "Status", "Uploaded On"],
+              rows: rows.map(exportRow),
             })}
           />
         </div>
@@ -123,44 +109,42 @@ export default function MyRequestsTable({ changes, students = [], onView, onEdit
         <table>
           <thead>
             <tr>
-              <th>S.No</th><th>Institution</th><th>Course</th><th>Subject</th>
-              <th>Reg No</th><th>Student Name</th><th>Scored Marks</th>
-              <th>Total Marks</th><th>Pass Marks</th><th>Result</th><th>Status</th>
-              <th>Uploaded on</th><th>Actions</th>
+              <th>Sl.No</th><th>Reg No</th><th>Student Name</th><th>Course</th><th>Subject</th>
+              <th>Scored Marks</th><th>Total Marks</th><th>Pass Marks</th>
+              <th>Present/Absent</th><th>Status</th><th>Uploaded On</th><th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={13} className="empty-state">
+                <td colSpan={12} className="empty-state">
                   <div className="table-empty"><span>Nothing submitted yet</span></div>
                 </td>
               </tr>
             ) : (
-                pageRows.map((change, i) => {
+              pageRows.map((change, i) => {
                 const student = studentById(change.payload.studentId);
                 const isFinal = change.status === "Approved";
-                const result = change.payload.result || passOrFail(change.payload.scoredMarks, change.payload.passMarks);
+                const absent = isAbsent(change);
                 return (
                   <tr key={change.id}>
-                    <td data-label="S.No">{(currentPage - 1) * rowsPerPage + i + 1}</td>
-                    <td data-label="Institution">{(institutionName || "-").toUpperCase()}</td>
-                    <td data-label="Course">{courseNameFor(change.payload.courseId)}</td>
-                    <td data-label="Subject">{subjectNameFor(change.payload.subjectId)}</td>
+                    <td data-label="Sl.No">{(currentPage - 1) * rowsPerPage + i + 1}</td>
                     <td data-label="Reg No">{student?.registerNo || "-"}</td>
                     <td data-label="Student Name">{student?.name || `Student #${change.payload.studentId}`}</td>
-                    <td data-label="Scored Marks">{change.payload.scoredMarks}</td>
-                    <td data-label="Total Marks">{change.payload.totalMarks}</td>
-                    <td data-label="Pass Marks">{change.payload.passMarks ?? "-"}</td>
-                    <td data-label="Result">
-                      {result ? (
-                        <span style={{ fontWeight: 700, color: result === "Pass" ? "#1e7e34" : "#b00020" }}>{result}</span>
-                      ) : "-"}
+                    <td data-label="Course">{courseNameFor(change.payload.courseId)}</td>
+                    <td data-label="Subject">{subjectNameFor(change.payload.subjectId)}</td>
+                    <td data-label="Scored Marks">{show(change.payload.scoredMarks)}</td>
+                    <td data-label="Total Marks">{show(change.payload.totalMarks)}</td>
+                    <td data-label="Pass Marks">{show(change.payload.passMarks)}</td>
+                    <td data-label="Present/Absent">
+                      <span style={{ fontWeight: 700, color: absent ? "#b00020" : "#1e7e34" }}>
+                        {absent ? "Absent" : "Present"}
+                      </span>
                     </td>
                     <td data-label="Status"><StatusBadge status={change.status} /></td>
-                    <td data-label="Uploaded on">{formatDate(change.requestedDate?.slice(0, 10))}</td>
+                    <td data-label="Uploaded On">{formatDate(change.requestedDate?.slice(0, 10))}</td>
                     <td data-label="Actions">
-                        <div className="action-group">
+                      <div className="action-group">
                         <IconButton
                           label={isFinal ? "View" : "View / Edit"}
                           icon={FileText}
@@ -179,8 +163,6 @@ export default function MyRequestsTable({ changes, students = [], onView, onEdit
           </tbody>
         </table>
       </div>
-
-      {footer}
 
       <div className="pagination">
         <span>{rangeStart}-{rangeEnd} of {rows.length}</span>

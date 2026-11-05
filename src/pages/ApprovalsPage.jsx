@@ -169,6 +169,7 @@ export default function ApprovalsPage({ role, username }) {
       )}
       {editingChange && (
         <AddSubjectModal
+          role={role}
           editMode
           username={username}
           subjectOptions={[]}

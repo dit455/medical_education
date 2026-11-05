@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, CircleCheck, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 import { formatDate, parseDisplayDate } from "../utils.js";
+import StudentDocuments from "./StudentDocuments.jsx";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MOBILE_PATTERN = /^[6-9][0-9]{9}$/;
@@ -129,12 +130,12 @@ export default function StudentEditModal({
     });
   }
 
-    const textFields = [
+  const textFields = [
     ["studentRegNo", "Register No"],
     ["studentName", "Student Name"],
+    ["studentFatherName", "Father's Name"],
     ["studentDob", "Date of Birth"],
     ["admissionYear", "Year of Admission"],
-    ["studentFatherName", "Father's Name"],
     ["studentAddress", "Address"],
     ["studentEmail", "Email"],
     ["studentMobile", "Mobile"],
@@ -144,7 +145,6 @@ export default function StudentEditModal({
 
   const selectFields = [
     ["courseId", "Course", courses],
-    ["yearId", "Year", years],
   ];
 
   return createPortal(
@@ -220,6 +220,8 @@ export default function StudentEditModal({
             <span className="view-label">Status</span>
             <span className="view-value" style={{ fontWeight: 700 }}>{values.status}</span>
           </div>
+
+          <StudentDocuments student={student} />
         </div>
 
         <div className="modal-actions">

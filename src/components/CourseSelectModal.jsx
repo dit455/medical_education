@@ -23,12 +23,24 @@ export default function CourseSelectModal({
   onSave,
   onInstituteChange,
   initialMapped = [],
+  perItemDuration = false,
+  perItemYearSem = false,
+  yearOptions = [],
+  semOptions = [],
 }) {
   const [selected, setSelected] = useState([]);
   const [extraValues, setExtraValues] = useState({});
   const [filteredOptions, setFilteredOptions] = useState(options);
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [search, setSearch] = useState("");
+  const [durations, setDurations] = useState({});
+
+
+  const [ysMap, setYsMap] = useState({});
+
+  function setYs(value, field, v) {
+    setYsMap((prev) => ({ ...prev, [value]: { ...(prev[value] || {}), [field]: v } }));
+  }
 
   async function handleExtraChange(key, value) {
     const next = { ...extraValues, [key]: value };
@@ -68,8 +80,12 @@ export default function CourseSelectModal({
     }
   }, [options, initialMapped]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const visibleOptions = filteredOptions.filter((opt) =>
-    String(opt.label ?? "").toLowerCase().includes(search.trim().toLowerCase())
+  const visibleOptions = filteredOptions
+    .filter((opt) =>
+      String(opt.label ?? "").toLowerCase().includes(search.trim().toLowerCase())
+    )
+    .sort((a, b) =>
+      String(a.label ?? "").localeCompare(String(b.label ?? ""), undefined, { sensitivity: "base" })
   );
 
   function toggle(value) {
@@ -79,14 +95,26 @@ export default function CourseSelectModal({
   }
 
   function handleSave() {
-    const names = filteredOptions
-      .filter((option) => selected.includes(option.value))
-      .map((option) => option.label);
-    onSave(names, extraValues);
+    const chosen = filteredOptions.filter((option) => selected.includes(option.value));
+    const names = chosen.map((option) => option.label);
+    const durationByName = {};
+    chosen.forEach((option) => {
+      durationByName[option.label] = (durations[option.value] || "").trim();
+    });
+    const yearSemByName = {};
+    chosen.forEach((option) => {
+      const m = ysMap[option.value] || {};
+      yearSemByName[option.label] = { year: m.year || "", semester: m.semester || "" };
+    });
+    onSave(names, extraValues, durationByName, yearSemByName);
   }
 
   const canSave =
-    selected.length > 0 && extraFields.every(([key]) => extraValues[key]);
+    selected.length > 0 &&
+    extraFields.every(([key]) => extraValues[key]) &&
+    (!perItemDuration || selected.every((v) => (durations[v] || "").trim())) &&
+    (!perItemYearSem ||
+      selected.every((v) => ysMap[v]?.year && ysMap[v]?.semester));
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -149,15 +177,104 @@ export default function CourseSelectModal({
           {loadingCourses && <p>Loading available courses…</p>}
           {!loadingCourses && visibleOptions.length === 0 && <p>{emptyMessage}</p>}
           {!loadingCourses &&
-            visibleOptions.map((option) => (
-              <label key={option.value} className="course-select-row">
-                <input
-                  type="checkbox"
-                  checked={selected.includes(option.value)}
-                  onChange={() => toggle(option.value)}
-                />
-                <span>{String(option.label ?? "").toUpperCase()}</span>
-              </label>
+          visibleOptions.map((option) => (
+              <div
+                key={option.value}
+                style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, padding: "3px 0" }}
+              >
+                <label className="course-select-row" style={{ flex: 1, minWidth: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(option.value)}
+                    onChange={() => toggle(option.value)}
+                  />
+                  <span>{String(option.label ?? "").toUpperCase()}</span>
+                </label>
+
+                {perItemDuration && selected.includes(option.value) && (
+                  <select
+                    aria-label={`Duration for ${option.label}`}
+                    value={durations[option.value] || ""}
+                    onChange={(e) =>
+                      setDurations((prev) => ({ ...prev, [option.value]: e.target.value }))
+                    }
+                    style={{
+                      width: 150,
+                      height: 36,
+                      flexShrink: 0,
+                      margin: "0 14px 0 0",
+                      padding: "0 8px",
+                      boxSizing: "border-box",
+                      fontSize: "1rem",
+                      borderRadius: 8,
+                      border: "1px solid #d1d5db",
+                    }}
+                  >
+                    <option value="" disabled>
+                      Duration
+                    </option>
+                    {["1", "2", "3", "4", "5", "6"].map((d) => (
+                      <option key={d} value={d}>
+                        {d} {d === "1" ? "Year" : "Years"}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {perItemYearSem && selected.includes(option.value) && (
+                  <>
+                    <select
+                      aria-label={`Year for ${option.label}`}
+                      value={ysMap[option.value]?.year || ""}
+                      onChange={(e) => setYs(option.value, "year", e.target.value)}
+                      style={{
+                        width: 140,
+                        height: 36,
+                        flexShrink: 0,
+                        padding: "0 8px",
+                        boxSizing: "border-box",
+                        fontSize: "1rem",
+                        borderRadius: 8,
+                        border: "1px solid #d1d5db",
+                      }}
+                    >
+                      <option value="" disabled>
+                        Year
+                      </option>
+                      {yearOptions.map((y) => (
+                        <option key={y.value} value={y.value}>
+                          {y.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label={`Semester for ${option.label}`}
+                      value={ysMap[option.value]?.semester || ""}
+                      onChange={(e) => setYs(option.value, "semester", e.target.value)}
+                      style={{
+                        width: 170,
+                        height: 36,
+                        flexShrink: 0,
+                        margin: "0 14px 0 0",
+                        padding: "0 8px",
+                        boxSizing: "border-box",
+                        fontSize: "1rem",
+                        borderRadius: 8,
+                        border: "1px solid #d1d5db",
+                      }}
+                    >
+                      <option value="" disabled>
+                        Semester
+                      </option>
+                      {semOptions.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </div>
             ))}
         </div>
         <div className="modal-actions">
