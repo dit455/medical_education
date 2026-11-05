@@ -44,6 +44,8 @@ export default function DataTable({
   const [durationFilter, setDurationFilter] = useState("All");
   const [yearFilter, setYearFilter] = useState("All");
   const [semesterFilter, setSemesterFilter] = useState("All");
+  const [regionFilter, setRegionFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
   const [modalState, setModalState] = useState(null);
@@ -65,11 +67,16 @@ export default function DataTable({
           yearFilter === "All" || String(row.year ?? "") === yearFilter;
         const matchesSemester =
           semesterFilter === "All" || String(row.semester ?? "") === semesterFilter;
+        const matchesRegion =
+          regionFilter === "All" || String(row.region ?? "").trim() === regionFilter;
+        const matchesCategory =
+          categoryFilter === "All" || String(row.category ?? "").trim() === categoryFilter;
         return (
-          matchesSearch && matchesStatus && matchesDuration && matchesYear && matchesSemester
+          matchesSearch && matchesStatus && matchesDuration && matchesYear &&
+          matchesSemester && matchesRegion && matchesCategory
         );
       }),
-    [rows, search, statusFilter, durationFilter, yearFilter, semesterFilter],
+    [rows, search, statusFilter, durationFilter, yearFilter, semesterFilter, regionFilter, categoryFilter],
   );
 
   const durationOptions = useMemo(
@@ -86,6 +93,8 @@ export default function DataTable({
     );
   const yearOptions = useMemo(() => uniqueSorted("year"), [rows]);
   const semesterOptions = useMemo(() => uniqueSorted("semester"), [rows]);
+  const regionOptions = useMemo(() => uniqueSorted("region"), [rows]);
+  const categoryOptions = useMemo(() => uniqueSorted("category"), [rows]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
   const currentPage = Math.min(page, totalPages);
@@ -215,6 +224,47 @@ export default function DataTable({
               ))}
           </select>
           </label>
+
+          {regionOptions.length > 0 && (
+            <label className="select-box small">
+              <select
+                value={regionFilter}
+                onChange={(e) => {
+                  setRegionFilter(e.target.value);
+                  setPage(1);
+                }}
+                disabled={disabled}
+                aria-label="Filter by region"
+              >
+                <option value="All">All Regions</option>
+                {regionOptions.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {categoryOptions.length > 0 && (
+            <label className="select-box small">
+              <select
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setPage(1);
+                }}
+                disabled={disabled}
+                aria-label="Filter by category"
+              >
+                <option value="All">All Categories</option>
+                {categoryOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {yearOptions.length > 0 && (
             <label className="select-box small">

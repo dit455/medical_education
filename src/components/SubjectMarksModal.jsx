@@ -44,8 +44,22 @@ export default function SubjectMarksModal({ subjects, role = "", saving = false,
     if (FIELDS.some(([k]) => Number.isNaN(num(m[k])) || num(m[k]) < 0)) {
       return "Marks must be 0 or more.";
     }
-    if (num(m.iaPass) > num(m.iaMax)) return "Internal Pass cannot be greater than Internal Max.";
-    if (num(m.eaPass) > num(m.eaMax)) return "External Pass cannot be greater than External Max.";
+    // An assessment that has anything typed in it needs Max greater than Pass.
+    const filled = (a, b) => String(m[a] ?? "").trim() !== "" || String(m[b] ?? "").trim() !== "";
+    if (filled("iaMax", "iaPass") && num(m.iaMax) <= num(m.iaPass)) {
+      return "Internal: Max marks must be greater than Pass marks.";
+    }
+    if (filled("eaMax", "eaPass") && num(m.eaMax) <= num(m.eaPass)) {
+      return "External: Max marks must be greater than Pass marks.";
+    }
+    const totalMax = num(m.iaMax) + num(m.eaMax);
+    const totalPass = num(m.iaPass) + num(m.eaPass);
+    if (totalMax === 0 && totalPass === 0) {
+      return "Enter Internal and/or External Max and Pass marks.";
+    }
+    if (totalMax === totalPass) {
+      return "Total Max marks cannot be equal to Total Pass marks.";
+    }
     return "";
   }
 
@@ -116,7 +130,7 @@ export default function SubjectMarksModal({ subjects, role = "", saving = false,
                 </div>
                 <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <small style={{ color: "#b00020" }}>
-                    {(attempted || !isBoen) ? err : ""}
+                      {(attempted || Object.keys(m).length > 0) ? err : ""}
                     </small>
                   {total !== null && <small style={{ color: "var(--muted)" }}>Total: {total}</small>}
                 </div>

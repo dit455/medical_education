@@ -73,6 +73,8 @@ export default function SubjectEditModal({
 
   function validateMarks() {
     const scored = DIVISIONS.filter((x) => x.key !== "tp");
+    let sumMax = 0;
+    let sumPass = 0;
 
     for (const d of scored) {
       if (role === "BOEN" && (marks[d.key].max === "" || marks[d.key].pass === "")) {
@@ -87,9 +89,18 @@ export default function SubjectEditModal({
       if (pass !== null && (Number.isNaN(pass) || pass < 0)) {
         return `${d.label}: Pass marks must be 0 or more.`;
       }
-      if (pass !== null && max !== null && pass > max) {
-        return `${d.label}: Pass marks cannot be greater than Max marks.`;
+      // If this assessment has anything typed in it, Max must be greater than Pass.
+      if ((max !== null || pass !== null) && (max ?? 0) <= (pass ?? 0)) {
+        return `${d.label}: Max marks must be greater than Pass marks.`;
       }
+      sumMax += max ?? 0;
+      sumPass += pass ?? 0;
+    }
+    if (sumMax === 0 && sumPass === 0) {
+      return "Enter Internal and/or External Max and Pass marks.";
+    }
+    if (sumMax === sumPass) {
+      return "Total Max marks cannot be equal to Total Pass marks.";
     }
     return null;
   }
