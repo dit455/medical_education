@@ -1,3 +1,7 @@
+
+ALTER TABLE users ADD COLUMN inst_id INT NULL;
+ALTER TABLE users ADD CONSTRAINT fk_users_inst FOREIGN KEY (inst_id) REFERENCES tbl_inst_master(inst_id);
+
 CREATE TABLE tbl_student_master (
     student_id INT PRIMARY KEY AUTO_INCREMENT,
     student_name VARCHAR(150) NOT NULL,
