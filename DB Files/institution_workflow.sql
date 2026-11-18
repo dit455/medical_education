@@ -33,24 +33,6 @@ CREATE TABLE tbl_student_master (
     CONSTRAINT fk_student_course FOREIGN KEY (course_id) REFERENCES tbl_course_master(course_id)
 );
 
-CREATE TABLE tbl_student_marks (
-    mark_id INT PRIMARY KEY AUTO_INCREMENT,
-    student_id INT NOT NULL,
-    subject_id INT NOT NULL,
-    internal_marks INT,
-    exam_marks INT,
-    result VARCHAR(10),
-    created_by VARCHAR(50),
-    created_date DATETIME,
-    updated_by VARCHAR(50),
-    updated_date DATETIME,
-    status_ VARCHAR(20) DEFAULT 'Active',
-
-    CONSTRAINT fk_marks_student FOREIGN KEY (student_id) REFERENCES tbl_student_master(student_id),
-    CONSTRAINT fk_marks_subject FOREIGN KEY (subject_id) REFERENCES tbl_subject_master(subject_id),
-    CONSTRAINT uq_marks_student_subject UNIQUE (student_id, subject_id)
-);
-
 CREATE TABLE tbl_attendance (
     attendance_id INT PRIMARY KEY AUTO_INCREMENT,
     student_id INT NOT NULL,
