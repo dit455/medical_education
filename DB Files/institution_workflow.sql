@@ -229,29 +229,6 @@ CREATE TABLE tbl_student_marks (
 --  ADDITIONAL
 -- ============================================================================
 
-DROP TABLE IF EXISTS tbl_subject_marks_log;
-CREATE TABLE tbl_subject_marks_log (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    course_subject_id INT NOT NULL,
-    exam_type_id INT NOT NULL,
-    old_max_marks INT NULL,
-    old_pass_marks INT NULL,
-    old_total_marks INT NULL,
-    new_max_marks INT NULL,
-    new_pass_marks INT NULL,
-    new_total_marks INT NULL,
-    action_ VARCHAR(10) NOT NULL,
-    signature_name VARCHAR(100) NULL,
-    signed_by VARCHAR(50) NULL,
-    signed_payload TEXT NULL,
-    signature_ TEXT NULL,
-    signed_date DATETIME NULL,
-    changed_by VARCHAR(50),
-    changed_date DATETIME,
-    FOREIGN KEY (course_subject_id) REFERENCES tbl_course_subject_map(course_subject_id),
-    FOREIGN KEY (exam_type_id) REFERENCES tbl_exam_type_master(exam_type_id)
-);
-
 DROP TABLE IF EXISTS tbl_pending_changes;
 CREATE TABLE tbl_pending_changes (
     change_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -525,3 +502,119 @@ CREATE TABLE tbl_feedback (
   reviewed_by VARCHAR(100),
   reviewed_date DATETIME
 );
+---------------------------------------------------------------------------
+-----------------------Nov 18 added tables---------------------------------
+---------------------------------------------------------------------------
+
+
+CREATE TABLE tbl_course_category_master (
+  course_category_id   INT PRIMARY KEY CHECK (course_category_id BETWEEN 0 AND 99),
+  course_category_desc VARCHAR(200),
+  created_by           VARCHAR(50),
+  created_date         DATETIME,
+  updated_by           VARCHAR(50),
+  updated_date         DATETIME,
+  status_              BOOLEAN
+);
+
+INSERT INTO tbl_course_category_master
+  (course_category_id, course_category_desc, created_by, created_date, status_) VALUES
+  (1, 'Diploma', 'system', NOW(), 1),
+  (2, 'Nursing', 'system', NOW(), 1);
+
+
+CREATE TABLE tbl_subject_category_master (
+  subject_category_id   INT PRIMARY KEY CHECK (subject_category_id BETWEEN 0 AND 99),
+  subject_category_desc VARCHAR(200),
+  created_by            VARCHAR(50),
+  created_date          DATETIME,
+  updated_by            VARCHAR(50),
+  updated_date          DATETIME,
+  status_               BOOLEAN
+);
+
+INSERT INTO tbl_subject_category_master
+  (subject_category_id, subject_category_desc, created_by, created_date, status_) VALUES
+  (1, 'Theory',    'system', NOW(), 1),
+  (2, 'Practical', 'system', NOW(), 1);
+
+
+ALTER TABLE tbl_inst_master
+  ADD COLUMN inst_address      VARCHAR(500) NULL,
+  ADD COLUMN affiliated_no     VARCHAR(100) NULL,
+  ADD COLUMN affiliated_to     VARCHAR(200) NULL,
+  ADD COLUMN commencement_date DATE         NULL,
+  ADD COLUMN inst_phone        VARCHAR(20)  NULL;
+
+
+ALTER TABLE tbl_course_master
+  ADD COLUMN course_category_id INT          NULL,
+  ADD COLUMN qualifying_exam    VARCHAR(200) NULL,
+  ADD COLUMN duration_months    INT          NULL,
+  ADD COLUMN no_of_seats        INT          NULL,
+  ADD CONSTRAINT fk_course_category
+      FOREIGN KEY (course_category_id) REFERENCES tbl_course_category_master (course_category_id);
+
+-- 5) Subject master: category ------------------------------------------
+ALTER TABLE tbl_subject_master
+  ADD COLUMN subject_category_id INT NULL,
+  ADD CONSTRAINT fk_subject_category
+      FOREIGN KEY (subject_category_id) REFERENCES tbl_subject_category_master (subject_category_id);
+
+-------------------------------------------------------------------------------------------------
+
+CREATE TABLE tbl_exam_marks_master (
+  exam_marks_id       INT PRIMARY KEY AUTO_INCREMENT,
+  inst_id             INT NULL,           
+  course_id           INT NOT NULL,      
+  subject_id          INT NOT NULL,       
+  course_subject_id   INT NOT NULL,       
+  exam_type_id        INT NOT NULL,       
+  max_marks           INT NOT NULL,
+  min_marks           INT NOT NULL,        
+  subject_category_id INT NULL,            
+  created_by          VARCHAR(50),
+  created_date        DATETIME,
+  updated_by          VARCHAR(50),
+  updated_date        DATETIME,
+  status_             BOOLEAN DEFAULT 1,
+
+  UNIQUE KEY uq_course_subject_exam (course_subject_id, exam_type_id),
+  CHECK (min_marks <= max_marks),
+  FOREIGN KEY (inst_id)             REFERENCES tbl_inst_master (inst_id),
+  FOREIGN KEY (course_id)           REFERENCES tbl_course_master (course_id),
+  FOREIGN KEY (subject_id)          REFERENCES tbl_subject_master (subject_id),
+  FOREIGN KEY (course_subject_id)   REFERENCES tbl_course_subject_map (course_subject_id) ON DELETE CASCADE,
+  FOREIGN KEY (exam_type_id)        REFERENCES tbl_exam_type_master (exam_type_id),
+  FOREIGN KEY (subject_category_id) REFERENCES tbl_subject_category_master (subject_category_id)
+);
+
+
+INSERT INTO tbl_exam_marks_master
+  (course_id, subject_id, course_subject_id, exam_type_id,
+   max_marks, min_marks, subject_category_id, created_by, created_date, status_)
+SELECT m.course_id, m.subject_id, sm.course_subject_id, sm.exam_type_id,
+       sm.max_marks, sm.pass_marks, s.subject_category_id, 'system', NOW(), 1
+FROM tbl_subject_marks sm
+JOIN tbl_course_subject_map m ON m.course_subject_id = sm.course_subject_id
+JOIN tbl_subject_master s     ON s.subject_id = m.subject_id;
+
+
+ALTER TABLE tbl_student_marks
+  ADD COLUMN exam_marks_id INT NULL,
+  ADD CONSTRAINT fk_student_marks_exam_marks
+      FOREIGN KEY (exam_marks_id) REFERENCES tbl_exam_marks_master (exam_marks_id) ON DELETE SET NULL;
+
+
+UPDATE tbl_student_marks sm
+JOIN tbl_exam_marks_master em
+  ON em.subject_id = sm.subject_id AND em.exam_type_id = sm.exam_type_id
+SET sm.exam_marks_id = em.exam_marks_id
+WHERE sm.exam_marks_id IS NULL
+  AND (SELECT COUNT(*) FROM tbl_exam_marks_master x
+       WHERE x.subject_id = sm.subject_id AND x.exam_type_id = sm.exam_type_id) = 1;
+
+DROP TABLE IF EXISTS tbl_subject_marks_log;
+
+
+
